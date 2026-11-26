@@ -1,7 +1,7 @@
-import type { useDesk } from "../desk/use-desk";
+import type { useWorkspace } from "../workspace/use-workspace";
 import type { useAttention } from "../../../core/attention/use-attention.ts";
 
-export type Desk = ReturnType<typeof useDesk>;
+export type Workspace = ReturnType<typeof useWorkspace>;
 export type CatchUp = ReturnType<typeof useAttention>;
 export interface Runtime {
   agent_id: string;

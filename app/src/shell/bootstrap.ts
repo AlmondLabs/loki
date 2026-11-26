@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import type { ConnectProvider } from "../../../core/attention/protocol.ts";
-import { inDesktop } from "../desk/env";
+import { inDesktop } from "../workspace/env";
 import { messageOf } from "../../../core/errors.ts";
 import { invoke, listen } from "./desktop";
 import { welcomeStep } from "../settings/provider-model";

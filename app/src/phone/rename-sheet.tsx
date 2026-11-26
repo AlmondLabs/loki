@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { Button, Field, Sheet } from "../components";
 import { DESK_NAME_MAX, cleanDeskName } from "../shell/sidebar-model";
-import { cleanPurpose, saveRename } from "../desk/rename-desk";
+import { cleanPurpose, saveRename } from "../workspace/rename-chat";
 
 export function RenameSheet({
   name,

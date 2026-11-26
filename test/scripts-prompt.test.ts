@@ -20,8 +20,7 @@ import { scriptExtensions, scriptSandbox } from "../daemon/scripts.ts";
 import { registerAccountScriptTools } from "../mod/account-ops/script-tools.ts";
 import { AccountThreads } from "../mod/account-threads.ts";
 import { Accounts } from "../mod/accounts.ts";
-import { DeskStore } from "../mod/desk-store.ts";
-import { GestureLog } from "../mod/gestures.ts";
+import { CanvasStore } from "../mod/canvas-store.ts";
 import { GmailClient } from "../mod/gmail.ts";
 import { GoogleAuth } from "../mod/google-auth.ts";
 import { registerGoogleTools } from "../mod/google-tools/index.ts";
@@ -63,8 +62,7 @@ async function request(owns: "gmail" | "slack" | null): Promise<{ prompt: string
     apiVersion: 1,
     activate: (api: ModApi) => [
       ...registerTools(api, {
-        store: new DeskStore(),
-        gestures: new GestureLog(),
+        store: new CanvasStore(),
         widgets: { entries: () => [], get: () => undefined, setRuntimeError: () => false, rescan: () => Promise.resolve(), close: () => {} },
         widgetsDir: "/home/loki/.loki/widgets",
         activeScope: () => "c",

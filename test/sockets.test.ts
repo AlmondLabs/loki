@@ -1,6 +1,6 @@
 import { createServer } from "node:http";
 import { describe, expect, test } from "vitest";
-import type { Scope } from "../core/desk-core.ts";
+import type { Scope } from "../core/canvas-core.ts";
 import type { Audience, LokiServer, WsBridge } from "../mod/server.ts";
 import { Sockets, type PhoneListener } from "../mod/sockets.ts";
 
@@ -37,13 +37,13 @@ describe("the mod's sockets (plan 052)", () => {
       () => fakeListener("desktop", sent).bridge,
     );
     sockets.attachPhones(fakeListener("lan", sent).phones);
-    sockets.push({ type: "desks" });
+    sockets.push({ type: "chats" });
     sockets.push({ type: "widgets" }, { scope: "c1" });
     sockets.push({ type: "lan_status" }, { to: "desktop" });
     sockets.push({ type: "group_changed" }, { to: "macs" });
     expect(sent).toEqual([
-      "desktop:desks:-:all",
-      "lan:desks:-:all",
+      "desktop:chats:-:all",
+      "lan:chats:-:all",
       "desktop:widgets:c1:all",
       "lan:widgets:c1:all",
       "desktop:lan_status:-:all",
@@ -54,7 +54,7 @@ describe("the mod's sockets (plan 052)", () => {
 
   test("before the listeners are up a push goes nowhere, and asking for the phone listener says it is not up", () => {
     const sockets = new Sockets();
-    sockets.push({ type: "desks" });
+    sockets.push({ type: "chats" });
     expect(sockets.tabs()).toBe(0);
     expect(sockets.phoneListener()).toBeNull();
     expect(() => sockets.phones()).toThrow(/not up yet/);

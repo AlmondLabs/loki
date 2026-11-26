@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { modBase, platform, systemName, type Platform } from "../desk/env";
+import { modBase, platform, systemName, type Platform } from "../workspace/env";
 import type { Me } from "./pair";
 import { PHONE_APPEARANCE, linkWord, routeOf, updateState, type LinkState, type UpdateState } from "./model";
 import { currentBuild } from "./update-bar";

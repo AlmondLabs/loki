@@ -1,6 +1,5 @@
 import { describe, expect, test } from "vitest";
 import { stampOf } from "../core/attention/queue.ts";
-import { inboxCardSource } from "../core/analytics.ts";
 import {
   applyChatEvent,
   buildItems,
@@ -515,20 +514,5 @@ describe("outside cards (plan 067, U3)", () => {
     const focus = { [keyOf(sender.agentId, sender.conversationId)]: 0.4 };
     expect(one(outside(), { focus }).focus).toBe(0.4);
     expect(one(outside({ sender: "someone@else.com" }), { focus }).focus).toBe(0);
-  });
-});
-
-describe("an outside card in analytics (plan 067)", () => {
-  test("says where it came from and whose it is, and nothing of its account, sender, subject or text", () => {
-    const card = {
-      agent_id: "account:gmail:ada@acme.com",
-      id: "t1#1",
-      title: "Quarterly numbers",
-      outside: { provider: "gmail" as const, owner_agent_id: "agent-work", sender: "Grace", subject: "Quarterly numbers", lines: ["Can you look?"] },
-    };
-    const props = inboxCardSource(card);
-    expect(props).toEqual({ source: "gmail", desk: null, agent: "agent-work" });
-    expect(JSON.stringify(props)).not.toMatch(/ada@acme|Grace|Quarterly|look/);
-    expect(inboxCardSource({ agent_id: "a", id: "c1" })).toMatchObject({ source: "chat", agent: "a" });
   });
 });

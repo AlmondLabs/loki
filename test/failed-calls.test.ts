@@ -5,7 +5,7 @@ import { DOCTOR_INSTRUCTIONS } from "../daemon/doctor.ts";
 import { FAILURE_RULE } from "../daemon/memory.ts";
 import { INSTRUCTIONS, reflectionJob } from "../daemon/reflection.ts";
 import { learnJob } from "../daemon/learn.ts";
-import { formatTranscript } from "../mod/recall-worker.ts";
+import { formatTranscript } from "../mod/learn-worker.ts";
 import { TOOL_TEXT_MAX, withResult } from "../core/harness.ts";
 import type { TranscriptRow } from "../core/attention/transcript.ts";
 

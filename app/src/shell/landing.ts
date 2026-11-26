@@ -1,5 +1,5 @@
-import { SHARED_SCOPE } from "../../../core/desk-core.ts";
-import type { DeskSummary } from "../../../core/frame-types.ts";
+import { SHARED_SCOPE } from "../../../core/canvas-core.ts";
+import type { ChatSummary } from "../../../core/frame-types.ts";
 import { sourceFor } from "./sidebar-model";
 
 export type Landing = { kind: "flow" } | { kind: "chat"; scope: string; source: string } | { kind: "none" };
@@ -14,7 +14,7 @@ export function landing({
   scope: string;
   onChats: boolean;
   ready: boolean;
-  desks: readonly DeskSummary[];
+  desks: readonly ChatSummary[];
   waiting: number;
 }): Landing | null {
   if (!ready || !onChats || scope !== SHARED_SCOPE) return null;

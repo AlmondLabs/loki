@@ -12,7 +12,7 @@ import type { MailReactions } from "./mail-reactions.ts";
 import { headerPeople } from "../core/mail-header.ts";
 import type { MailPeople } from "./mail-people.ts";
 
-export type GmailSyncClient = Pick<GmailClient, "profile" | "sendAsAddresses" | "historySince" | "listInbox" | "getThread">;
+export type GmailSyncClient = Pick<GmailClient, "profile" | "sendAsAddresses" | "historySince" | "listFlow" | "getThread">;
 
 export interface GmailSyncOptions {
   accounts: Pick<Accounts, "get" | "setBackfill">;
@@ -218,7 +218,7 @@ export class GmailSync implements AccountSync {
           if (changes.history.length > 0 || changes.history_id !== cursor.history_id) this.save({ ...cursor, history_id: changes.history_id });
         }
       }
-      await this.listInbox(own);
+      await this.listFlow(own);
     });
   }
 
@@ -256,7 +256,7 @@ export class GmailSync implements AccountSync {
     );
     let pageToken: string | undefined;
     do {
-      const page = await this.opts.client.listInbox(pageToken);
+      const page = await this.opts.client.listFlow(pageToken);
       for (const threadId of page.threads) if (this.opts.threads.get(this.accountId, threadId)) threadIds.add(threadId);
       pageToken = page.nextPageToken;
     } while (pageToken);
@@ -373,13 +373,13 @@ export class GmailSync implements AccountSync {
     return this.opts.accounts.get(this.accountId)?.status === "connected";
   }
 
-  private async listInbox(own: string[]): Promise<void> {
+  private async listFlow(own: string[]): Promise<void> {
     if (!this.cursor()?.more) return;
     let room = PAST_CAP - this.opts.threads.list(this.accountId).filter((r) => r.state === "open" && !this.opts.resting?.(r)).length;
     if (room <= 0) return;
     let pageToken: string | undefined;
     do {
-      const page = await this.opts.client.listInbox(pageToken);
+      const page = await this.opts.client.listFlow(pageToken);
       for (const threadId of page.threads) {
         if (this.opts.threads.get(this.accountId, threadId)) continue;
         const synced = await this.syncThread(threadId, own, true);

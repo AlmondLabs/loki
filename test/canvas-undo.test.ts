@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
-import type { Gesture } from "../core/desk-core.ts";
-import { takeUndo } from "../app/src/desk/use-desk.ts";
+import type { Gesture } from "../core/canvas-core.ts";
+import { takeUndo } from "../app/src/workspace/use-workspace.ts";
 
 const move = (id: string): Gesture => ({ kind: "move", id, position: { x: 0, y: 0 } });
 

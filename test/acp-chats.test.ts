@@ -59,7 +59,6 @@ function setup(
     () => AgentStore.open({ storage: new MemoryStorage() }, { models, registry: mods.registry }, ctx),
   );
   const pushed: Array<{ conversationId: string; events: ChatEvent[] }> = [];
-  const captured: Array<{ event: string; properties: Record<string, unknown> }> = [];
   const logged: string[] = [];
   const make = () => {
     const approvals = new Approvals();
@@ -78,7 +77,6 @@ function setup(
       report: (line) => logged.push(line),
       homeDir: dir,
       cacheFile: join(dir, "state", "acp-offered.json"),
-      capture: (event, properties) => captured.push({ event, properties }),
     });
     const chats = new DaemonChats({
       stores,
@@ -137,7 +135,6 @@ function setup(
     },
     mods,
     pushed,
-    captured,
     logged,
     events,
     words,
@@ -243,13 +240,11 @@ describe("ACP agents (plan 020)", () => {
   test("Stop ends a turn whose agent never answers it, and the chat takes the next message", async () => {
     const s = setup({ stopWaitMs: 20 });
     const id = await s.chat();
-    const turns = () => s.captured.filter((c) => c.event === "turn_finished").map((c) => c.properties);
     await s.chats.send({ agent_id: "ada", conversation_id: id, text: "deaf", images: [], context: null, send_id: null });
     await until(() => s.events().some((e) => e.kind === "step" && e.step.kind === "assistant" && e.step.text === "working"));
     await s.chats.abort("ada", id);
     await until(() => s.events().filter((e) => e.kind === "turn_end").length === 1);
     expect(s.errors()).toContain("the agent did not answer the stop, so loki ended the turn without it");
-    expect(turns()[0]).toMatchObject({ stop_reason: "cancelled", error_code: "aborted" });
     expect(s.words()).toContain("working");
     await s.say(id, "hello");
     expect(s.words()).toContain("Hi there");
@@ -265,52 +260,6 @@ describe("ACP agents (plan 020)", () => {
     await until(() => s.events().some((e) => e.kind === "turn_end"));
     expect(s.words()).toContain("Hi there");
     expect(s.errors()).toEqual([]);
-  });
-
-  test("each turn is one turn_finished line: the agent's tokens and cost, its calls, and how it ended", async () => {
-    const s = setup();
-    const id = await s.chat();
-    const turns = () => s.captured.filter((c) => c.event === "turn_finished").map((c) => c.properties);
-    await s.say(id, "hello");
-    expect(turns()).toHaveLength(1);
-    expect(turns()[0]).toMatchObject({
-      desk: id,
-      chat: id,
-      agent: "ada",
-      model: "acp:fake/fake-sonnet",
-      harness_version: "acp:fake",
-      origin: "message",
-      input_tokens: 100,
-      output_tokens: 20,
-      cache_read_tokens: 50,
-      cache_write_tokens: 10,
-      cache_share: 0.313,
-      responses: 1,
-      tool_calls: 0,
-      model_ms: null,
-      tool_ms: null,
-      overhead_ms: null,
-      stop_reason: "end_turn",
-      error: false,
-      error_code: null,
-    });
-    expect(turns()[0].cost).toBeGreaterThan(0);
-    expect(typeof turns()[0].ttft_ms).toBe("number");
-    expect(turns()[0].total_ms).toBeGreaterThanOrEqual(turns()[0].ttft_ms as number);
-    expect(turns()[0].turn_id).toBe(s.events().find((e) => e.kind === "turn_end")?.turn_id);
-
-    await s.say(id, "write");
-    expect(turns()[1]).toMatchObject({ tool_calls: 1, tool_failures: 0 });
-
-    await s.chats.send({ agent_id: "ada", conversation_id: id, text: "wait", images: [], context: null, send_id: null });
-    await until(() => s.events().some((e) => e.kind === "step" && e.step.kind === "assistant" && e.step.text === "working"));
-    await s.chats.abort("ada", id);
-    await until(() => turns().length === 3);
-    expect(turns()[2]).toMatchObject({ stop_reason: "cancelled", error: true, error_code: "aborted" });
-
-    await s.say(id, "crash");
-    expect(turns()[3]).toMatchObject({ stop_reason: null, error: true, error_code: "agent_error" });
-    expect(typeof turns()[3].ttft_ms).toBe("number");
   });
 
   test("a message sent twice runs once, and one sent mid-turn waits its turn", async () => {

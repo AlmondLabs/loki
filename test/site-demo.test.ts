@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { DemoChats, type Schedule } from "../site/src/demo-chats.ts";
 import { dismissLead, gradeCard, removeCard, restoreCard, startingLearn } from "../site/src/demo-learn.ts";
-import { dueCount } from "../core/recall/model.ts";
+import { dueCount } from "../core/learn/model.ts";
 
 const NOW = Date.parse("2026-11-02T10:00:00Z");
 

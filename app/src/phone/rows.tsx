@@ -1,6 +1,6 @@
 import { useRef, type ReactNode } from "react";
 import { countText } from "../components";
-import { AgentFace } from "../desk/agent-chip";
+import { AgentFace } from "../workspace/agent-chip";
 import { Icon, type IconName } from "./icons";
 
 export function useHold(onHold: (() => void) | null | undefined) {

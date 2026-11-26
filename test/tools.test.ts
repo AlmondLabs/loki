@@ -1,11 +1,10 @@
 import { describe, expect, test } from "vitest";
 import { registerTools, type ToolDeps } from "../mod/tools.ts";
-import { DeskStore } from "../mod/desk-store.ts";
-import { GestureLog } from "../mod/gestures.ts";
+import { CanvasStore } from "../mod/canvas-store.ts";
 import type { ModApi, ModTool } from "../daemon/mods/api.ts";
-import type { WidgetManifestEntry } from "../core/desk-core.ts";
+import type { WidgetManifestEntry } from "../core/canvas-core.ts";
 import { must } from "./fixtures/must.ts";
-import type { DeskSummary, Suggestion } from "../core/frame-types.ts";
+import type { ChatSummary, Suggestion } from "../core/frame-types.ts";
 import { Suggestions } from "../mod/suggestions.ts";
 import { asks, kindOf } from "../daemon/approvals.ts";
 
@@ -72,15 +71,12 @@ function harness(deps?: Partial<ToolDeps>) {
       },
     },
   } as unknown as ModApi;
-  const store = new DeskStore();
+  const store = new CanvasStore();
   store.gesture("c1", { kind: "set", id: "c1/sleep", path: "value", value: 7 });
-  const gestures = new GestureLog();
-  gestures.record("c1", "moved something");
   const broadcasts: Array<[unknown, string | undefined]> = [];
   const entries = [sleep, welcome];
   registerTools(api, {
     store,
-    gestures,
     widgets: {
       entries: (s) => entries.filter((e) => !s || e.scope === s),
       get: (id) => entries.find((e) => e.id === id),
@@ -96,15 +92,14 @@ function harness(deps?: Partial<ToolDeps>) {
   return { tools, broadcasts, sections };
 }
 
-interface DeskState {
+interface CanvasState {
   desk: string;
   widgets_dir: string;
   widgets: Array<{ id: string }>;
   shared?: Array<{ error?: unknown }>;
-  pending_canvas_activity: unknown;
 }
 const deskState = async (tools: Map<string, Called>, c: Parameters<Called["run"]>[0]) =>
-  JSON.parse((await must(tools.get("canvas_read"), "canvas_read").run(c)) as string) as DeskState;
+  JSON.parse((await must(tools.get("canvas_read"), "canvas_read").run(c)) as string) as CanvasState;
 
 describe("the mod's tools", () => {
   test("canvas_read and canvas_focus always, and no task_* tool: Tasks is retired into suggestions (plan 049, U6)", () => {
@@ -115,7 +110,7 @@ describe("the mod's tools", () => {
 });
 
 describe("canvas_read", () => {
-  test("returns own desk + shared, merged data, layout, errors, pending activity", async () => {
+  test("returns own desk + shared, merged data, layout, and errors", async () => {
     const { tools } = harness();
     const out = await deskState(tools, { args: {} });
     expect(out.desk).toBe("c1");
@@ -123,7 +118,6 @@ describe("canvas_read", () => {
     expect(out.widgets[0]).toMatchObject({ id: "c1/sleep", file: "/proj/app/src/widgets/c1/sleep.json", data: { value: 7 }, error: 'missing "title"' });
     expect(must(out.shared, "the shared desk")[0]).toMatchObject({ id: "shared/welcome", data: { lines: ["a"] } });
     expect(must(out.shared, "the shared desk")[0].error).toBeUndefined();
-    expect(out.pending_canvas_activity).toEqual(["moved something"]);
   });
   test("the desk comes from the calling conversation, not the mod's active desk", async () => {
     const remembered: string[] = [];
@@ -192,7 +186,7 @@ describe("chat_list and the suggestion tools", () => {
   const FRIDAY = "agent-local-friday";
   const IRA = "agent-local-ira";
   const NOVA = "agent-local-nova";
-  const desk = (d: Partial<DeskSummary> & { conversation_id: string; agent_id: string }): DeskSummary => ({
+  const desk = (d: Partial<ChatSummary> & { conversation_id: string; agent_id: string }): ChatSummary => ({
     scope: d.conversation_id,
     title: null,
     status: "live",

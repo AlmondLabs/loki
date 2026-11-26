@@ -97,8 +97,7 @@ trigger, the same cursors, the same hidden chat run as the agent itself, one run
 ### What it costs, and the levers
 
 Every run is one model turn as the agent, carrying the agent's whole fixed prompt (its system prompt and memory)
-on top of the batch: up to 80k characters, at most 24k from any one conversation. Each run is measured
-(`bun run analytics`, the background passes section). Two levers:
+on top of the batch: up to 80k characters, at most 24k from any one conversation. Two levers:
 
 1. **The agent's memory size.** This is most of every ask. An agent whose `memory/system` folder has grown to
    tens of thousands of tokens pays that on every run and every turn of every lesson; moving bulk from `system/`

@@ -2,9 +2,9 @@ import { describe, expect, test } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { OutsideFacts } from "../core/frame-types.ts";
-import { MAIL_POLICY, darkRulesOff, inlineImages, linkParts, mailDocument, openableHref, quoteFolds } from "../app/src/desk/mail-html.tsx";
-import { OutsideThread } from "../app/src/desk/outside-card.tsx";
-import { firstLine } from "../app/src/desk/mail-thread.tsx";
+import { MAIL_POLICY, darkRulesOff, inlineImages, linkParts, mailDocument, openableHref, quoteFolds } from "../app/src/workspace/mail-html.tsx";
+import { OutsideThread } from "../app/src/workspace/outside-card.tsx";
+import { firstLine } from "../app/src/workspace/mail-thread.tsx";
 
 const BILL = [
   "<html><head><style>.total{font-weight:bold}</style><script>steal()</script></head>",

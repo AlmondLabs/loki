@@ -2,9 +2,9 @@ import { describe, expect, test } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-const RECALL = join(import.meta.dirname, "..", "app", "src", "recall");
-const deck = readFileSync(join(RECALL, "recall.tsx"), "utf8");
-const parts = readFileSync(join(RECALL, "recall-parts.tsx"), "utf8");
+const RECALL = join(import.meta.dirname, "..", "app", "src", "learn");
+const deck = readFileSync(join(RECALL, "learn.tsx"), "utf8");
+const parts = readFileSync(join(RECALL, "learn-parts.tsx"), "utf8");
 
 describe("Learn's deck", () => {
   test("no strip of keys under the deck", () => {

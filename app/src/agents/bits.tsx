@@ -1,7 +1,7 @@
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { MARKDOWN_COMPONENTS } from "../chat/markdown-image";
-import { stripFrontmatter } from "../phone/model";
+import { stripFrontmatter } from "../shared/agent-model";
 
 export function Head({ children }: { children: React.ReactNode }) {
   return (

@@ -1,6 +1,6 @@
 import type { SlackReaction } from "../../../core/frame-types.ts";
 import { Button } from "@/ui/button";
-import { Emoji } from "../desk/slack-reactions";
+import { Emoji } from "../workspace/slack-reactions";
 
 const slackTitle = (r: SlackReaction) => `:${r.name}:`;
 

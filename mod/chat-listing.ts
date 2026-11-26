@@ -1,15 +1,15 @@
-import { SHARED_SCOPE, type Scope } from "../core/desk-core.ts";
-import type { DeskInfo, DeskSummary, InboxRow, LocalAgent, ReplyProposal } from "../core/frame-types.ts";
+import { SHARED_SCOPE, type Scope } from "../core/canvas-core.ts";
+import type { ChatMeta, ChatSummary, FlowRow, LocalAgent, ReplyProposal } from "../core/frame-types.ts";
 import { DEFAULT_MODE } from "../core/chat-links.ts";
 import { reasoningEffortFromSettings } from "../core/models.ts";
-import { isLearnTitle } from "../core/recall/model.ts";
+import { isLearnTitle } from "../core/learn/model.ts";
 import { backendDir, readLocalAgent } from "./agents.ts";
 import type { ChatSource } from "./chat-source.ts";
-import { agentHasMemory, hiddenScopes, type DeskRegistry, type LocalConversationRow } from "./desks.ts";
-import { sortDesks } from "./frames/desks.ts";
+import { agentHasMemory, hiddenScopes, type ChatRegistry, type LocalConversationRow } from "./chats.ts";
+import { sortChats } from "./frames/canvas.ts";
 import { log } from "./log.ts";
 
-export type DeskFacts = DeskInfo & { last_active: string | null };
+export type ChatFacts = ChatMeta & { last_active: string | null };
 
 interface Agents {
   record(agentId: string): LocalAgent | null;
@@ -18,21 +18,21 @@ interface Agents {
 
 const nameOf = (agent: LocalAgent | null): string | null => (agent && agent.name !== agent.id ? agent.name : null);
 
-export interface DeskTitleFrame {
-  type: "desk_title";
+export interface ChatMetaFrame {
+  type: "chat_meta";
   scope: Scope;
   title: string;
-  status: DeskInfo["status"];
+  status: ChatMeta["status"];
   agent_name: string | null;
   model: string | null;
-  reasoning_effort: DeskInfo["reasoning_effort"];
+  reasoning_effort: ChatMeta["reasoning_effort"];
   mode: string | null;
 }
 
 export class ChatListing {
   private readonly opts: {
     chats: ChatSource;
-    desks: DeskRegistry;
+    desks: ChatRegistry;
     layouts: () => Iterable<Scope>;
     widgets: { entries: (scope?: Scope) => ReadonlyArray<{ scope: Scope }> };
     pins: () => Set<string>;
@@ -40,7 +40,7 @@ export class ChatListing {
     activeScope: () => Scope;
     backendDir?: string;
     readAgent?: (agentId: string) => LocalAgent | null;
-    outside?: () => InboxRow[];
+    outside?: () => FlowRow[];
     replies?: (agentId: string, conversationId: string) => ReplyProposal[];
   };
 
@@ -48,7 +48,7 @@ export class ChatListing {
     this.opts = opts;
   }
 
-  desks(): DeskSummary[] {
+  summaries(): ChatSummary[] {
     const { chats, desks, widgets } = this.opts;
     const agents = this.agents();
     const passChat = this.opts.passChats();
@@ -64,7 +64,7 @@ export class ChatListing {
     const hidden = hiddenScopes(rows);
     const pins = this.opts.pins();
     const active = this.opts.activeScope();
-    return sortDesks(
+    return sortChats(
       [...scopes]
         .filter((scope) => !hidden.has(scope))
         .map((scope) => {
@@ -93,10 +93,10 @@ export class ChatListing {
     );
   }
 
-  inbox(): InboxRow[] {
+  flow(): FlowRow[] {
     const { chats } = this.opts;
     const agents = this.agents();
-    const out: InboxRow[] = [];
+    const out: FlowRow[] = [];
     for (const c of this.shown(chats.list(), agents, this.opts.passChats())) {
       if (c.archived) continue;
       const info = chats.info(c.conversationId, c.agentId);
@@ -122,7 +122,7 @@ export class ChatListing {
     return out.sort((a, b) => (b.last_message_at ?? "").localeCompare(a.last_message_at ?? ""));
   }
 
-  info(scope: Scope, agents = this.agents()): DeskFacts {
+  info(scope: Scope, agents = this.agents()): ChatFacts {
     const none = { title: null, status: "none", agent_name: null, agent_id: null, model: null, reasoning_effort: null, last_active: null } as const;
     if (scope === SHARED_SCOPE) return { ...none, title: "shared" };
     const rt = this.opts.desks.get(scope);
@@ -147,11 +147,11 @@ export class ChatListing {
     };
   }
 
-  titleFrame(scope: Scope): DeskTitleFrame | null {
+  titleFrame(scope: Scope): ChatMetaFrame | null {
     const info = this.info(scope);
     if (!info.title) return null;
     return {
-      type: "desk_title",
+      type: "chat_meta",
       scope,
       title: info.title,
       status: info.status,

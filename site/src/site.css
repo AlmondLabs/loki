@@ -313,20 +313,20 @@ body {
   color: var(--loki-fg);
 }
 
-.site-inbox-deck {
+.site-flow-deck {
   position: relative;
   height: 620px;
   overflow: hidden;
   display: grid;
   grid-template-columns: minmax(220px, 300px) minmax(0, 1fr);
 }
-.site-inbox-list {
+.site-flow-list {
   display: flex;
   flex-direction: column;
   min-height: 0;
   border-right: 1px solid var(--loki-border);
 }
-.site-inbox-detail {
+.site-flow-detail {
   position: relative;
   min-width: 0;
   min-height: 0;
@@ -376,7 +376,7 @@ body {
   .site-nav .site-button-small {
     margin-left: auto;
   }
-  .site-inbox-deck {
+  .site-flow-deck {
     height: 560px;
   }
 }

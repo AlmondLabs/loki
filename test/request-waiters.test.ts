@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { LINK_CLOSED, RequestWaiters } from "../app/src/desk/request-waiters.ts";
+import { LINK_CLOSED, RequestWaiters } from "../app/src/workspace/request-waiters.ts";
 
 describe("requests waiting on the mod's answer", () => {
   test("an answer goes to whoever asked, once", () => {
@@ -7,9 +7,9 @@ describe("requests waiting on the mod's answer", () => {
     const got: unknown[] = [];
     w.wait("r1", (m) => got.push(m));
     w.sent("r1", "socket-a");
-    expect(w.answer("r1", { type: "desks", request_id: "r1" })).toBe(true);
-    expect(w.answer("r1", { type: "desks", request_id: "r1" })).toBe(false);
-    expect(got).toEqual([{ type: "desks", request_id: "r1" }]);
+    expect(w.answer("r1", { type: "chats", request_id: "r1" })).toBe(true);
+    expect(w.answer("r1", { type: "chats", request_id: "r1" })).toBe(false);
+    expect(got).toEqual([{ type: "chats", request_id: "r1" }]);
   });
 
   test("a socket that closes answers what went out on it with an error; the rest keeps waiting", () => {
@@ -33,7 +33,7 @@ describe("requests waiting on the mod's answer", () => {
     w.wait("early", (m) => got.push(m));
     w.hold("early", { type: "history_get", request_id: "early" });
     w.wait("gave-up", () => {});
-    w.hold("gave-up", { type: "desks", request_id: "gave-up" });
+    w.hold("gave-up", { type: "chats", request_id: "gave-up" });
     w.drop("gave-up");
     const out: object[] = [];
     w.flush("socket-a", (f) => out.push(f));

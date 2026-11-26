@@ -338,7 +338,7 @@ export class GmailClient {
     };
   }
 
-  async listInbox(pageToken?: string): Promise<GmailThreadPage> {
+  async listFlow(pageToken?: string): Promise<GmailThreadPage> {
     const r = rec(await this.call("GET", "/threads", { labelIds: "INBOX", maxResults: "500", ...(pageToken ? { pageToken } : {}) }));
     const next = str(r.nextPageToken);
     return {

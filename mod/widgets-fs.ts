@@ -2,8 +2,8 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, watch, type
 import { createHash } from "node:crypto";
 import type * as esbuild from "esbuild";
 import { join } from "node:path";
-import type { Scope, WidgetKind, WidgetManifestEntry } from "../core/desk-core.ts";
-import { KIT } from "../core/desk-core.ts";
+import type { Scope, WidgetKind, WidgetManifestEntry } from "../core/canvas-core.ts";
+import { KIT } from "../core/canvas-core.ts";
 import { serialQueue } from "../core/serial.ts";
 import { debounce } from "../core/timers.ts";
 import { messageOf } from "../core/errors.ts";

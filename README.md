@@ -218,8 +218,7 @@ skills/loki/    the vocabulary the agent reads (kit types, .tsx contract, rules)
 desktop/        the desktop shell (Electron, TypeScript; macOS, Windows, Linux): finds Node, starts and supervises
                 the daemon, hosts the canvas, updates the app
 scripts/        dev (`bun run start`), build-desktop (the shell's bundle), build-mod (the daemon and mod bundles the app
-                ships), trial (the timing trial), cask (Homebrew), release (date versions, notes), analytics (the local
-                usage report)
+                ships), trial (the timing trial), cask (Homebrew), release (date versions, notes)
 test/           vitest tests, on Node; test-node/ the tests that need Node's own runner (SQLite stores, resuming after a crash)
 docs/           the manual, learn (the mental model), architecture, design direction, dated plans and research; CONTRIBUTING, SECURITY and RELEASING
 ```
@@ -229,7 +228,7 @@ docs/           the manual, learn (the mental model), architecture, design direc
 You need Node 22.19 or newer (`brew install node`: it runs Vite, the tests and loki's daemon), bun
 (`brew install oven-sh/bun/bun`: it installs the packages and runs package.json's scripts, each on Node) and Xcode's
 command line tools (`xcode-select --install`, for git). A development window runs the checkout's own daemon,
-`daemon/main.ts` with `mod/boot.ts`, so an edit to the mod reloads it in place. On a machine that has never run loki,
+`daemon/main.ts`, which hosts the built-in mod directly. On a machine that has never run loki,
 it also links `~/.agents/skills/loki` to `skills/loki`, and leaves anything already there alone.
 
 ```bash

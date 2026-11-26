@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { inDesktop } from "../desk/env";
+import { inDesktop } from "../workspace/env";
 import { invoke } from "./desktop";
 
 /** What launch did about the mod, the skill and the phone canvas: the shell's `install_status` answer. */

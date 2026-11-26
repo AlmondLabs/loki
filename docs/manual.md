@@ -156,13 +156,7 @@ in October 2026 did. Before the first start rewrites a store, loki copies it who
 `~/.loki/stores/backup-schema-<version>-<date>/`. An older loki cannot open the rewritten store, so those copies are the
 way back to it; delete them once you are happy. Each Mac copies and rewrites its own stores on its own first start.
 
-Saved chats are kept in the shapes loki writes now, so an old chat reads and resumes like a new one. Versions up to
-2026.1116 rewrote what older ones had saved, once, as each store or file first opened: loki's tool names, which changed
-several times in October and November 2026, the shapes of chats imported from Letta, and field names in loki's own
-files. An "always allow" for a renamed tool carried to its new name. Later versions read only today's shapes, so a Mac
-still on 2026.1022 or older installs and opens 2026.1116 once before it updates further. A later version that finds a
-loki folder 2026.1116 never opened, or an agent's chats 2026.1116 could not finish rewriting, does not start: the
-window says to install 2026.1116, open it once, then update again, and the daemon's log names what it found. In November 2026
+Saved chats are kept in the current store shapes. In November 2026
 `image_view`, `ls`, `find`, `grep`, `skill`, `suggestion_list`, `suggestion_withdraw`, `reply_list` and
 `reply_withdraw` went, since another tool or the chat itself already does what each did (see [Scripts](#scripts) for
 where `ls`, `find` and `grep` remain); old chats show their calls as they were. A chat on Claude Code, Cursor or
@@ -172,9 +166,7 @@ Leaving Letta behind changed a few things once on each Mac, up to 2026.1116: age
 ChatGPT's provider and kept their effort as `reasoning_effort`, memory files that named `~/.letta/loki` came to name
 `~/.loki` in a commit by loki, chats ran on pi-ai's model names in folders under `~/.loki`, Learn's chats from Letta
 were hidden, and a helper agent Letta made was moved to `~/.loki/backend/backup-letta-<date>/`. loki no longer moves
-or links `~/.letta/loki`, and it never deletes `~/.letta`, which is Letta's. Keep `~/.loki/stores/migrations.json`
-and `~/.loki/state/migrations.json`: they are how loki tells a folder 2026.1116 opened from an older one, and
-without them it does not start. The other files those steps left, such as the `backup-letta-<date>` folders, are no
+or links `~/.letta/loki`, and it never deletes `~/.letta`, which is Letta's. The other files those steps left, such as the `backup-letta-<date>` folders, are no
 longer read and can be deleted.
 (Later updates moved `find` and `grep` back to the model's tools too, while folding `ls` into `find`'s `max_depth` and `memory_delete` into writing `null` with `memory_write`.)
 
@@ -397,7 +389,7 @@ are on is read.
         advisor), agent and model spent. Choosing a line narrows the page to it. The figures are estimates at each
         provider's API prices, from pi-ai's model table; a subscription sign-in (ChatGPT, say) is billed by its
         plan, not by these, and a model with no known price counts its tokens but not a cost. The daemon keeps the
-        record in `~/.loki/state/usage.json`, by hour, for 400 days, whether analytics is on or off; history from
+        record in `~/.loki/state/usage.json`, by hour, for 400 days; history from
         before it began comes once from `events.jsonl`, with its cost not split by token type.
 
 **⌘K** opens search from anywhere: chats, agents, what waits on you in Flow, and the app's pages (each
@@ -624,7 +616,7 @@ loki's mod runs inside the daemon and owns the canvas and the sockets the app co
 - appends what the user did on the canvas to their next turn (`turn_start`)
 - carries each chat between the app and the daemon over its socket (`/ws` on 127.0.0.1:41414): the chat's
   conversation and Flow cards are one model (`core/attention`), streaming token by token
-- lists every open conversation for Flow (`inbox_list`): main chats included, however old, with who spoke
+- lists every open conversation for Flow (`flow_get`): main chats included, however old, with who spoke
   last; a conversation leaves Flow by being archived
 - keeps the recall cards (`recall_*`); the daemon's Learn pass writes them: once a conversation has been quiet for half an
   hour it reads the new stretch, asks the agent in its hidden "recall" conversation, and writes cards up to the day's
@@ -655,15 +647,13 @@ bun run start
 
 `bun run start` builds the page into `app/dist` when one of its sources is newer (about fifteen seconds), bundles the
 shell (`desktop/`) with esbuild in well under a second, and opens the Electron window on `app/dist`, served from
-`loki://app`. The window finds Node and starts the daemon from the checkout (`daemon/main.ts`, hosting `mod/boot.ts`).
+`loki://app`. The window finds Node and starts the daemon from the checkout (`daemon/main.ts`, which hosts the built-in mod).
 The script waits for the mod: if nothing answers on its port after a minute and a half, it says so and names the
 daemon's log, `~/.loki/logs/daemon.log`. Ctrl-C stops all of it. A change to the shell itself shows the next time you
 start the window. A development window keeps an Electron profile of its own for each checkout, so it opens beside
 the installed app and beside another worktree's window.
 
-`bun run start` puts you in control of when the checkout's changes arrive, after a `git pull` or an edit. The mod reloads
-in place when `mod/` or `core/` changes, a moment after the last file changed. A mod that does not build or does not
-start is reported in the log, and the one that was running keeps serving, so the window stays connected. A change to `app/`, `daemon/` or `core/` waits: the window shows "loki's code
+`bun run start` puts you in control of when the checkout's changes arrive, after a `git pull` or an edit. A change to `app/`, `daemon/`, `mod/` or `core/` waits: the window shows "loki's code
 changed" with **update** and **later**, and loki never updates by itself. **update** builds the page if it changed
 (the window and the phone reload on the new build) and restarts the daemon if its code changed (the window reconnects
 a second later). A page that does not build stays as it was, and the notice says what failed. While a chat is working
@@ -946,7 +936,7 @@ back to the list. Esc does not leave Flow; ⌘1 or the sidebar does. Preferences
 return times for each kind of card (see "Return times" below).
 The list's title is the lane's name ("Flow" in Everything) with how many of its cards need you. A visit is your time in
 the Flow place: switching lanes stays in it, and leaving Flow for another place ends it; coming back starts a fresh one.
-Flow runs in the browser. Its list is the mod's: every open conversation of your agents (`inbox_list`), main
+Flow runs in the browser. Its list is the mod's: every open conversation of your agents (`flow_get`), main
 chats included, with who spoke last — nothing is windowed by age or capped by count, so a conversation only leaves
 Flow when it is archived (main chats are never archived, so they always stay). The live half — streaming,
 approvals, answers — comes over the same socket. The read (`seen`), viewed and focus marks live in
@@ -1014,7 +1004,7 @@ as "badly written", one deleted unseen as "not wanted". Cards you keep failing a
 for a rewrite. E edits in place, O or ⌘O opens the chat it came from, Z undoes a delete, ⌘R refreshes. **All Cards** lists every
 card, the newest edit first, with Search (⌥⌘F; fronts, backs and tags) and a grey line under its title saying when
 Learn last wrote and how many cards today; choosing one edits it in the detail, with Delete. The writer's knobs — on/off,
-cards a day, run now — and an export in Anki's plain-text import format are in Preferences › Learn. Everything is files: `~/.loki/recall/{cards,schedule,rejected}/<id>.json`,
+cards a day, run now — and an export in Anki's plain-text import format are in Preferences › Learn. Everything is files: `~/.loki/learn/{cards,schedule,rejected}/<id>.json`,
 content and review history kept apart so the writer's edits never touch your schedule. The writer asks each agent in a
 hidden conversation of the agent's own, cleared before each run and with no tools, and only for concepts,
 principles and knowledge of your field that will still be true in months — never a detail of the task at hand;
@@ -1031,7 +1021,7 @@ can tick, ask before telling, one idea at a time, a cold quiz at the end. A less
 conversation is still empty) is listed under **Lessons Under Way** with **Send the Brief**.
 **Not This** moves the lead to a dismissed pile the writer reads before proposing again. **Deleted** lists the deleted
 cards and the dismissed leads in two sections, each with **Restore** (and **Forget** for a card, which drops it from the
-pile the writer reads). Learn conversations are chats in the sidebar and never cards in Flow. Files: `~/.loki/recall/{leads,leads-dismissed,lessons}/`.
+pile the writer reads). Learn conversations are chats in the sidebar and never cards in Flow. Files: `~/.loki/learn/{leads,leads-dismissed,lessons}/`.
 The plan is `docs/plans/2026-09-12-008-feat-loki-learn-plan.md`.
 
 Every chat row, chat header, message and card in Flow shows the face of the agent that owns the conversation (its
@@ -1144,7 +1134,7 @@ A rest keeps the time it was given, so a change counts from the next press on. H
 question the second later asks, are not settings. Undo puts the card back at once, on the rung it had. Once only
 resting cards are left, Flow says how many and offers to go through them. The Mac's loki process keeps the rests
 and the return times beside the focus weights (`rests` and `return_times` in `state/attention.json`), and paired Macs and the phone share
-them; `bun run analytics` reports how often a card back from a rest is acted on, by rung.
+them.
 
 Each card says `in focus` after its time when focus is worth 3 points or more (blocked cards say it with their
 badge). The order is recomputed on every event — an approval or reply on the card in front of you, a turn
@@ -1152,21 +1142,7 @@ finishing or blocking anywhere, the half-minute clock — and again whenever a c
 front of you never moves until you act on it; whatever arrives lands behind it. `core/attention/priority.ts`
 is the score, `core/attention/focus.ts` the focus, `core/attention/rest.ts` the rest.
 
-**What Flow is tuned for: finished work.** Engagement counts every reply as a win, a shallow one too, and it
-rose the more you hopped between chats. So `bun run analytics` leads with finished work: chats archived, and a day;
-the messages a finished chat took (median, counting chats you messaged in the period); and how often, coming back to
-a chat within three hours, you had messaged none, 1, 2 or 3+ other chats in between. Engagement stays beside it for
-comparison. Every card that comes to the top is logged (`inbox_card_shown`),
-and every decision on it (`inbox_card_decided`: what you did and how — a key, a click, a swipe or a tap — which
-chat, where the card stood, its score, focus and reason, whether it was new, how long the chat had been quiet and
-how long the card was on top, counting only the time loki's window was visible and focused). `bun run analytics`
-reports how often you engage with a card (reply, answer, approve, deny or open it) rather than move past or
-archive it — a read straight after acting on the same card is moving on, not a skip, and is left out — how often that card was the one on top, the median
-rank of the cards you engaged with, how many distinct chats that was, the engaged share by the rank a card was
-shown at, how many moves you took back, and how long a finished turn waits for you. The weights
-above are the starting point.
-
-**A reply on a chat card keeps the card.** Send a reply (or answer a question) and you stay where you are: the answer streams
+A reply on a chat card keeps the card. Send a reply (or answer a question) and you stay where you are: the answer streams
 into the card, and a follow-up typed then goes out while the conversation's prompt is still cached. Moving on
 is yours (→ or ⌘]); if you do, the answer brings the card back in this visit by score — higher now, since your reply added to
 its chat's focus — behind whatever you are reading then. A reply on an email or Slack card goes with a key instead
@@ -1482,7 +1458,7 @@ card says why. There is no @ list of people in a Jira card's own box; an agent's
 (see "Mentions on a reply").
 
 **What loki keeps of your moves.** Each read, later, archive, label, reply, hand-off and undo on an outside card is
-written to `~/.loki/state/inbox-ledger.jsonl` on the Mac the account lives on. Each line holds:
+written to `~/.loki/state/flow-ledger.jsonl` on the Mac the account lives on. Each line holds:
 
 1. the move, and whether you made it by key, click, swipe or tap;
 2. when its rest brings the card back, the labels it added, the time you picked when later asked, or, after a reply,
@@ -1492,8 +1468,7 @@ written to `~/.loki/state/inbox-ledger.jsonl` on the Mac the account lives on. E
 5. for mail, what kind it was; for Slack, whether it was a DM or a thread; for Jira, nothing more.
 
 Nothing reads the ledger yet. It is what loki will learn your preferences from (which senders and kinds of mail you
-archive unread, which you answer) and, later, act on for you. It never leaves that Mac. The analytics events stay free
-of senders and subjects.
+archive unread, which you answer) and, later, act on for you. It never leaves that Mac.
 
 **Hand-off.** **hand off** on a card gives the whole thread to the account's owner. loki proposes a chat: the one the
 thread went to before ("went here before"), or else a new chat with the owner titled by the subject ("new chat"); pick
@@ -1943,35 +1918,11 @@ its first and last 5,000 characters. A shell command's output goes to the same f
 lines; the agent sees its last part and the file's path.
 
 A server that cannot start, or stops, shows as down (with its last error output) in the list the agent sees, and is
-tried again. `mcp_search` and `mcp_call` are counted in the local analytics.
+tried again.
 
 ## Widget frame controls
 
 Each frame has three buttons: **focus** (front, centre, zoomed in), **minimise** (to the tray at the bottom-left; the file stays), and **trash** (deletes the file after a confirm). The agent hears about all three on your next turn.
-
-## Analytics
-
-loki keeps product analytics on itself — which views you open, which chats get turns, how a visit to Flow went,
-what you send from where, which models and modes you pick — as events in `~/.loki/logs/events.jsonl`, one
-per line in PostHog's shape: `{ event, timestamp, distinct_id, properties }`. Nothing involves PostHog: the mod
-writes the file, nothing sends it anywhere, and `bun run analytics` on this machine is the only reader. The
-`distinct_id` is one random id per install (`state/analytics.json`); properties carry `$device_type` (mac, windows,
-linux, phone, or mod for turns and tools), a `$session_id` cut on a thirty-minute gap per device, the `$screen` on show when
-a client sent the event, `$app_version`, and the event's own fields — ids and counts (a chat's scope, a model's
-handle), never message text, titles or folder paths. Event names are `object_verb`: `view_opened`,
-`message_sent`, `inbox_pass_completed` (one per visit to Flow: how many next, archive, approve, deny and replies),
-`inbox_card_shown`, `inbox_card_decided` (action next, archive, approve, deny, reply, answer or open),
-`inbox_card_undone`, `turn_finished` (a turn's end and length, from the mod; any ACP chat's turn too, Claude Code's or Cursor's, with its
-harness version `acp:<agent>` and without the model and tool times those agents don't report), `approval_requested` (reported by
-every window that saw it and written once), `chat_archived` and `chat_restored` (where from); `core/analytics.ts`
-lists them all with their properties. The file rotates
-at 20 MB to `events.jsonl.1`, about two years. `LOKI_ANALYTICS=0` in the daemon's environment turns it off.
-
-`bun run analytics` (or `bun run analytics --days 7`) prints the report: sessions by device and their median
-length, every event with its count and how many sessions it fired in, a breakdown of each event by its key
-property (views by name, turns by chat, sends by origin, models picked), the visits to Flow and their decision
-split, the engagement numbers above, the hours and weekdays loki is used, and the events that never fired in the
-period.
 
 ## Environment variables
 
@@ -1980,15 +1931,14 @@ default 41414), `LOKI_LAN_PORT` (the phone listener, default 41415),
 `LOKI_WIDGETS_DIR` (default `~/.loki/widgets`), `LOKI_SKILLS_DIR` (the global skills, default `~/.agents/skills`),
 `LOKI_NODE_BIN` / `LOKI_TAILSCALE_BIN` (binaries), `LOKI_INSTALL=1` (make a dev build install its bundles and skill into `~/.loki` as a release does, instead of
 linking the checkout's skill; its daemon still runs the checkout), `LOKI_NO_INSTALL=1` (stop a release build from
-installing, and make a dev build link nothing and run the bundles already installed), `LOKI_ANALYTICS=0` (no analytics), `LOKI_KEYCHAIN=0` (secrets kept in memory for the daemon's life,
+installing, and make a dev build link nothing and run the bundles already installed), `LOKI_KEYCHAIN=0` (secrets kept in memory for the daemon's life,
 never the system keychain: for tests and scratch runs). A few move one folder or file on its own, mostly for tests:
-`LOKI_UPLOADS_DIR`, `LOKI_RECALL_DIR`, `LOKI_STATE_DIR` and `LOKI_EVENTS_PATH` (the file `bun run analytics` reads).
+`LOKI_UPLOADS_DIR`, `LOKI_RECALL_DIR` and `LOKI_STATE_DIR`.
 `LOKI_UPDATE_URL` points the update check at another `desktop.json`, for trying an update by hand. On Linux the
 shell runs under X11 (`--ozone-platform=x11`) unless `ELECTRON_OZONE_PLATFORM_HINT` is set. The mod runs under Node,
 inside loki's daemon; `mod.log`'s `activate` line names the Node.
 
-Logs: `~/.loki/logs/daemon.log` (the daemon's output), `~/.loki/mod.log`, `~/.loki/logs/events.jsonl` (product
-analytics on loki itself; see "Analytics"). Each line of the first two starts with its time in UTC and its severity,
+Logs: `~/.loki/logs/daemon.log` (the daemon's output) and `~/.loki/mod.log`. Each line starts with its time in UTC and its severity,
 `info`, `warning` or `error`, so `grep " error " ~/.loki/logs/daemon.log` lists what went wrong and when.
 
 ## Hard rules

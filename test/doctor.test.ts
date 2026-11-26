@@ -10,7 +10,7 @@ import { createRegistry, MemoryStorage } from "@earendil-works/pi-durable";
 import { AgentStore } from "../daemon/kernel/index.ts";
 import { StoreManager } from "../daemon/kernel/stores.ts";
 import { ChatProjection } from "../daemon/chats.ts";
-import { PassRunner } from "../daemon/passes.ts";
+import { PassRunner, type PassSummary } from "../daemon/passes.ts";
 import { PassState } from "../daemon/passes-state.ts";
 import { createAgent } from "../daemon/store/agents.ts";
 import { editMemoryFile, memoryExtension, memoryRoot } from "../daemon/memory.ts";
@@ -34,7 +34,7 @@ async function setup() {
   chats.follow(stores, () => {});
   const store = await stores.get(agentId);
   await store.setAgent({ id: agentId, name: "Ada" }, ctx);
-  const events: Array<Record<string, unknown>> = [];
+  const events: PassSummary[] = [];
   const runner = new PassRunner({
     stores,
     chats,
@@ -44,7 +44,7 @@ async function setup() {
     context: ctx,
     jobs: [],
     busy: () => Promise.resolve(false),
-    capture: (_e, p) => events.push(p),
+    onPass: (p) => events.push(p),
   });
   const asked: Array<{ systemPrompt?: string; messages: unknown[] }> = [];
   const reply = (m: ReturnType<typeof fauxAssistantMessage>) => (c: { systemPrompt?: string; messages: unknown[] }) => (asked.push(c), m);

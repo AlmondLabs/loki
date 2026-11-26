@@ -89,17 +89,12 @@ export default function Widget({ data, onSet }: { data: any; onSet: (path: strin
 
 ## How you hear back
 
-- **Automatically:** what the user did on the canvas since your last turn (moves,
-  slider values, checkboxes, closes, render errors) is appended to their next
-  message inside `<loki-desk>` tags.
 - **On demand:** `canvas_read` returns every widget with its data *as the user
   left it*, its position, and any build or runtime `error`. It also returns the
-  shared canvas's widgets as `shared` and its directory as `shared_widgets_dir`,
-  and any gestures not yet sent to you as `pending_canvas_activity`.
+  shared canvas's widgets as `shared` and its directory as `shared_widgets_dir`.
 - **Camera:** `canvas_focus({ widget_id })` glides the user's view to a widget;
   `{ widget_ids: [...] }` frames several together. Targets are highlighted
-  briefly. `dwell` (0–8000 ms) holds before the call returns, for moving between
-  several widgets. New files glide automatically.
+  briefly. New files glide automatically.
 - **In the thread:** each widget you add, change or remove shows as a line in the
   user's Messages tab; clicking it opens the Canvas tab on that widget. No need to
   narrate where a widget went.

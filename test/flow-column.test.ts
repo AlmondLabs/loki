@@ -2,8 +2,8 @@ import { describe, expect, test } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { agentLaneId, laneItems, type Lane, type ResolvedLane } from "../core/attention/lanes.ts";
-import { idOf, inboxQueue } from "../core/attention/queue.ts";
-import { flowLanes, flowRows, flowSources } from "../app/src/desk/flow-column.tsx";
+import { idOf, flowQueue } from "../core/attention/queue.ts";
+import { flowLanes, flowRows, flowSources } from "../app/src/workspace/flow-column.tsx";
 import { Places } from "../app/src/shell/sidebar.tsx";
 import { attentionItem } from "./fixtures/attention.ts";
 import { outsideItem } from "./fixtures/outside-item.ts";
@@ -46,7 +46,7 @@ describe("the lanes as Flow's sources in the sidebar", () => {
       ["studio", "Studio", 1],
     ]);
     expect(sources.items.some((s) => s.id === agentLaneId("ira"))).toBe(false);
-    const html = renderToStaticMarkup(createElement(Places, { segment: "inbox", onSelect: noop, waiting: 3, sources: { inbox: sources } }));
+    const html = renderToStaticMarkup(createElement(Places, { segment: "flow", onSelect: noop, waiting: 3, sources: { flow: sources } }));
     expect(html).toMatch(/aria-current="page"[^>]*aria-label="Studio, 1 waiting"/);
   });
 
@@ -57,7 +57,7 @@ describe("the lanes as Flow's sources in the sidebar", () => {
     sources.onSelect("studio");
     sources.onSelect("");
     expect(picked).toEqual([studio, null]);
-    const queue = inboxQueue(laneItems(items, studio));
+    const queue = flowQueue(laneItems(items, studio));
     expect(queue.map((i) => i.id)).toEqual(["d", "e"]);
     expect(flowRows(queue).map((r) => r.id)).toEqual(queue.map(idOf));
   });

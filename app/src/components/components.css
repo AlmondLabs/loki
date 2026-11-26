@@ -1027,41 +1027,41 @@ button.loki-list-section-toggle {
   color: var(--loki-muted);
 }
 
-.loki-desk-pane {
+.loki-canvas-pane {
   position: absolute;
   inset: 0;
   display: flex;
   flex-direction: column;
   background: var(--loki-bg);
 }
-.loki-desk-pane-body {
+.loki-canvas-pane-body {
   position: relative;
   flex: 1;
   min-height: 0;
 }
-.loki-desk-pane-panel {
+.loki-canvas-pane-panel {
   position: absolute;
   inset: 0;
 }
-.loki-desk-pane-messages {
+.loki-canvas-pane-messages {
   display: flex;
   flex-direction: column;
 }
-.loki-desk-pane-agent {
+.loki-canvas-pane-agent {
   display: inline-flex;
   align-items: center;
   gap: 8px;
   min-width: 0;
   white-space: nowrap;
 }
-.loki-desk-pane-live {
+.loki-canvas-pane-live {
   width: 8px;
   height: 8px;
   border-radius: var(--loki-radius-pill);
   background: var(--loki-positive);
   flex: none;
 }
-.loki-desk-pane-menu-anchor {
+.loki-canvas-pane-menu-anchor {
   position: relative;
   display: inline-flex;
 }
@@ -1745,10 +1745,10 @@ button.loki-list-section-toggle {
     padding: 0 0 8px;
   }
 
-  .loki-desk-pane > .loki-pane-header:has(.loki-toolbar-title) {
+  .loki-canvas-pane > .loki-pane-header:has(.loki-toolbar-title) {
     background: var(--loki-bg);
   }
-  .loki-desk-pane > .loki-pane-header:has(.loki-toolbar-title)::after {
+  .loki-canvas-pane > .loki-pane-header:has(.loki-toolbar-title)::after {
     content: "";
     position: absolute;
     top: 100%;
@@ -1825,19 +1825,19 @@ button.loki-list-section-toggle {
     height: 14px;
   }
 
-  .loki-desk-pane > .loki-pane-header {
+  .loki-canvas-pane > .loki-pane-header {
     position: relative;
     z-index: 2;
     background: linear-gradient(var(--loki-bg) 75%, transparent);
   }
-  .loki-desk-pane > .loki-pane-header :is(.loki-tabs, .loki-toolbar-group) {
+  .loki-canvas-pane > .loki-pane-header :is(.loki-tabs, .loki-toolbar-group) {
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
   }
-  .loki-desk-pane-messages {
+  .loki-canvas-pane-messages {
     top: calc(-1 * var(--loki-header-height));
   }
-  .loki-desk-pane-messages [data-slot="message-scroller-content"] {
+  .loki-canvas-pane-messages [data-slot="message-scroller-content"] {
     padding-top: calc(var(--loki-header-height) + 20px);
   }
   :has(> .loki-dock) [data-slot="message-scroller-content"] {

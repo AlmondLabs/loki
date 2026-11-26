@@ -30,7 +30,7 @@ function fixture() {
   const root = mkdtempSync(join(tmpdir(), "loki-install-"));
   temps.push(root);
   const resources = join(root, "res");
-  write(join(resources, "mod", "loki-mod.mjs"), "export default () => 1;\n");
+  write(join(resources, "daemon", "daemon.mjs"), "export default () => 1;\n");
   write(join(resources, "skills", "loki", "SKILL.md"), "# loki\n");
   return { root, resources, data: join(root, "data"), home: join(root, "home") };
 }
@@ -42,7 +42,7 @@ function withApp(resources: string) {
 
 function checkout(root: string) {
   const c = join(root, "checkout");
-  write(join(c, "mod", "boot.ts"), "export default () => 1;\n");
+  write(join(c, "daemon", "main.ts"), "export {};\n");
   write(join(c, "skills", "loki", "SKILL.md"), "# loki\n");
   return c;
 }
@@ -52,26 +52,23 @@ describe("installing the bundles at launch", () => {
     const { resources, data, home } = fixture();
     let r = installBundles(resources, data, home);
     expect([r.mod, r.skill]).toEqual(["installed", "installed"]);
-    expect(r.mod_path).toBe(join(data, "mod", "loki-mod.mjs"));
+    expect(r.mod_path).toBe(join(data, "daemon", "daemon.mjs"));
     expect(existsSync(join(skillDir(home), "SKILL.md"))).toBe(true);
     expect(existsSync(join(skillDir(home), MANAGED_MARKER))).toBe(true);
     r = installBundles(resources, data, home);
     expect([r.mod, r.skill]).toEqual(["current", "current"]);
-    write(join(resources, "mod", "loki-mod.mjs"), "export default () => 2;\n");
+    write(join(resources, "daemon", "daemon.mjs"), "export default () => 2;\n");
     write(join(resources, "skills", "loki", "SKILL.md"), "# loki v2\n");
     r = installBundles(resources, data, home);
     expect([r.mod, r.skill]).toEqual(["updated", "updated"]);
     expect(r.error).toBeNull();
   });
 
-  test("the daemon bundle is installed beside the mod when the build has one", () => {
+  test("the daemon bundle is installed beside its native deps", () => {
     const { resources, data, home } = fixture();
-    installBundles(resources, data, home);
-    expect(existsSync(join(data, "daemon"))).toBe(false);
-    write(join(resources, "daemon", "daemon.mjs"), "// daemon\n");
     write(join(resources, "daemon", "node_modules", "@napi-rs", "keyring", "index.js"), "// keyring\n");
     const r = installBundles(resources, data, home);
-    expect(readFileSync(join(data, "daemon", "daemon.mjs"), "utf8")).toBe("// daemon\n");
+    expect(readFileSync(join(data, "daemon", "daemon.mjs"), "utf8")).toBe("export default () => 1;\n");
     expect(readFileSync(join(data, "daemon", "node_modules", "@napi-rs", "keyring", "index.js"), "utf8")).toBe("// keyring\n");
     expect(r.error).toBeNull();
   });
@@ -137,7 +134,7 @@ describe("installing the bundles at launch", () => {
     expect(findResources(resources)).toBe(resources);
     expect(findResources(root)).toBeNull();
     const nested = join(root, "bundle");
-    write(join(nested, "resources", "mod", "loki-mod.mjs"), "x");
+    write(join(nested, "resources", "daemon", "daemon.mjs"), "x");
     expect(findResources(nested)).toBe(join(nested, "resources"));
   });
 });
@@ -149,7 +146,7 @@ describe("a development build", () => {
     let r = linkCheckout(c, home);
     expect([r.mod, r.skill]).toEqual(["linked", "linked"]);
     expect(r.error).toBeNull();
-    expect(r.mod_path).toBe(join(c, "mod", "boot.ts"));
+    expect(r.mod_path).toBe(join(c, "daemon", "main.ts"));
     const link = resolve(dirname(skillDir(home)), readlinkSync(skillDir(home)));
     expect(sameDir(link, join(c, "skills", "loki"))).toBe(true);
     expect(existsSync(join(skillDir(home), "SKILL.md"))).toBe(true);
@@ -188,7 +185,7 @@ describe("a development build", () => {
     expect(launchInstall({ packaged: true, env: {}, resourceDir: resources, checkout: c, dataDir: data, home }).mod).toBe("installed");
     expect(launchInstall({ packaged: true, env: {}, resourceDir: join(root, "nowhere"), checkout: c, dataDir: data, home })).toMatchObject({
       mod: "error",
-      error: "bundled mod not found in the app's resources",
+      error: "bundled daemon not found in the app's resources",
     });
     expect(launchInstall({ packaged: false, env: {}, resourceDir: resources, checkout: c, dataDir: data, home }).mod).toBe("linked");
     expect(launchInstall({ packaged: false, env: { LOKI_NO_INSTALL: "1" }, resourceDir: resources, checkout: c, dataDir: data, home }).mod).toBe("skipped");
@@ -203,15 +200,15 @@ describe("a development build", () => {
     expect([r.app, r.mod]).toEqual(["installed", "installed"]);
     expect(readFileSync(join(data, BUNDLE_STAMP), "utf8")).toBe("stamp-1\n");
 
-    write(join(resources, "mod", "loki-mod.mjs"), "export default () => 2;\n");
+    write(join(resources, "daemon", "daemon.mjs"), "// d2\n");
     r = installBundles(resources, data, home);
     expect([r.app, r.mod]).toEqual(["current", "current"]);
-    expect(readFileSync(join(data, "mod", "loki-mod.mjs"), "utf8")).toBe("export default () => 1;\n");
+    expect(readFileSync(join(data, "daemon", "daemon.mjs"), "utf8")).toBe("// d1\n");
 
     write(join(resources, BUNDLE_STAMP), "stamp-2\n");
     r = installBundles(resources, data, home);
     expect([r.app, r.mod]).toEqual(["current", "updated"]);
-    expect(readFileSync(join(data, "mod", "loki-mod.mjs"), "utf8")).toBe("export default () => 2;\n");
+    expect(readFileSync(join(data, "daemon", "daemon.mjs"), "utf8")).toBe("// d2\n");
     expect(readFileSync(join(data, BUNDLE_STAMP), "utf8")).toBe("stamp-2\n");
   });
 });

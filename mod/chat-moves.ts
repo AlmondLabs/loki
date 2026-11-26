@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
-import { scopeFor } from "../core/desk-core.ts";
+import { scopeFor } from "../core/canvas-core.ts";
 import { MOVE_OUT_OF_REACH, MOVE_TIMEOUT_MS, type Replies } from "../core/frames.ts";
 import { readJson, writeJsonAtomic } from "./json-file.ts";
 import type { MovedChat } from "../daemon/chat-move.ts";

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { firstMessageStep, type FirstMessage } from "../app/src/desk/use-first-message.ts";
+import { firstMessageStep, type FirstMessage } from "../app/src/workspace/use-first-message.ts";
 
 const waiting: FirstMessage = { scope: "ada/new", runtime: { agent_id: "ada", conversation_id: "new" }, text: "hello", images: [], left: false };
 

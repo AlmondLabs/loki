@@ -10,7 +10,7 @@ import { TOO_MANY_WRONG_CODES, type CodeCheck, type CodeStep, type PairingCodes 
 import { log } from "./log.ts";
 import { writeJsonAtomic } from "./json-file.ts";
 
-export const PEER_PROTOCOL = 1;
+export const PEER_PROTOCOL = 2;
 
 export interface PeerHello extends MacIdentity {
   /** Where other Macs reach it: its tailnet name and port. */

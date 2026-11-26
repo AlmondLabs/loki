@@ -18,7 +18,7 @@ import {
   withoutLane,
   type LaneDraft,
 } from "../app/src/settings/lanes.tsx";
-import { InboxPage } from "../app/src/settings/settings.tsx";
+import { FlowPage } from "../app/src/settings/settings.tsx";
 import { RETURN_TIMES_DEFAULT } from "../core/attention/rest.ts";
 
 const AGENTS = [
@@ -146,7 +146,7 @@ describe("Preferences › Flow: the lane editor (plan 087, U8)", () => {
   test("the Flow page holds the lanes above the return times", () => {
     const out = text(
       renderToStaticMarkup(
-        createElement(InboxPage, {
+        createElement(FlowPage, {
           returnTimes: { times: RETURN_TIMES_DEFAULT, set: () => {} },
           lanes: { lanes: { lanes: [HOME], set: () => {} }, accounts: noAccounts, agents: AGENTS },
         }),

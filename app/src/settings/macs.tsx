@@ -1,7 +1,7 @@
 import { useEffect, useEffectEvent, useState } from "react";
 import { Button, Chip, Dot, Field, Row as PickRow } from "../components";
 import { useNow } from "../components/use-now";
-import { countdown, lastSeen } from "../phone/model";
+import { countdown, lastSeen } from "../shared/lan-model";
 import { osWords } from "../shell/os-words";
 import { Block, Setting } from "./layout";
 import type { Pushes } from "../../../core/frames.ts";

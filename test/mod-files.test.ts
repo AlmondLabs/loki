@@ -20,4 +20,19 @@ describe("mods from a folder", () => {
       rmSync(dir, { recursive: true, force: true });
     }
   });
+
+  test("an external mod named loki is refused", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "loki-mods-"));
+    writeFileSync(join(dir, "clash.mjs"), 'export default { name: "loki", apiVersion: 1, activate: () => {} };\n');
+    const reports: string[] = [];
+    const mods = new ModRegistry(() => {});
+    const stop = await loadModFolder(mods, dir, (m) => reports.push(m));
+    try {
+      expect(mods.names()).toEqual([]);
+      expect(reports[0]).toContain('"loki" is reserved');
+    } finally {
+      stop();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });

@@ -1,4 +1,4 @@
-import type { Scope } from "./desk-core.ts";
+import type { Scope } from "./canvas-core.ts";
 import type { ReasoningEffort } from "./models.ts";
 import type { AskedBy } from "./attention/priority.ts";
 
@@ -109,8 +109,8 @@ export interface ChatHome {
   reachable?: boolean;
 }
 
-/** One open chat in the Inbox list the mod sends (`inbox`): the conversation, its agent, and its digest. Archived chats are left out. */
-export interface InboxRow extends LocalDigest, ChatHome {
+/** One open chat in the Inbox list the mod sends (`flow`): the conversation, its agent, and its digest. Archived chats are left out. */
+export interface FlowRow extends LocalDigest, ChatHome {
   id: string;
   agent_id: string;
   agent_name: string | null;
@@ -388,7 +388,7 @@ export interface OutsideMessage {
   /** What a Slack app attached under its message (plan 075). */
   attachments?: SlackAttachment[];
   /**
-   * One of the messages that brought the card into the Inbox (plan 077, R12), which a Slack card draws with Slack's
+   * One of the messages that brought the card into the Flow (plan 077, R12), which a Slack card draws with Slack's
    * mention look; a Jira card gives that look to `mentions_me` instead (plan 091).
    */
   brought?: boolean;
@@ -857,11 +857,11 @@ export interface TailscaleStatus {
 }
 
 /** live: conversation exists. archived: the chat was archived. deleted: bound once, conversation gone. none: never bound (shared, orphan folder). */
-export type DeskStatus = "live" | "archived" | "deleted" | "none";
+export type ChatStatus = "live" | "archived" | "deleted" | "none";
 
-export interface DeskInfo {
+export interface ChatMeta {
   title: string | null;
-  status: DeskStatus;
+  status: ChatStatus;
   /** Which agent owns the conversation behind this desk. */
   agent_name: string | null;
   agent_id: string | null;
@@ -880,7 +880,7 @@ export interface DeskInfo {
   cwd?: string | null;
 }
 
-export interface DeskSummary extends DeskInfo, ChatHome {
+export interface ChatSummary extends ChatMeta, ChatHome {
   scope: Scope;
   conversation_id: string | null;
   /** Pinned in loki's pins file (mod/pins.ts). */

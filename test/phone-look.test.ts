@@ -91,7 +91,7 @@ describe("the phone's glass (U1)", () => {
     expect(ruleOf(".loki-phone-scroll")).toMatch(/padding-top: calc\(var\(--phone-top-clearance\) \+ var\(--phone-space-3\)\);/);
     expect(ruleOf(".loki-phone-scroll--flush")).toMatch(/padding-top: var\(--phone-top-clearance\);/);
     expect(ruleOf(".loki-phone-deck")).toMatch(/margin-top: calc\(var\(--phone-top-clearance\) \+ var\(--phone-space-1\)\);/);
-    expect(must(/\n\.loki-phone-page,\s*\.loki-phone-inbox \{([^}]*)\}/.exec(phone), "the page rule")[1]).toContain("--phone-top-clearance: 0px;");
+    expect(must(/\n\.loki-phone-page,\s*\.loki-phone-flow \{([^}]*)\}/.exec(phone), "the page rule")[1]).toContain("--phone-top-clearance: 0px;");
   });
 
   test("covers U3: Home's header and Search's bar float the same way, each measuring itself", () => {

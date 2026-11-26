@@ -274,7 +274,7 @@ describe("dismissed unless the stamp changed", () => {
     expect(pruneDismissed(d, [item("b", { lastAssistantText: "more" })]).size).toBe(0);
     expect(pruneDismissed(d, [b]).size).toBe(1);
   });
-  test("an entry lasts while the chat is unchanged: a turn starting takes it out of the Inbox, and the entry goes", () => {
+  test("an entry lasts while the chat is unchanged: a turn starting takes it out of the Flow, and the entry goes", () => {
     const b = item("b");
     const d = dismiss(new Map(), b);
     expect(pruneDismissed(d, [item("b", { status: "idle", unread: false })]).size).toBe(1);

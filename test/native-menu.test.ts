@@ -2,11 +2,11 @@ import { describe, expect, test } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { popupEntries, tidyEntries, type MenuEntry } from "../app/src/shell/native-menu.ts";
-import { rowMenuEntries } from "../app/src/shell/desk-sidebar.tsx";
+import { rowMenuEntries } from "../app/src/shell/chat-sidebar.tsx";
 import { effortTitle } from "../app/src/chat/model-picker.tsx";
 import { stepEffort, switcherGroups } from "../app/src/chat/model-switcher.tsx";
 import { modeMenuEntries, MODES } from "../app/src/chat/permission-mode.tsx";
-import type { DeskSummary } from "../core/frame-types.ts";
+import type { ChatSummary } from "../core/frame-types.ts";
 import { ArchiveIcon, ArchiveRestoreIcon, FolderIcon, MailOpenIcon, PencilIcon, PinIcon, PinOffIcon, TagIcon, type LucideIcon } from "lucide-react";
 import type { AttentionItem } from "../core/attention/model.ts";
 import type { ModelEntry } from "../core/models.ts";
@@ -79,7 +79,7 @@ describe("a menu as data", () => {
 });
 
 describe("the chat row's menu", () => {
-  const desk = (over: Partial<DeskSummary> = {}): DeskSummary => ({
+  const desk = (over: Partial<ChatSummary> = {}): ChatSummary => ({
     scope: "s1",
     title: "Signups",
     status: "live",

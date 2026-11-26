@@ -3,7 +3,7 @@ import { ArrowUpIcon, PlusIcon, SearchIcon } from "lucide-react";
 import type { TranscriptRow } from "../../../core/attention/transcript.ts";
 import { toolLabel } from "../../../core/harness.ts";
 import type { OutsideFacts } from "../../../core/frame-types.ts";
-import { OutsideItemActions, OutsideItemHeader } from "../desk/outside-toolbar";
+import { OutsideItemActions, OutsideItemHeader } from "../workspace/outside-toolbar";
 import { Badge } from "@/ui/badge";
 import { Button } from "@/ui/button";
 import { Input } from "@/ui/input";
@@ -270,7 +270,7 @@ export function Workbench() {
               <span aria-hidden className="size-1.5 rounded-full bg-loki-attention" />
               needs you
             </Badge>
-            <Kbd>{keyFor("inbox.archive")}</Kbd>
+            <Kbd>{keyFor("flow.archive")}</Kbd>
             <Input className="w-56" placeholder="Search" aria-label="Search" />
           </div>
         </Section>
@@ -397,7 +397,7 @@ function ListBench() {
             }}
             onEnter={(id) => say(`detail ${id}`)}
             empty="No chats with friday yet."
-            newAction={{ label: "New Chat", run: () => say("new"), keys: keyFor("desk.new") }}
+            newAction={{ label: "New Chat", run: () => say("new"), keys: keyFor("chat.new") }}
             query={query}
             onQuery={setQuery}
           />

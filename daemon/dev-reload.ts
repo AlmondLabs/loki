@@ -2,11 +2,7 @@ import { Listeners } from "../core/listeners.ts";
 import type { RestartAnswer } from "../mod/frames/daemon.ts";
 import type { Report } from "./report.ts";
 
-export const MOD_SETTLE_MS = 300;
-
 export interface DevReloadOptions {
-  settleMs?: number;
-  reloadMod: () => Promise<string>;
   buildPage?: () => Promise<string | null>;
   restart: (why: string) => void;
   idle: () => Promise<boolean>;
@@ -15,10 +11,6 @@ export interface DevReloadOptions {
 
 export class DevReload {
   private readonly opts: DevReloadOptions;
-  private reloading: Promise<void> | null = null;
-  private again = false;
-  private changed = "";
-  private changedWhileSettling: (() => void) | null = null;
   private due: string | null = null;
   private restartNeeded = false;
   private buildNeeded = false;
@@ -27,47 +19,6 @@ export class DevReload {
 
   constructor(opts: DevReloadOptions) {
     this.opts = opts;
-  }
-
-  modChanged(file: string): Promise<void> {
-    this.changed = file;
-    this.changedWhileSettling?.();
-    if (this.reloading) {
-      this.again = true;
-      return this.reloading;
-    }
-    this.reloading = (async () => {
-      // Outside (TypeScript): it narrows `again` to false after the assignment, though a change sets it while the reload
-      // awaits, so the loop reads it through a call.
-      do {
-        await this.settled();
-        this.again = false;
-        const name = this.changed;
-        const result = await this.opts.reloadMod();
-        this.opts.report(`mod loki reloaded after ${name} changed: ${result}`, result === "ok" ? "info" : "error");
-      } while (this.askedAgain());
-      this.reloading = null;
-    })();
-    return this.reloading;
-  }
-
-  private settled(): Promise<void> {
-    const ms = this.opts.settleMs ?? MOD_SETTLE_MS;
-    return new Promise((resolve) => {
-      const done = () => {
-        this.changedWhileSettling = null;
-        resolve();
-      };
-      let timer = setTimeout(done, ms);
-      this.changedWhileSettling = () => {
-        clearTimeout(timer);
-        timer = setTimeout(done, ms);
-      };
-    });
-  }
-
-  private askedAgain(): boolean {
-    return this.again;
   }
 
   daemonChanged(file: string): void {

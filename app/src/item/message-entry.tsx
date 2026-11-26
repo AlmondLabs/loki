@@ -8,7 +8,7 @@ import { Attachment, AttachmentContent, AttachmentDescription, AttachmentGroup, 
 import { Button } from "@/ui/button";
 import { Message, MessageActions, MessageContent, MessageResponse } from "@/ui/ai-elements/message";
 import { cn } from "@/lib/utils";
-import { chatImageUrl, inDesktop } from "../desk/env";
+import { chatImageUrl, inDesktop } from "../workspace/env";
 import { revealItemInDir } from "../shell/desktop";
 import { clockLabel } from "../shared/thread";
 import { fileSize } from "../chat/attachments";

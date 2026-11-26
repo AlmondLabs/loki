@@ -5,30 +5,30 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { GROUPS, PAGES, PAGE_ICON, pageAfterKey, pageTitle, pagesMatching, savedPage } from "../app/src/settings/pages.ts";
 import { PageList } from "../app/src/settings/page-list.tsx";
 import { Phone, type PhoneApi } from "../app/src/settings/phone.tsx";
-import { GlobalKeyRow, InboxPage, type ReturnTimesApi } from "../app/src/settings/settings.tsx";
+import { GlobalKeyRow, FlowPage, type ReturnTimesApi } from "../app/src/settings/settings.tsx";
 import { PopUp } from "../app/src/settings/layout.tsx";
 import { RETURN_TIMES_DEFAULT, type ReturnTimes } from "../core/attention/rest.ts";
 import { must } from "./fixtures/must.ts";
 import { lanStatusFromFrame } from "../app/src/phone/model.ts";
 import { shortcutAvailable, type GlobalShortcut } from "../app/src/shell/use-global-shortcut.ts";
 import { dictateTitle, dictationSupported } from "../app/src/chat/use-dictation.ts";
-import { notYetOn } from "../app/src/desk/env.ts";
+import { notYetOn } from "../app/src/workspace/env.ts";
 
 describe("Preferences: the segment keys over the sheet", () => {
   test("⌘, (and ⌘6, the same binding) opens Preferences over any section and closes it when open; the section stays", () => {
-    for (const s of ["desk", "inbox", "agents", "learn"] as const) {
+    for (const s of ["chats", "flow", "agents", "learn"] as const) {
       expect(afterSegmentKey("segment.settings", { segment: s, preferences: false })).toEqual({ segment: s, preferences: true });
       expect(afterSegmentKey("segment.settings", { segment: s, preferences: true })).toEqual({ segment: s, preferences: false });
     }
   });
   test("⌘2 while Preferences is open closes it and shows the Inbox; ⌘1, ⌘4 and ⌘5 likewise go to their section", () => {
-    expect(afterSegmentKey("segment.inbox", { segment: "agents", preferences: true })).toEqual({ segment: "inbox", preferences: false });
-    expect(afterSegmentKey("segment.desk", { segment: "learn", preferences: true })).toEqual({ segment: "desk", preferences: false });
+    expect(afterSegmentKey("segment.flow", { segment: "agents", preferences: true })).toEqual({ segment: "flow", preferences: false });
+    expect(afterSegmentKey("segment.chats", { segment: "learn", preferences: true })).toEqual({ segment: "chats", preferences: false });
     expect(afterSegmentKey("segment.agents", { segment: "agents", preferences: false })).toEqual({ segment: "agents", preferences: false });
   });
   test("an old window that saved settings as its segment reopens on the desk", () => {
-    expect(afterSegmentKey("segment.desk", { segment: "settings", preferences: false })).toEqual({ segment: "desk", preferences: false });
-    expect(afterSegmentKey("segment.settings", { segment: "settings", preferences: false })).toEqual({ segment: "desk", preferences: true });
+    expect(afterSegmentKey("segment.chats", { segment: "settings", preferences: false })).toEqual({ segment: "chats", preferences: false });
+    expect(afterSegmentKey("segment.settings", { segment: "settings", preferences: false })).toEqual({ segment: "chats", preferences: true });
   });
 });
 
@@ -71,7 +71,8 @@ describe("Preferences: the section list", () => {
     expect(pagesMatching("dark")).toEqual(["appearance"]);
     expect(pagesMatching("shortcuts")).toEqual(["keys"]);
     expect(pagesMatching("zzz")).toEqual([]);
-    expect(pagesMatching("inbox")).toEqual(["inbox"]);
+    expect(pagesMatching("inbox")).toEqual(["flow"]);
+    expect(pagesMatching("flow")).toEqual(["flow", "accounts", "learn"]);
   });
 });
 
@@ -194,7 +195,7 @@ describe("Mac extras only on the Mac (plan 014 U3, R3)", () => {
   });
 });
 
-describe("Preferences › Inbox: read and later return times for each kind of card (plan 070, R15)", () => {
+describe("Preferences › Flow: read and later return times for each kind of card (plan 070, R15)", () => {
   const text = (html: string) => html.replace(/&#x27;/g, "'").replace(/&amp;/g, "&");
   function page() {
     const sent: ReturnTimes[] = [];
@@ -226,14 +227,14 @@ describe("Preferences › Inbox: read and later return times for each kind of ca
     return out;
   }
   function choices(api: ReturnTimesApi, label: string) {
-    const c = must(controls(InboxPage({ returnTimes: api })).get(label), label);
-    const face = text(renderToStaticMarkup(createElement(InboxPage, { returnTimes: api })));
+    const c = must(controls(FlowPage({ returnTimes: api })).get(label), label);
+    const face = text(renderToStaticMarkup(createElement(FlowPage, { returnTimes: api })));
     expect(face).toMatch(new RegExp(`aria-label="${label}"[^>]*>(?:(?!</button>).)*${c.chosen}`));
     return { all: c.all, chosen: c.chosen };
   }
 
   test("the page lists both rows with their choices, 1 hour and 1 day chosen for every kind", () => {
-    const out = text(renderToStaticMarkup(createElement(InboxPage, { returnTimes: page().api })));
+    const out = text(renderToStaticMarkup(createElement(FlowPage, { returnTimes: page().api })));
     expect(out).toContain("Read rests a card for");
     expect(out).toContain("Later brings a card back after");
     for (const label of ["Read rests chats for", "Read rests email for"]) {
@@ -253,15 +254,15 @@ describe("Preferences › Inbox: read and later return times for each kind of ca
     const older: ReturnTimes = { read_first: RETURN_TIMES_DEFAULT.read_first, later: { chat: "1d", email: "1d", slack: "1w" } };
     const api: ReturnTimesApi = { times: older, set: (t) => sent.push(t) };
     expect(choices(api, "Later brings Jira back after").chosen).toBe("1 Day");
-    must(controls(InboxPage({ returnTimes: api })).get("Later brings Jira back after"), "Jira's later control").onPick("3h");
+    must(controls(FlowPage({ returnTimes: api })).get("Later brings Jira back after"), "Jira's later control").onPick("3h");
     expect(sent).toEqual([{ ...older, later: { ...older.later, jira: "3h" } }]);
   });
 
   test("picking 2 days for email's later return sends that one change to the daemon, the rest as they were", () => {
     const { api, sent } = page();
-    must(controls(InboxPage({ returnTimes: api })).get("Later brings email back after"), "email's later control").onPick("2d");
+    must(controls(FlowPage({ returnTimes: api })).get("Later brings email back after"), "email's later control").onPick("2d");
     expect(sent).toEqual([{ ...RETURN_TIMES_DEFAULT, later: { chat: "1d", email: "2d", slack: "1d", jira: "1d" } }]);
-    must(controls(InboxPage({ returnTimes: api })).get("Read rests chats for"), "chats' read control").onPick("10m");
+    must(controls(FlowPage({ returnTimes: api })).get("Read rests chats for"), "chats' read control").onPick("10m");
     expect(sent[1]).toEqual({ ...RETURN_TIMES_DEFAULT, read_first: { chat: "10m", email: "1h" } });
   });
 });

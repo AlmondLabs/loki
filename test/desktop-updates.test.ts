@@ -398,9 +398,9 @@ describe("the wall clock", () => {
 });
 
 describe("the status the page reads", () => {
-  test("is snake_case JSON with the state named by kind, and moved always false", () => {
-    expect(JSON.stringify(updates("nightly").status())).toBe('{"channel":"nightly","current":"2026.1116.0","state":{"kind":"idle"},"moved":false}');
-    const status = { channel: "nightly", current: "2026.1116.0-nightly.12", moved: false } as const;
+  test("is snake_case JSON with the state named by kind", () => {
+    expect(JSON.stringify(updates("nightly").status())).toBe('{"channel":"nightly","current":"2026.1116.0","state":{"kind":"idle"}}');
+    const status = { channel: "nightly", current: "2026.1116.0-nightly.12" } as const;
     const wire = (state: UpdateState) => JSON.stringify({ ...status, state });
     expect(wire({ kind: "downloading", done: 5, total: null })).toContain('"state":{"kind":"downloading","done":5,"total":null}');
     expect(wire({ kind: "failed", stage: "signature", message: "bad" })).toContain('"state":{"kind":"failed","stage":"signature","message":"bad"}');
@@ -829,7 +829,7 @@ describe("the updater main wires", () => {
   test("set_update_channel saves and publishes the channel, and refuses anything else", () => {
     const h = harness();
     const updater = createUpdater(h.options);
-    expect(updater.setChannel("nightly")).toMatchObject({ channel: "nightly", moved: false });
+    expect(updater.setChannel("nightly")).toMatchObject({ channel: "nightly" });
     expect(h.published.at(-1)?.channel).toBe("nightly");
     expect(saved(h.options.lokiDir)).toEqual({ channel: "nightly" });
     expect(() => updater.setChannel("beta")).toThrow("beta is not an update channel");

@@ -6,13 +6,13 @@ import type { AttentionItem } from "../core/attention/model.ts";
 import { idOf, mergeQueue, type Decision } from "../core/attention/queue.ts";
 import type { MoveResult, OutsideReplyResult } from "../core/attention/use-attention.ts";
 import type { ReplyThen } from "../core/frame-types.ts";
-import { opensChat } from "../app/src/desk/use-deck-keys.ts";
-import { FLASH_MS, createFlash } from "../app/src/desk/use-deck-actions.ts";
-import { EMPTY_REPLY, cardKey, createDeckMoves, type PickerKind, type ReplyBox } from "../app/src/desk/deck-moves.ts";
-import { LATER_MAX_DAYS, dateChoice, returnChoices } from "../app/src/desk/return-picker.tsx";
-import { pickableLabels } from "../app/src/desk/label-picker.tsx";
+import { opensChat } from "../app/src/workspace/use-deck-keys.ts";
+import { FLASH_MS, createFlash } from "../app/src/workspace/use-deck-actions.ts";
+import { EMPTY_REPLY, cardKey, createDeckMoves, type PickerKind, type ReplyBox } from "../app/src/workspace/deck-moves.ts";
+import { LATER_MAX_DAYS, dateChoice, returnChoices } from "../app/src/workspace/return-picker.tsx";
+import { pickableLabels } from "../app/src/workspace/label-picker.tsx";
 import { COMMIT_REST_MS, createListSelection } from "../app/src/shell/list-keys.ts";
-import { replyBoxKey } from "../app/src/desk/outside-card.tsx";
+import { replyBoxKey } from "../app/src/workspace/outside-card.tsx";
 import { attentionItem } from "./fixtures/attention.ts";
 import { jiraItem, outsideItem } from "./fixtures/outside-item.ts";
 import { must } from "./fixtures/must.ts";
@@ -20,16 +20,16 @@ import { must } from "./fixtures/must.ts";
 describe("Esc and focus in Flow (plan 2026-11-14-1330, KTD7, KTD14)", () => {
   const source = (...path: string[]) => readFileSync(join(import.meta.dirname, "..", "app", "src", ...path), "utf8");
   test("Esc in the list does not leave Flow: the deck has no Esc of its own, the reply box's hands the keys back, and the shell's skips Flow", () => {
-    expect(source("desk", "use-deck-keys.ts")).not.toContain("Escape");
-    const deck = source("desk", "catch-up.tsx");
+    expect(source("workspace", "use-deck-keys.ts")).not.toContain("Escape");
+    const deck = source("workspace", "catch-up.tsx");
     expect(deck).not.toMatch(/onEscapeEmpty=\{(deck\.)?onClose\}/);
     expect(deck).toContain("onEscapeEmpty={leaveBox}");
-    expect(source("shell", "use-shell-keys.ts")).not.toMatch(/segment === "inbox"[^\n]*\n[^\n]*toDesk/);
+    expect(source("shell", "use-shell-keys.ts")).not.toMatch(/segment === "flow"[^\n]*\n[^\n]*toDesk/);
   });
   test("a new selection never focuses the reply box on its own; R or a click does", () => {
-    const deck = source("desk", "catch-up.tsx");
+    const deck = source("workspace", "catch-up.tsx");
     expect(deck).not.toContain("setTimeout(() => replyRef.current?.focus()");
-    expect(source("desk", "use-deck-keys.ts")).toContain('case "reply":\n        return replyRef.current?.focus();');
+    expect(source("workspace", "use-deck-keys.ts")).toContain('case "reply":\n        return replyRef.current?.focus();');
   });
 });
 
@@ -671,7 +671,7 @@ describe("a refusal says so, and a card whose account needs a sign-in never stop
 
 describe("the control that mends a disconnected account", () => {
   test("Sign In… for Gmail and Slack, Add Token… for Jira, Connect Again… after a block, nothing while it only fails for now", async () => {
-    const { mendLabel } = await import("../app/src/desk/outside-words.ts");
+    const { mendLabel } = await import("../app/src/workspace/outside-words.ts");
     expect(mendLabel("sign_in_again", "gmail")).toBe("Sign In…");
     expect(mendLabel("sign_in_again", "jira")).toBe("Add Token…");
     expect(mendLabel("admin_blocks", "slack")).toBe("Connect Again…");

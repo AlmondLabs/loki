@@ -1,19 +1,18 @@
 import { lazy, Suspense } from "react";
-import { scopeFor } from "../../../core/desk-core.ts";
+import { scopeFor } from "../../../core/canvas-core.ts";
 import { LOKI_COMMANDS } from "../../../core/attention/commands.ts";
 import { labelCommand } from "../chat/labels";
-import { saveLabels } from "../desk/desk-conversation";
+import { saveLabels } from "../workspace/workspace-conversation";
 import { runAction } from "./keymap";
 import { SETTINGS_PAGE_KEY, type SettingsPage } from "../settings/pages";
 import { SETTINGS_WINDOW, openSettingsWindow } from "./open-settings";
 import { lastInput } from "../kit/motion";
-import type { PassSummaryHandler } from "../desk/use-flow-deck";
-import type { FlowKind } from "../desk/flow-kinds";
-const FlowPlace = lazy(() => import("../desk/catch-up").then((m) => ({ default: m.FlowPlace })));
+import type { FlowKind } from "../workspace/flow-kinds";
+const FlowPlace = lazy(() => import("../workspace/catch-up").then((m) => ({ default: m.FlowPlace })));
 const Agents = lazy(() => import("../agents/agents").then((m) => ({ default: m.Agents })));
-const Recall = lazy(() => import("../recall/recall").then((m) => ({ default: m.Recall })));
-import type { Recall as RecallModel } from "./use-recall";
-import { avatarUrl } from "../desk/env";
+const Learn = lazy(() => import("../learn/learn").then((m) => ({ default: m.Learn })));
+import type { Learn as LearnModel } from "./use-learn";
+import { avatarUrl } from "../workspace/env";
 import type { ModelEntry } from "../chat/model-picker";
 import type { ChatPlacement, ChatWidth } from "../chat/chat-window";
 
@@ -22,28 +21,28 @@ import type { DaemonStatus, WelcomeStep } from "./bootstrap";
 import type { LokiUpdate } from "./use-loki-update";
 import { chatWorking } from "./update-notice";
 import type { GlobalShortcut } from "./use-global-shortcut";
-import type { CatchUp, Desk, Runtime } from "./types";
+import type { CatchUp, Runtime, Workspace } from "./types";
 import type { ModelSelection } from "../../../core/models.ts";
 import type { SettingsProps } from "../settings/settings";
 
-type OpenDesk = (agentId: string, conversationId: string, opts?: { chat?: boolean }) => void;
+type OpenChat = (agentId: string, conversationId: string, opts?: { chat?: boolean }) => void;
 type PickModel = (scope: string, rt: Runtime, selection: ModelSelection) => Promise<void>;
 type PickMode = (scope: string, rt: Runtime, mode: string) => Promise<void>;
 
-export function RecallView({
+export function LearnPane({
   recall,
   active,
-  onOpenDesk,
+  onOpenChat,
   onBegin,
 }: {
-  recall: RecallModel;
+  recall: LearnModel;
   active: boolean;
-  onOpenDesk: OpenDesk;
+  onOpenChat: OpenChat;
   onBegin: (agentId: string, conversationId: string, brief: string, title: string) => void;
 }) {
   return (
     <Suspense fallback={null}>
-      <Recall recall={recall} active={active} onOpenDesk={(agentId, conversationId) => onOpenDesk(agentId, conversationId, { chat: true })} onBegin={onBegin} />
+      <Learn recall={recall} active={active} onOpenChat={(agentId, conversationId) => onOpenChat(agentId, conversationId, { chat: true })} onBegin={onBegin} />
     </Suspense>
   );
 }
@@ -58,22 +57,21 @@ function openPreferencesOn(page: SettingsPage) {
   runAction("segment.settings");
 }
 
-export function InboxView({
+export function FlowView({
   desk,
   catchUp,
   models,
   onLoadModels,
   onPickModel,
   onPickMode,
-  onOpenDesk,
+  onOpenChat,
   onOpenAdvisor,
   onClose,
-  onPass,
   notice,
   kind,
   onKind,
 }: {
-  desk: Desk;
+  desk: Workspace;
   catchUp: CatchUp;
   kind: FlowKind;
   onKind: (kind: FlowKind) => void;
@@ -82,16 +80,14 @@ export function InboxView({
   onLoadModels: () => void;
   onPickModel: PickModel;
   onPickMode: PickMode;
-  onOpenDesk: OpenDesk;
+  onOpenChat: OpenChat;
   onOpenAdvisor: (agentId: string, conversationId: string) => void;
   onClose: () => void;
-  onPass: PassSummaryHandler;
 }) {
   return (
     <Suspense fallback={null}>
       <FlowPlace
         onClose={onClose}
-        onPass={onPass}
         items={catchUp.items}
         lane={catchUp.flow.lane}
         kind={kind}
@@ -116,10 +112,10 @@ export function InboxView({
         onReply={(item, text, images) => (catchUp.decided(item, "reply", via()), catchUp.reply(item, text, images))}
         onStop={(item) => catchUp.stop(item.runtime)}
         onShown={catchUp.shown}
-        onOpenDesk={(agentId, conversationId) => {
+        onOpenChat={(agentId, conversationId) => {
           const item = catchUp.items.find((i) => i.agent_id === agentId && i.id === conversationId);
           if (item) catchUp.decided(item, "open", via());
-          onOpenDesk(agentId, conversationId, { chat: true });
+          onOpenChat(agentId, conversationId, { chat: true });
         }}
         onOpenAdvisor={onOpenAdvisor}
         chats={catchUp}
@@ -149,15 +145,15 @@ export function InboxView({
 export function AgentsView({
   desk,
   catchUp,
-  onOpenDesk,
+  onOpenChat,
   onAskToUpdate,
-  onShowDesks,
+  onShowChats,
 }: {
-  desk: Desk;
+  desk: Workspace;
   catchUp: CatchUp;
-  onOpenDesk: OpenDesk;
+  onOpenChat: OpenChat;
   onAskToUpdate: (agentId: string, text: string) => void;
-  onShowDesks: () => void;
+  onShowChats: () => void;
 }) {
   return (
     <Suspense fallback={null}>
@@ -167,7 +163,7 @@ export function AgentsView({
         avatar={avatarUrl}
         desks={desk.desks.list}
         initialAgentId={desk.agentId}
-        onOpenDesk={(agentId, conversationId) => onOpenDesk(agentId, conversationId, { chat: true })}
+        onOpenChat={(agentId, conversationId) => onOpenChat(agentId, conversationId, { chat: true })}
         onAskToUpdate={onAskToUpdate}
         onUpdateAgent={catchUp.updateAgent}
         write={{
@@ -179,7 +175,7 @@ export function AgentsView({
         }}
         reflect={catchUp.reflection}
         listModels={catchUp.listModels}
-        onShowDesks={onShowDesks}
+        onShowChats={onShowChats}
         mcp={desk.calls.mcp}
         accounts={desk.calls.accounts}
         macs={desk.macs.view ? [desk.macs.view.me, ...desk.macs.view.peers] : undefined}
@@ -193,8 +189,8 @@ const Preferences = lazy(() => import("../settings/settings").then((m) => ({ def
 export interface PreferencesSources {
   update: LokiUpdate;
   shortcut: GlobalShortcut;
-  recall: RecallModel;
-  desk: Desk;
+  recall: LearnModel;
+  desk: Workspace;
   catchUp: CatchUp;
   daemon: DaemonStatus | null;
   chatWidth: ChatWidth;

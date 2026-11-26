@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { modBase } from "../desk/env";
+import { modBase } from "../workspace/env";
 import { needsReload, shouldAutoReload } from "./model";
 import { drafts } from "../shared/drafts";
 import { Button } from "../components";

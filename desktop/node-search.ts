@@ -51,7 +51,7 @@ function newestVersioned(h: NodeHost, dir: string, binOf: (versionDir: string) =
 }
 
 /**
- * Where installers put Node, beyond PATH, in the order the Tauri shell looked: a GUI app's PATH is
+ * Where installers put Node, beyond PATH: a GUI app's PATH is
  * `/usr/bin:/bin:/usr/sbin:/sbin`, so without this list a Homebrew or nvm `node` would never be found.
  */
 export function binDirs(h: NodeHost): string[] {
@@ -89,16 +89,10 @@ export function binDirs(h: NodeHost): string[] {
 
 /**
  * The machine's Node for the daemon and its agents: `LOKI_NODE_BIN` when it is new enough, else the newest Node at or
- * above `NODE_MIN` with `npx` beside it. The Node a Tauri loki downloaded into `~/.loki/runtime` never counts. A
- * miss names the newest Node that was too old, if any.
+ * above `NODE_MIN` with `npx` beside it. A miss names the newest Node that was too old, if any.
  */
 export async function findNode(h: NodeHost): Promise<NodeSearch> {
   const p = pathFor(h.os);
-  const runtime = p.join(h.home, ".loki", "runtime");
-  const inRuntime = (file: string) => {
-    const rel = p.relative(runtime, file);
-    return rel !== "" && !rel.startsWith("..") && !p.isAbsolute(rel);
-  };
   const chosen = h.env.LOKI_NODE_BIN;
   if (chosen && h.isFile(chosen)) {
     const v = await h.version(chosen);
@@ -106,7 +100,7 @@ export async function findNode(h: NodeHost): Promise<NodeSearch> {
   }
   const rawCandidates = binDirs(h)
     .flatMap((d) => programNames(h.os, "node").map((n) => p.join(d, n)))
-    .filter((file) => !inRuntime(file) && h.isFile(file));
+    .filter((file) => h.isFile(file));
   const seenReal = new Set<string>();
   const candidates: string[] = [];
   for (const file of rawCandidates) {

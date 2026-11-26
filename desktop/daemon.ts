@@ -25,7 +25,6 @@ import {
 } from "./tools.ts";
 
 export const EXIT_HELD = 3;
-export const EXIT_OLD_DATA = 4;
 export const CRASH_LOOP_EXITS = 3;
 export const HELD_RETRY_MS = 30_000;
 export const EXIT_WINDOW_MS = 60_000;
@@ -86,7 +85,7 @@ export interface DaemonDeps {
   platform: NodeJS.Platform;
   parentPid: number;
   env: NodeJS.ProcessEnv;
-  entries: { entry: string; modEntry: string };
+  entry: string;
   findNode: () => Promise<NodeSearch>;
   git: GitDeps | null;
   toolsMissing: () => Promise<"macos" | "linux" | null>;
@@ -109,12 +108,6 @@ export function crashLoopNote(recentExits: number, log: string): string | null {
   return recentExits >= CRASH_LOOP_EXITS ? `loki's daemon keeps stopping (${recentExits} times in the last minute): its log is ${log}` : null;
 }
 
-export function oldDataNote(code: number | null, log: string): string | null {
-  return code === EXIT_OLD_DATA
-    ? `This loki folder needs loki 2026.1116 to finish converting it. Install loki 2026.1116, start it once, then update again. The daemon's log says what it found: ${log}`
-    : null;
-}
-
 export function progressDue(last: number | null, now: number, p: Preparing): boolean {
   return p.done === 0 || p.total === p.done || last === null || now - last >= PROGRESS_EVERY_MS;
 }
@@ -128,7 +121,7 @@ export function nodeMissingMessage(n: NeedsNode): string {
   return `${what}: install Node ${n.needed} or newer, or set LOKI_NODE_BIN, then check again`;
 }
 
-export function daemonCommand(d: { node: string; entry: string; modEntry: string; dir: string; tokenFile: string; parentPid: number }): {
+export function daemonCommand(d: { node: string; entry: string; dir: string; tokenFile: string; parentPid: number }): {
   command: string;
   args: string[];
 } {
@@ -141,8 +134,6 @@ export function daemonCommand(d: { node: string; entry: string; modEntry: string
       "--loki-daemon",
       "--dir",
       d.dir,
-      "--mod",
-      d.modEntry,
       "--token-file",
       d.tokenFile,
       "--parent-pid",
@@ -304,8 +295,7 @@ export class DaemonSupervisor {
     const nodeShown = versionText(search.version);
     const { command, args } = daemonCommand({
       node: search.node,
-      entry: this.deps.entries.entry,
-      modEntry: this.deps.entries.modEntry,
+      entry: this.deps.entry,
       dir: this.deps.lokiDir,
       tokenFile: join(this.deps.lokiDir, "token"),
       parentPid: this.deps.parentPid,
@@ -393,13 +383,6 @@ export class DaemonSupervisor {
       return;
     }
     this.held = false;
-    const note = oldDataNote(code, this.logFile);
-    if (note) {
-      this.deps.log(`daemon: ${note}`);
-      this.supervising = false;
-      this.publish({ ...this.current, error: note });
-      return;
-    }
     const now = this.deps.clock.now();
     this.exits = this.exits.filter((t) => now - t < EXIT_WINDOW_MS);
     const delay = restartDelay(this.exits.length);
@@ -536,10 +519,8 @@ export interface MachineDaemonOptions {
   log: (line: string) => void;
 }
 
-export function daemonEntries(lokiDir: string, checkout: string | null): { entry: string; modEntry: string } {
-  return checkout
-    ? { entry: join(checkout, "daemon", "main.ts"), modEntry: join(checkout, "mod", "boot.ts") }
-    : { entry: join(lokiDir, "daemon", "daemon.mjs"), modEntry: join(lokiDir, "mod", "loki-mod.mjs") };
+export function daemonEntry(lokiDir: string, checkout: string | null): string {
+  return checkout ? join(checkout, "daemon", "main.ts") : join(lokiDir, "daemon", "daemon.mjs");
 }
 
 export function machineDaemon(o: MachineDaemonOptions): DaemonSupervisor {
@@ -571,7 +552,7 @@ export function machineDaemon(o: MachineDaemonOptions): DaemonSupervisor {
     platform: o.platform,
     parentPid: o.pid,
     env: o.env,
-    entries: daemonEntries(o.lokiDir, devCheckout(o.packaged, o.env, o.checkout)),
+    entry: daemonEntry(o.lokiDir, devCheckout(o.packaged, o.env, o.checkout)),
     findNode: () => findNode(nodeHost()),
     git:
       o.packaged && windows

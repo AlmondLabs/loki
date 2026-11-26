@@ -236,7 +236,7 @@ describe("the usage ledger", () => {
     }
   });
 
-  test("history is seeded once from analytics' turn_finished lines, before the ledger began, its cost as other", async () => {
+  test("history is seeded once from earlier turn_finished lines, before the ledger began, its cost as other", async () => {
     const s = setup();
     try {
       const line = (timestamp: string, properties: Record<string, unknown>) =>
@@ -282,7 +282,7 @@ describe("the usage ledger", () => {
     }
   });
 
-  test("a ledger that ran before the seed existed seeds only what came before its first row; no analytics seeds nothing", async () => {
+  test("a ledger that ran before the seed existed seeds only what came before its first row; no turn log seeds nothing", async () => {
     const s = setup();
     try {
       writeFileSync(

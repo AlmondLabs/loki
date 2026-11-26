@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { OutsideReply } from "../app/src/desk/outside-card.tsx";
+import { OutsideReply } from "../app/src/workspace/outside-card.tsx";
 import { createOutsideReplies, outsideReplies } from "../app/src/shared/outside-replies.ts";
 import { idOf } from "../core/attention/queue.ts";
 import { outsideItem } from "./fixtures/outside-item.ts";

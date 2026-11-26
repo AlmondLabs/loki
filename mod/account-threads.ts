@@ -1,6 +1,6 @@
 import { chmodSync, readFileSync, renameSync } from "node:fs";
 import { join } from "node:path";
-import type { AccountLabel, AccountProvider, InboxRow, NotSentReply, OutsideChange, OutsideReach, OutsideSeed } from "../core/frame-types.ts";
+import type { AccountLabel, AccountProvider, FlowRow, NotSentReply, OutsideChange, OutsideReach, OutsideSeed } from "../core/frame-types.ts";
 import { Listeners } from "../core/listeners.ts";
 import { parseMailTraits, type MailTraits } from "../core/mail-filter.ts";
 import { REACH_LEVEL, mailReach } from "../core/outside-reach.ts";
@@ -442,8 +442,8 @@ export class AccountThreads {
     return [...this.records(accountId).values()].map((r) => ({ ...r }));
   }
 
-  rows(): InboxRow[] {
-    const out: InboxRow[] = [];
+  rows(): FlowRow[] {
+    const out: FlowRow[] = [];
     const accounts = this.opts.accounts.list();
     const providerCounts = new Map<AccountProvider, number>();
     for (const a of accounts) providerCounts.set(a.provider, (providerCounts.get(a.provider) ?? 0) + 1);
@@ -461,7 +461,7 @@ export class AccountThreads {
     return this.listeners.add(listener);
   }
 
-  private row(account: AccountRecord, r: ThreadRecord, ownerName: string | null, onlyAccount: boolean): InboxRow {
+  private row(account: AccountRecord, r: ThreadRecord, ownerName: string | null, onlyAccount: boolean): FlowRow {
     const label = accountLabel(account);
     return {
       kind: "outside",

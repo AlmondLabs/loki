@@ -3,57 +3,31 @@ import type { AttentionItem } from "../../../core/attention/model.ts";
 import { catchUpQueue } from "../../../core/attention/queue.ts";
 import { labelQuery } from "../../../core/labels.ts";
 
-import { archivedDesks, liveDesks } from "../shell/desk-tree";
+import { archivedDesks, liveDesks } from "../shell/chat-tree";
 import { sidebarModel, type SidebarSection } from "../shell/sidebar-model";
 import type { ThemePreference } from "../theme";
 import type { IconName } from "./icons";
 import type { Route } from "./router";
-import type { DeskSummary, DeviceSummary, LanStatus, LanVia, TailscaleStatus } from "../../../core/frame-types.ts";
-import { isMainChat } from "../../../core/desk-core.ts";
+import type { ChatSummary } from "../../../core/frame-types.ts";
+import { isMainChat } from "../../../core/canvas-core.ts";
 import { isAdvisorChat } from "../../../core/advisor.ts";
+import { lastSeen } from "../shared/lan-model";
+import { liveDesksLabel, type AgentRowModel } from "../shared/agent-model";
 
-export type PairedDevice = DeviceSummary;
-
-export type PhoneLanStatus = LanStatus & { via: LanVia; tailscale: TailscaleStatus | null };
-
-export function lanStatusFromFrame(msg: Record<string, unknown>): PhoneLanStatus {
-  const str = (v: unknown): string | null => (typeof v === "string" ? v : null);
-  const t = msg.tailscale;
-  let tailscale: TailscaleStatus | null = null;
-  if (t && typeof t === "object") {
-    const o = t as Record<string, unknown>;
-    tailscale = {
-      installed: o.installed === true,
-      running: o.running === true,
-      ip: str(o.ip),
-      name: str(o.name),
-      serve_url: str(o.serve_url),
-      error: str(o.error),
-    };
-  }
-  return {
-    enabled: msg.enabled === true,
-    address: str(msg.address),
-    addresses: Array.isArray(msg.addresses) ? (msg.addresses as unknown[]).filter((a): a is string => typeof a === "string") : [],
-    host: str(msg.host),
-    port: typeof msg.port === "number" ? msg.port : 41415,
-    app_served: msg.app_served === true,
-    error: str(msg.error),
-    via: msg.via === "tailscale" && tailscale?.running ? "tailscale" : "lan",
-    tailscale,
-  };
-}
-
-export function pairOrigin(s: PhoneLanStatus): string | null {
-  const ts = s.tailscale;
-  if (s.via === "tailscale" && ts?.running) {
-    if (ts.serve_url) return ts.serve_url;
-    if (ts.name) return `http://${ts.name}:${s.port}`;
-    if (ts.ip) return `http://${ts.ip}:${s.port}`;
-  }
-  const h = s.host ?? s.address;
-  return h ? `http://${h}:${s.port}` : null;
-}
+export {
+  countdown,
+  lanStatusFromFrame,
+  lastSeen,
+  pairOrigin,
+  pairUrlFor,
+  tailnetAddress,
+  viaLabel,
+  wifiAddress,
+  type PairCode,
+  type PairedDevice,
+  type PhoneLanStatus,
+} from "../shared/lan-model";
+export { agentRows, liveDeskCount, liveDesksLabel, stripFrontmatter, type AgentRowModel } from "../shared/agent-model";
 
 export function routeOf(host: string, protocol: string): string {
   const hostname = host
@@ -65,30 +39,6 @@ export function routeOf(host: string, protocol: string): string {
   if (hostname.endsWith(".local")) return `via this Wi‑Fi (Bonjour)${secure}`;
   if (/^\d{1,3}(\.\d{1,3}){3}$/.test(hostname) || hostname.includes(":")) return `via this Wi‑Fi (address)${secure}`;
   return hostname ? `via ${hostname}${secure}` : "unknown";
-}
-
-export function wifiAddress(s: PhoneLanStatus): string {
-  return s.host ? `${s.host}:${s.port}${s.address ? ` · ${s.address}` : ""}` : s.address ? `${s.address}:${s.port}` : `port ${s.port}, no network`;
-}
-
-export function tailnetAddress(s: PhoneLanStatus): string | null {
-  const ts = s.tailscale;
-  return ts?.serve_url ? ts.serve_url.replace(/^https:\/\//, "") + " · https" : ts?.name ? `${ts.name}:${s.port}` : ts?.ip ? `${ts.ip}:${s.port}` : null;
-}
-
-export interface PairCode {
-  code: string;
-  url: string;
-  expiresAt: string;
-}
-
-export function pairUrlFor(s: PhoneLanStatus, code: string): string | null {
-  const origin = pairOrigin(s);
-  return origin ? `${origin}/?code=${encodeURIComponent(code)}` : null;
-}
-
-export function viaLabel(via: unknown): string | null {
-  return via === "tailscale" ? "Tailscale" : via === "lan" ? "Wi‑Fi" : null;
 }
 
 export const CODE_ALPHABET = PAIRING_ALPHABET;
@@ -135,18 +85,6 @@ export function deviceName(ua: string, now: Date = new Date(), touchPoints = 0):
   return `${deviceKind(ua, touchPoints)} · ${hh}:${mm}`;
 }
 
-export function lastSeen(iso: string | null | undefined, now: number = Date.now()): string {
-  if (!iso) return "never";
-  const ms = now - new Date(iso).getTime();
-  if (!Number.isFinite(ms) || ms < 60_000) return "just now";
-  const unit = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"} ago`;
-  const minutes = Math.floor(ms / 60_000);
-  if (minutes < 60) return unit(minutes, "minute");
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return unit(hours, "hour");
-  return unit(Math.floor(hours / 24), "day");
-}
-
 export function agentNameOf(
   agents: Array<{ id: string; name: string }>,
   desks: Array<{ agent_id: string | null; agent_name: string | null }>,
@@ -190,14 +128,6 @@ export function waitingSince(
   return blocked ? (since === "just now" ? "Waiting under a minute" : `Waiting ${since.replace(" ago", "")}`) : since;
 }
 
-export function liveDeskCount(desks: Array<{ agent_id: string | null; status: string }>, agentId: string): number {
-  return desks.filter((d) => d.agent_id === agentId && d.status === "live").length;
-}
-
-export function liveDesksLabel(n: number): string {
-  return n === 0 ? "No chats live" : `${n} chat${n === 1 ? "" : "s"} live`;
-}
-
 export function modelBits(model: string | null | undefined, settings: Record<string, unknown>): string[] {
   return [
     model ?? null,
@@ -228,11 +158,6 @@ export function memoryFolders(files: Array<{ path: string; bytes: number; modifi
   return [...m.values()].sort((a, b) => rank(a.name) - rank(b.name) || a.name.localeCompare(b.name));
 }
 
-export function stripFrontmatter(md: string): string {
-  const m = /^---\r?\n[\s\S]*?\r?\n---\r?\n?/.exec(md);
-  return m ? md.slice(m[0].length) : md;
-}
-
 export function needsReload(served: string | null | undefined, current: string | null | undefined): boolean {
   return !!served && !!current && served !== current;
 }
@@ -243,22 +168,16 @@ export function shouldAutoReload(hiddenMs: number, changed: boolean, drafting = 
   return changed && !drafting && Number.isFinite(hiddenMs) && hiddenMs > AUTO_RELOAD_HIDDEN_MS;
 }
 
-export function countdown(iso: string, now: number = Date.now()): string {
-  const s = Math.floor((new Date(iso).getTime() - now) / 1000);
-  if (!Number.isFinite(s) || s <= 0) return "expired";
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
-}
-
 export const HOME_ATTENTION_MAX = 5;
 
 const norm = (q: string) => q.trim().toLowerCase();
 
-export function archiveList(desks: DeskSummary[], agentFilter: string | null, q: string): DeskSummary[] {
+export function archiveList(desks: ChatSummary[], agentFilter: string | null, q: string): ChatSummary[] {
   return archivedDesks(desks, agentFilter, norm(q)).filter((d) => d.agent_id && d.conversation_id);
 }
 
 export interface HomeCounts {
-  inbox: number;
+  flow: number;
   learn: number;
   agents: number;
   running: number;
@@ -276,10 +195,10 @@ export function homeCounts({
   laneItems?: AttentionItem[];
   due: number;
   agents: Array<{ id: string }>;
-  desks: DeskSummary[];
+  desks: ChatSummary[];
 }): HomeCounts {
   return {
-    inbox: catchUpQueue(laneItems).length,
+    flow: catchUpQueue(laneItems).length,
     learn: due,
     agents: agents.length,
     running: new Set(items.filter((i) => i.status === "running").map((i) => i.agent_id)).size,
@@ -287,18 +206,18 @@ export function homeCounts({
   };
 }
 
-export type Shortcut = "inbox" | "learn" | "agents" | "archive";
+export type Shortcut = "flow" | "learn" | "agents" | "archive";
 
 export function shortcutLine(kind: Shortcut, c: HomeCounts): string {
   const n = (count: number, one: string, many = `${one}s`) => `${count} ${count === 1 ? one : many}`;
-  if (kind === "inbox") return c.inbox ? `${c.inbox} waiting` : "All caught up";
+  if (kind === "flow") return c.flow ? `${c.flow} waiting` : "All caught up";
   if (kind === "learn") return c.learn ? `${c.learn} due` : "Nothing due";
   if (kind === "agents") return c.running ? `${c.running} running` : n(c.agents, "agent");
   return c.archive ? n(c.archive, "chat") : "None yet";
 }
 
-export function homeDeskSections(
-  desks: DeskSummary[],
+export function homeChatSections(
+  desks: ChatSummary[],
   items: AttentionItem[],
   attention: HomeAttention[],
   query: string,
@@ -322,7 +241,7 @@ export function homeLists({
   agents,
   due,
 }: {
-  desks: DeskSummary[];
+  desks: ChatSummary[];
   items: AttentionItem[];
   laneItems: AttentionItem[];
   query: string;
@@ -334,26 +253,26 @@ export function homeLists({
     counts: homeCounts({ items, laneItems, due, agents, desks }),
     attention,
     more,
-    groups: homeDeskSections(desks, items, attention, query, agents),
+    groups: homeChatSections(desks, items, attention, query, agents),
   };
 }
 
 export interface HomeAttention {
   item: AttentionItem;
-  desk: DeskSummary | undefined;
+  desk: ChatSummary | undefined;
   opens: "chat" | "card";
 }
 
 export function homeSections(
-  desks: DeskSummary[],
+  desks: ChatSummary[],
   items: AttentionItem[],
   agentFilter: string | null,
   query: string,
   max = HOME_ATTENTION_MAX,
-): { attention: HomeAttention[]; more: number; desks: DeskSummary[] } {
+): { attention: HomeAttention[]; more: number; desks: ChatSummary[] } {
   const { labels, text } = labelQuery(query);
   const q = norm(text);
-  const byKey = new Map<string, DeskSummary>();
+  const byKey = new Map<string, ChatSummary>();
   for (const d of desks) if (d.agent_id && d.conversation_id) byKey.set(`${d.agent_id}/${d.conversation_id}`, d);
   const waiting = catchUpQueue(items)
     .map((item): HomeAttention => ({ item, desk: byKey.get(`${item.agent_id}/${item.id}`), opens: item.outside ? "card" : "chat" }))
@@ -403,29 +322,6 @@ export function threadLine({
             ? "Waiting on you"
             : null;
   return [live, desk].filter(Boolean).join(" · ");
-}
-
-export interface AgentRowModel {
-  id: string;
-  name: string;
-  live: number;
-  running: boolean;
-  waiting: number;
-}
-
-export function agentRows(
-  agents: Array<{ id: string; name: string }>,
-  desks: Array<{ agent_id: string | null; status: string }>,
-  items: AttentionItem[],
-): AgentRowModel[] {
-  const ready = catchUpQueue(items);
-  return agents.map((a) => ({
-    id: a.id,
-    name: a.name,
-    live: liveDeskCount(desks, a.id),
-    running: items.some((i) => i.agent_id === a.id && i.status === "running"),
-    waiting: ready.filter((i) => i.agent_id === a.id).length,
-  }));
 }
 
 export type AgentFilter = "all" | "running" | "waiting";
@@ -514,6 +410,6 @@ export function moreSections(s: {
   ];
 }
 
-export function deskName(d: DeskSummary): string {
+export function chatTitle(d: ChatSummary): string {
   return d.title ?? (d.status === "live" ? "New chat" : d.scope);
 }

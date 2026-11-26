@@ -11,7 +11,7 @@ import { AgentStore } from "../daemon/kernel/index.ts";
 import { StoreManager } from "../daemon/kernel/stores.ts";
 import { ChatProjection } from "../daemon/chats.ts";
 import { memoryExtension, memoryRoot } from "../daemon/memory.ts";
-import { PassRunner } from "../daemon/passes.ts";
+import { PassRunner, type PassSummary } from "../daemon/passes.ts";
 import { PassState } from "../daemon/passes-state.ts";
 import { reflectionJob } from "../daemon/reflection.ts";
 import { createAgent } from "../daemon/store/agents.ts";
@@ -40,7 +40,7 @@ async function setup(opts: { quietMs?: number; enabled?: boolean } = {}) {
   const state = new PassState(join(dir, "state"));
   state.setSettings({ reflection: { enabled: opts.enabled ?? true } });
   const reports: string[] = [];
-  const events: Array<Record<string, unknown>> = [];
+  const events: PassSummary[] = [];
   const runner = new PassRunner({
     stores,
     chats,
@@ -50,7 +50,7 @@ async function setup(opts: { quietMs?: number; enabled?: boolean } = {}) {
     context: ctx,
     jobs: [reflectionJob],
     busy: () => Promise.resolve(false),
-    capture: (_e, p) => events.push(p),
+    onPass: (p) => events.push(p),
     report: (m) => reports.push(m),
     quietMs: opts.quietMs ?? 0,
   });

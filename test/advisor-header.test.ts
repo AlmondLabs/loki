@@ -6,7 +6,7 @@ import { applyChatEvent, emptyLive, type ChatEvent } from "../core/attention/mod
 import type { ChatState } from "../core/frames.ts";
 import { AdvisorHeader, advisorTabStatus } from "../app/src/chat/advisor-header.tsx";
 import { TabRow, type Tab } from "../app/src/components/index.tsx";
-import { paneTabs } from "../app/src/desk/desk-pane.tsx";
+import { paneTabs } from "../app/src/workspace/canvas-pane.tsx";
 import { OpenAdvisor } from "../app/src/chat/transcript.tsx";
 import { AdvisorStrips, withAdvisorOnOpen } from "../mod/chat-advisor.ts";
 import type { ChatBackend } from "../mod/frames/chat.ts";

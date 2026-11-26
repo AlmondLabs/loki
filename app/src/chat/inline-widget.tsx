@@ -1,8 +1,8 @@
 import type { ReactNode } from "react";
-import type { Gesture, WidgetManifestEntry } from "../../../core/desk-core.ts";
-import { getPath, mergeData } from "../../../core/desk-core.ts";
+import type { Gesture, WidgetManifestEntry } from "../../../core/canvas-core.ts";
+import { getPath, mergeData } from "../../../core/canvas-core.ts";
 import { KIT_COMPONENTS } from "../kit";
-import { ModuleWidget, WidgetError, WidgetErrorBoundary } from "../desk/module-widget";
+import { ModuleWidget, WidgetError, WidgetErrorBoundary } from "../workspace/module-widget";
 import { Icon } from "../shared/icons";
 
 const quiet = () => {};

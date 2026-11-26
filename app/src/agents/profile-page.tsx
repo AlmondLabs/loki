@@ -1,7 +1,7 @@
 import type { MacIdentity } from "../../../core/frame-types.ts";
 import { useEffect, useEffectEvent, useMemo, useState } from "react";
 
-import { AgentFace } from "../desk/agent-chip";
+import { AgentFace } from "../workspace/agent-chip";
 import { Button, Field, Row, Switch } from "../components";
 import type { McpApi } from "../settings/mcp";
 import { OwnedAccounts, type AccountsApi, type AgentName } from "../settings/accounts";
@@ -13,8 +13,8 @@ import { keyFor } from "../shell/keymap";
 import type { AgentDetails, AgentEdit, ModelChoice } from "./types";
 import { effortTitle } from "../chat/model-picker";
 import { REASONING_EFFORTS, type ReasoningEffort } from "../../../core/models.ts";
-import type { DeskSummary } from "../../../core/frame-types.ts";
-import { MAIN_CHAT_ID } from "../../../core/desk-core.ts";
+import type { ChatSummary } from "../../../core/frame-types.ts";
+import { MAIN_CHAT_ID } from "../../../core/canvas-core.ts";
 
 export function ProfilePage({
   d,
@@ -24,8 +24,8 @@ export function ProfilePage({
   onLoadModels,
   onSave,
   desks,
-  onOpenDesk,
-  onShowDesks,
+  onOpenChat,
+  onShowChats,
   mcp,
   accounts,
   macs,
@@ -39,9 +39,9 @@ export function ProfilePage({
   models: ModelChoice[] | null;
   onLoadModels: () => void;
   onSave: (body: AgentEdit) => Promise<void>;
-  desks: DeskSummary[];
-  onOpenDesk: (agentId: string, conversationId: string) => void;
-  onShowDesks: () => void;
+  desks: ChatSummary[];
+  onOpenChat: (agentId: string, conversationId: string) => void;
+  onShowChats: () => void;
   mcp?: Pick<McpApi, "get" | "agent">;
   accounts?: { api: AccountsApi; agents: readonly AgentName[] };
   macs?: MacIdentity[];
@@ -54,7 +54,7 @@ export function ProfilePage({
     <div className="min-w-0" style={{ minHeight: 0, overflowY: "auto", overflowX: "hidden", padding: "24px 20px 32px" }}>
       <div className="grid gap-6" style={{ maxWidth: 760 }}>
         <Identity d={d} avatar={avatar} models={models} onLoadModels={onLoadModels} onSave={onSave} macs={macs} />
-        <DesksSection myDesks={myDesks} onOpen={(conversationId) => onOpenDesk(selected, conversationId)} onShowDesks={onShowDesks} />
+        <DesksSection myDesks={myDesks} onOpen={(conversationId) => onOpenChat(selected, conversationId)} onShowChats={onShowChats} />
         {mcp && <McpSection key={selected} agentId={selected} mcp={mcp} />}
         <div style={{ paddingTop: 8 }}>
           {confirmDelete ? (
@@ -70,7 +70,7 @@ export function ProfilePage({
   );
 }
 
-function DesksSection({ myDesks, onOpen, onShowDesks }: { myDesks: DeskSummary[]; onOpen: (conversationId: string) => void; onShowDesks: () => void }) {
+function DesksSection({ myDesks, onOpen, onShowChats }: { myDesks: ChatSummary[]; onOpen: (conversationId: string) => void; onShowChats: () => void }) {
   return (
     <section>
       <Head>
@@ -93,7 +93,7 @@ function DesksSection({ myDesks, onOpen, onShowDesks }: { myDesks: DeskSummary[]
         <Button tone="brass" onClick={() => onOpen(MAIN_CHAT_ID)}>
           Main Chat
         </Button>
-        <Button onClick={onShowDesks} kbd={keyFor("segment.desk")}>
+        <Button onClick={onShowChats} kbd={keyFor("segment.chats")}>
           Chats
         </Button>
       </div>
@@ -109,7 +109,7 @@ function ConfirmDelete({
   onKeep,
 }: {
   d: AgentDetails;
-  myDesks: DeskSummary[];
+  myDesks: ChatSummary[];
   accounts?: { api: AccountsApi; agents: readonly AgentName[] };
   onRemove: () => Promise<void>;
   onKeep: () => void;

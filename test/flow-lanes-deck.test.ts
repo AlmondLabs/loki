@@ -3,15 +3,15 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { SetStateAction } from "react";
 import type { AttentionItem } from "../core/attention/model.ts";
-import { idOf, inboxQueue, type Decision } from "../core/attention/queue.ts";
-import { agentLane, laneEvent, laneItems, otherLanesCount, type Lane, type ResolvedLane } from "../core/attention/lanes.ts";
+import { idOf, flowQueue, type Decision } from "../core/attention/queue.ts";
+import { agentLane, laneItems, otherLanesCount, type Lane, type ResolvedLane } from "../core/attention/lanes.ts";
 import type { MoveResult } from "../core/attention/use-attention.ts";
-import * as parts from "../app/src/desk/catch-up-parts.tsx";
-import { FlowCaughtUp, VisitSummary } from "../app/src/desk/catch-up-parts.tsx";
-import { flowLanes } from "../app/src/desk/flow-column.tsx";
-import { switchLane } from "../app/src/desk/use-deck-queue.ts";
-import { EMPTY_REPLY, createDeckMoves } from "../app/src/desk/deck-moves.ts";
-import { answeredElsewhere, createVisit, endOnPageHide, liveRows } from "../app/src/desk/use-flow-deck.ts";
+import * as parts from "../app/src/workspace/catch-up-parts.tsx";
+import { FlowCaughtUp, VisitSummary } from "../app/src/workspace/catch-up-parts.tsx";
+import { flowLanes } from "../app/src/workspace/flow-column.tsx";
+import { switchLane } from "../app/src/workspace/use-deck-queue.ts";
+import { EMPTY_REPLY, createDeckMoves } from "../app/src/workspace/deck-moves.ts";
+import { answeredElsewhere, liveRows } from "../app/src/workspace/use-flow-deck.ts";
 import { attentionItem } from "./fixtures/attention.ts";
 
 const WORK: Lane = { id: "w", name: "Work", chats: ["ag-work"], accounts: [] };
@@ -77,7 +77,7 @@ describe("the deck in a lane", () => {
   test("in Work an approval outside it is not in the deck, and only the counts outside it say so", () => {
     const asks = of("h2", "ag-home", "Bo", { status: "approval" });
     const items = [work, asks];
-    expect(ids(inboxQueue(laneItems(items, WORK)))).toEqual(["w1"]);
+    expect(ids(flowQueue(laneItems(items, WORK)))).toEqual(["w1"]);
     expect(otherLanesCount(items, WORK)).toBe(1);
     expect(flowLanes(items, WORK, [WORK, HOME]).map((l) => [l.name, l.count])).toEqual([
       ["Everything", 2],
@@ -143,7 +143,7 @@ describe("the deck in a lane", () => {
   test("a resting card stays resting, untouched, after switching to a lane that hides it and back", async () => {
     const resting = of("h3", "ag-home", "Bo", { resting: true, unread: false });
     const items = [resting, work];
-    const d = deck(inboxQueue(items), null);
+    const d = deck(flowQueue(items), null);
     d.switchTo(WORK, items);
     d.switchTo(null, items);
     await settle();
@@ -191,44 +191,6 @@ describe("an emptied list (R12)", () => {
   });
 });
 
-describe("a visit is the time in the Flow place (KTD6)", () => {
-  const read = (item: AttentionItem): Decision => ({ item, action: "seen", via: "next", stamp: "" });
-  test("leaving the place fires onPass once, with the cards shown as committed selections", () => {
-    const passes: unknown[] = [];
-    const visit = createVisit(1_000, () => 4_000);
-    visit.show(idOf(work));
-    visit.show(idOf(home));
-    visit.show(idOf(work));
-    const tally = { decided: [read(work)], replies: 1, onPass: (p: unknown) => passes.push(p) };
-    visit.end(tally);
-    visit.end(tally);
-    expect(passes).toEqual([{ decided: 1, next: 1, archive: 0, approve: 0, deny: 0, replies: 1, shown: 2, duration_ms: 3_000 }]);
-  });
-
-  test("hiding and showing the window fires no onPass and the visit goes on; the page unloading ends it, once", () => {
-    const passes: unknown[] = [];
-    const visit = createVisit(0, () => 10);
-    const tally = { decided: [] as Decision[], replies: 0, onPass: (p: unknown) => passes.push(p) };
-    const page = new EventTarget();
-    const stop = endOnPageHide(page, () => visit.end(tally));
-    page.dispatchEvent(new Event("visibilitychange"));
-    page.dispatchEvent(new Event("blur"));
-    expect(passes).toEqual([]);
-    tally.decided = [read(home)];
-    page.dispatchEvent(new Event("pagehide"));
-    stop();
-    visit.end(tally);
-    expect(passes).toHaveLength(1);
-    expect(passes[0]).toMatchObject({ decided: 1, next: 1 });
-  });
-
-  test("a visit that decided nothing and sent nothing reports nothing", () => {
-    const passes: unknown[] = [];
-    createVisit(0, () => 10).end({ decided: [], replies: 0, onPass: (p: unknown) => passes.push(p) });
-    expect(passes).toEqual([]);
-  });
-});
-
 describe("the list's rows", () => {
   test("a row draws its card as it is now: a new message updates its preview, time and unread mark, and the order stays", () => {
     const b = of("b1", "ag-work", "Ada", { lastAssistantText: "first", last_message_at: "2026-09-05T10:00:00Z", unread: false });
@@ -257,14 +219,5 @@ describe("a card answered elsewhere (R11)", () => {
     ["resting while the visit goes through them", resting, [resting], true, new Set<string>(), false],
   ])("%s", (_name, item, items, rest, mine, expected) => {
     expect(answeredElsewhere(item, items, rest, mine)).toBe(expected);
-  });
-});
-
-describe("analytics", () => {
-  test("a lane switch reports the kind of lane, and the agent for an agent lane", () => {
-    expect(laneEvent("")).toEqual({ kind: "everything", agent: null, by: "hand" });
-    expect(laneEvent(WORK.id)).toEqual({ kind: "own", agent: null, by: "hand" });
-    expect(laneEvent(agentLane([work], "ag-work").id)).toEqual({ kind: "agent", agent: "ag-work", by: "hand" });
-    expect(laneEvent(WORK.id, "schedule")).toEqual({ kind: "own", agent: null, by: "schedule" });
   });
 });

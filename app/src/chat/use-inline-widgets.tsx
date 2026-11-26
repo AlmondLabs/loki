@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, type ReactNode } from "react";
-import type { Gesture, Scope, WidgetLogEntry, WidgetManifestEntry } from "../../../core/desk-core.ts";
+import type { Gesture, Scope, WidgetLogEntry, WidgetManifestEntry } from "../../../core/canvas-core.ts";
 import type { TranscriptRow } from "../../../core/attention/transcript.ts";
-import { widgetMarks } from "../desk/widget-rows";
+import { widgetMarks } from "../workspace/widget-rows";
 import { InlineWidget } from "./inline-widget";
 import type { WidgetMark } from "./transcript";
 

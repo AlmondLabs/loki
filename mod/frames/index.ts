@@ -1,28 +1,27 @@
-import { SHARED_SCOPE, type Scope } from "../../core/desk-core.ts";
+import { SHARED_SCOPE, type Scope } from "../../core/canvas-core.ts";
 import type { PushFrame } from "../../core/frames.ts";
 import { accountFrames, type AccountsDeps } from "./accounts.ts";
 import { agentsFrames, type AgentsDeps } from "./agents.ts";
-import { captureFrames } from "./capture.ts";
 import { chatFrames, type ChatDeps } from "./chat.ts";
 import { daemonFrames, type DaemonDeps } from "./daemon.ts";
 import type { FrameHandlers } from "./context.ts";
-import { deskFrame, desksFrames, type DesksDeps } from "./desks.ts";
+import { canvasFrame, canvasFrames, type CanvasDeps } from "./canvas.ts";
 import { foldersFrames, type FoldersDeps } from "./folders.ts";
 import { historyFrames, type HistoryDeps } from "./history.ts";
 import { lanFrames, type LanDeps } from "./lan.ts";
 import { linkFrames, type LinkDeps } from "./links.ts";
 import { peersFrames, type PeersDeps } from "./peers.ts";
-import { recallFrames, type RecallDeps } from "./recall.ts";
+import { learnFrames, type LearnDeps } from "./learn.ts";
 import { replyFrames, type ReplyDeps } from "./replies.ts";
 import { seenFrame, seenFrames, type SeenDeps } from "./seen.ts";
 import { suggestionFrames, type SuggestionDeps } from "./suggestions.ts";
 import { usageFrames, type UsageDeps } from "./usage.ts";
 
-export type ModuleDeps = DesksDeps &
+export type ModuleDeps = CanvasDeps &
   SeenDeps &
   HistoryDeps &
   FoldersDeps &
-  RecallDeps &
+  LearnDeps &
   AgentsDeps &
   LanDeps &
   PeersDeps &
@@ -36,12 +35,11 @@ export type ModuleDeps = DesksDeps &
 
 export function frameModules(deps: ModuleDeps): FrameHandlers[] {
   return [
-    desksFrames(deps),
+    canvasFrames(deps),
     seenFrames(deps),
-    captureFrames(),
     historyFrames(deps),
     foldersFrames(deps),
-    recallFrames(deps),
+    learnFrames(deps),
     agentsFrames(deps),
     lanFrames(deps),
     peersFrames(deps),
@@ -57,9 +55,9 @@ export function frameModules(deps: ModuleDeps): FrameHandlers[] {
 
 export function welcomeFrames(deps: ModuleDeps): (scope: Scope) => PushFrame[] {
   return (scope) => [
-    deskFrame(deps, scope),
-    ...(scope !== SHARED_SCOPE ? [deskFrame(deps, SHARED_SCOPE)] : []),
-    ...(deps.listDesks ? [{ type: "desks" as const, desks: deps.listDesks() }] : []),
+    canvasFrame(deps, scope),
+    ...(scope !== SHARED_SCOPE ? [canvasFrame(deps, SHARED_SCOPE)] : []),
+    ...(deps.listChats ? [{ type: "chats" as const, chats: deps.listChats() }] : []),
     ...(deps.seen ? [seenFrame(deps)] : []),
     ...(deps.recentModels ? [{ type: "models_recent" as const, recent: deps.recentModels.read() }] : []),
     ...(deps.usualModels ? [{ type: "models_usual" as const, usual: deps.usualModels.read() }] : []),

@@ -1,6 +1,6 @@
 import { OUTSIDE_ENDS } from "../core/attention/model.ts";
 import { messageOf } from "../core/errors.ts";
-import type { AccountDisconnectCause, AccountProvider, DeskStatus, HandoffProposal, HandoffTarget } from "../core/frame-types.ts";
+import type { AccountDisconnectCause, AccountProvider, ChatStatus, HandoffProposal, HandoffTarget } from "../core/frame-types.ts";
 import { keyedQueue } from "../core/serial.ts";
 import type { AccountThreads, ThreadRecord } from "./account-threads.ts";
 import { accountLabel, type AccountRecord, type Accounts } from "./accounts.ts";
@@ -14,7 +14,7 @@ export interface HandoffChat {
   agent_id: string | null;
   conversation_id: string | null;
   title: string | null;
-  status: DeskStatus;
+  status: ChatStatus;
   last_active: string | null;
 }
 

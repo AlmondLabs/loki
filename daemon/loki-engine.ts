@@ -14,7 +14,6 @@ import type { Delivery, Engine, EngineChat } from "./engine.ts";
 import type { AgentStore } from "./kernel/index.ts";
 import type { McpTools } from "./mcp/index.ts";
 import type { ModRegistry } from "./mods/registry.ts";
-import { turnIdOf } from "./telemetry.ts";
 
 export function modelRef(handle: string): { provider: string; modelId: string } | undefined {
   const slash = handle.indexOf("/");
@@ -208,7 +207,6 @@ export class LokiEngine implements Engine {
       agent_id: agentId,
       conversation_id: conversationId,
       loop: waiting ? "approval" : view?.run ? "running" : "idle",
-      turn_id: view?.run ? turnIdOf(agentId, view.run.inputs) : null,
       mode: modeOf(info?.mode),
       // oxlint-disable-next-line typescript/no-unnecessary-type-assertion -- tsgolint 7.0.2005 calls this a no-op, but tsc needs it: agentSettings returns object, which has no fields to read.
       cwd: (settings as { cwd?: string } | undefined)?.cwd ?? null,

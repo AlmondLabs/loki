@@ -3,8 +3,18 @@ import QRCode from "qrcode";
 import { Button, Dot, Row as PickRow, Switch, sentence } from "../components";
 import { Block, Setting } from "./layout";
 import { useNow } from "../components/use-now";
-import { notYetOn, platform, type Platform } from "../desk/env";
-import { countdown, lastSeen, pairUrlFor, tailnetAddress, viaLabel, wifiAddress, type PairCode, type PairedDevice, type PhoneLanStatus } from "../phone/model";
+import { notYetOn, platform, type Platform } from "../workspace/env";
+import {
+  countdown,
+  lastSeen,
+  pairUrlFor,
+  tailnetAddress,
+  viaLabel,
+  wifiAddress,
+  type PairCode,
+  type PairedDevice,
+  type PhoneLanStatus,
+} from "../shared/lan-model";
 import type { LanVia, TailscaleStatus } from "../../../core/frame-types.ts";
 
 export interface PhoneApi {

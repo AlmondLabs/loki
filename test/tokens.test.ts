@@ -70,7 +70,7 @@ const contrast = (a: Rgb, b: Rgb) => {
 };
 
 const FONT_SIZE = /^var\(--(?:text-(?:xs|sm|base|2xl)|phone-text-[a-z-]+)\)$/;
-const FACE_INITIAL = { path: "desk/agent-chip.tsx", value: "Math.max(9, Math.round(size * 0.5))" };
+const FACE_INITIAL = { path: "workspace/agent-chip.tsx", value: "Math.max(9, Math.round(size * 0.5))" };
 const SPACE = new Set([0, 1, 2, 4, 8, 12, 16, 20, 24, 32, 48]);
 const SPACE_STEPS = new Set(["0", "px", "0.5", "1", "2", "3", "4", "5", "6", "8", "12"]);
 const RADII = new Set([2, 4, 6, 8, 12, 16, 24, 999]);
@@ -162,8 +162,8 @@ describe("design tokens: every style stays on the scales", () => {
     expect(offFontInline("x.tsx", "function Chip({ size = 10.5 }) {\n  return <b style={{ fontSize: size }} />;\n}")).toHaveLength(1);
     expect(offFontInline("x.tsx", "const s = { fontSize: imported };")).toHaveLength(1);
     expect(offFontInline("x.tsx", "const s = { fontSize: Math.max(9, Math.round(size * 0.5)) };")).toHaveLength(1);
-    expect(offFontInline("desk/agent-chip.tsx", "const s = { fontSize: Math.max(9, Math.round(size * 0.5)), gap: 4 };")).toEqual([]);
-    expect(offFontInline("desk/agent-chip.tsx", "const s = { fontSize: 10.5 };")).toHaveLength(1);
+    expect(offFontInline("workspace/agent-chip.tsx", "const s = { fontSize: Math.max(9, Math.round(size * 0.5)), gap: 4 };")).toEqual([]);
+    expect(offFontInline("workspace/agent-chip.tsx", "const s = { fontSize: 10.5 };")).toHaveLength(1);
     expect(
       offFontInline(
         "x.tsx",

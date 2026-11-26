@@ -3,7 +3,7 @@ import type { CommitPublication, ConversationId, UsageState } from "@earendil-wo
 import { createReadStream, readFileSync } from "node:fs";
 import { createInterface } from "node:readline";
 import { isAdvisorChat } from "../core/advisor.ts";
-import { isWriterChat } from "../core/recall/model.ts";
+import { isWriterChat } from "../core/learn/model.ts";
 import { hourOf, type UsageOrigin, type UsageRow } from "../core/usage.ts";
 import { doctorChatId } from "./doctor.ts";
 import { ACP_PASS_SUFFIX } from "./memory.ts";
@@ -123,6 +123,7 @@ const ORIGIN_OF_TURN: Partial<Record<string, UsageOrigin>> = {
   schedule: "chats",
   background: "chats",
   subagent: "helpers",
+  learn: "learn",
   recall: "learn",
   reflection: "reflection",
   doctor: "doctor",

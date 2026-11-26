@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { AccountProvider, OutsideMessage, SlackReaction } from "../../../core/frame-types.ts";
-import { HoverBar, ReactionRefused, SlackReplies, useReacting, type ReactControls, type RowReacting, type SlackRowAt } from "../desk/slack-thread";
-import { addressIn, mailWhen, senderName, sentToLine, snippet } from "../desk/mail-thread";
+import { HoverBar, ReactionRefused, SlackReplies, useReacting, type ReactControls, type RowReacting, type SlackRowAt } from "../workspace/slack-thread";
+import { addressIn, mailWhen, senderName, sentToLine, snippet } from "../workspace/mail-thread";
 import { outsideMessageEntry } from "./item-view";
 import { FoldedEntry, MessageEntry } from "./message-entry";
 import { emojiTitle } from "./reactions";

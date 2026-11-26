@@ -33,7 +33,7 @@ export function motionFor(from: Route, to: Route, arrival: Arrival, zoomedHash: 
   if (!isPage(from) && !isPage(to)) return null;
   if (arrival === "pop") {
     if (!isPage(from)) return null;
-    if (zoomedHash === formatRoute(from) && to.kind === "tab" && to.tab === "inbox") return "zoom";
+    if (zoomedHash === formatRoute(from) && to.kind === "tab" && to.tab === "flow") return "zoom";
     return "pop";
   }
   if (arrival === "push") return isPage(to) ? "push" : null;

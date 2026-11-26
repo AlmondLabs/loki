@@ -5,8 +5,7 @@ import { join } from "node:path";
 import { addRecentModel, readRecentModels, RECENT_MODELS_MAX } from "../mod/models.ts";
 import { bridgeOf } from "./fixtures/frames.ts";
 import { PHONE_FRAMES } from "../core/frames.ts";
-import { DeskStore } from "../mod/desk-store.ts";
-import { GestureLog } from "../mod/gestures.ts";
+import { CanvasStore } from "../mod/canvas-store.ts";
 import type { WidgetsWatcher } from "../mod/widgets-fs.ts";
 import type { Client } from "../mod/server.ts";
 
@@ -42,11 +41,10 @@ describe("recent models over the bridge", () => {
     let recent = ["anthropic/opus"];
     const broadcasts: Array<Record<string, unknown>> = [];
     const bridge = bridgeOf({
-      store: new DeskStore(),
+      store: new CanvasStore(),
       widgets,
-      gestures: new GestureLog(),
       broadcast: (m) => broadcasts.push(m as Record<string, unknown>),
-      listDesks: () => [],
+      listChats: () => [],
       recentModels: { read: () => recent, add: (h) => (recent = [h, ...recent.filter((x) => x !== h)]) },
     });
     const mac = client();

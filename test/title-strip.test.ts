@@ -9,7 +9,7 @@ import { TitleMenu, TitleMenuItems, titleMenus, runMenuItem } from "../app/src/s
 import { KEYMAP, labelOf, menuSpec, registerActions, resolve } from "../app/src/shell/keymap.ts";
 import { guardBrowserKey } from "../app/src/shell/use-shell-keys.ts";
 import { LAYER } from "../app/src/kit/layers.ts";
-import type { Platform } from "../app/src/desk/env.ts";
+import type { Platform } from "../app/src/workspace/env.ts";
 import { must } from "./fixtures/must.ts";
 
 const strip = (os: Platform, shell = true) => renderToStaticMarkup(createElement(TitleStrip, { os, shell }));
@@ -161,7 +161,7 @@ describe("the ☰ menu (plan 014 U4, KTD4)", () => {
 
   test("choosing an item runs its action, the way a Mac menu click does", () => {
     const ran: string[] = [];
-    const off = registerActions({ "desk.new": () => ran.push("desk.new"), "window.hide": () => ran.push("window.hide") });
+    const off = registerActions({ "chat.new": () => ran.push("chat.new"), "window.hide": () => ran.push("window.hide") });
     try {
       const picked: string[] = [];
       const items = elements(tree("windows", (id) => (picked.push(id), runMenuItem(id))));
@@ -172,10 +172,10 @@ describe("the ☰ menu (plan 014 U4, KTD4)", () => {
             `the ${id} item`,
           ).props.onClick as () => void
         )();
-      click("desk.new");
+      click("chat.new");
       click("window.hide");
-      expect(picked).toEqual(["desk.new", "window.hide"]);
-      expect(ran).toEqual(["desk.new", "window.hide"]);
+      expect(picked).toEqual(["chat.new", "window.hide"]);
+      expect(ran).toEqual(["chat.new", "window.hide"]);
     } finally {
       off();
     }
@@ -196,8 +196,8 @@ describe("the webview's own browser keys off the Mac (plan 014 U4)", () => {
       const e = key("r", { ctrl: true });
       guardBrowserKey(e, os, true);
       expect(e.prevented).toBe(true);
-      expect(resolve(key("r", { ctrl: true }), "learn", os)?.id).toBe("recall.refresh");
-      for (const s of ["desk", "inbox", "agents"] as const) expect(resolve(key("r", { ctrl: true }), s, os)).toBeNull();
+      expect(resolve(key("r", { ctrl: true }), "learn", os)?.id).toBe("learn.refresh");
+      for (const s of ["chats", "flow", "agents"] as const) expect(resolve(key("r", { ctrl: true }), s, os)).toBeNull();
     }
   });
 
@@ -224,7 +224,7 @@ describe("the webview's own browser keys off the Mac (plan 014 U4)", () => {
       guardBrowserKey(e, "windows", true);
       expect([k, mods, e.prevented]).toEqual([k, mods, true]);
     }
-    expect(resolve(key("f", { ctrl: true }), "desk", "windows")?.id).toBe("chat.find");
+    expect(resolve(key("f", { ctrl: true }), "chats", "windows")?.id).toBe("chat.find");
   });
 
   test("the text's own keys, the Mac, a browser tab and a development build are left alone", () => {

@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import type { AttentionItem } from "../../../core/attention/model.ts";
-import { agentRows } from "../phone/model";
+import { agentRows } from "../shared/agent-model";
 import type { PlaceSources } from "../shell/sidebar";
 import { agentsSelection, shownAgent, type AgentsSelection, type AgentsSelectionState } from "./selection";
 

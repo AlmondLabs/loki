@@ -1,5 +1,5 @@
 import { ownerAgentOf, type AttentionItem } from "./model.ts";
-import { catchUpQueue, inboxQueue } from "./queue.ts";
+import { catchUpQueue, flowQueue } from "./queue.ts";
 
 /** One side of a lane: every agent or account, now and later, or the ones picked by id ([] is none). */
 export type LaneSide = "all" | string[];
@@ -101,7 +101,7 @@ const ownerNameOf = (i: AttentionItem): string => (i.outside ? i.outside.owner_n
 
 export function agentLanes(items: AttentionItem[]): AgentLane[] {
   const by = new Map<string, AgentLane>();
-  for (const i of inboxQueue(items)) {
+  for (const i of flowQueue(items)) {
     const agentId = ownerAgentOf(i);
     const lane = by.get(agentId) ?? { id: agentLaneId(agentId), name: ownerNameOf(i), agent_id: agentId, count: 0 };
     if (!i.outside && i.agent_name) lane.name = i.agent_name;
@@ -112,12 +112,6 @@ export function agentLanes(items: AttentionItem[]): AgentLane[] {
 }
 
 export type LaneSwitchBy = "hand" | "schedule";
-
-export function laneEvent(id: string, by: LaneSwitchBy = "hand"): { kind: "everything" | "own" | "agent"; agent: string | null; by: LaneSwitchBy } {
-  if (!id) return { kind: "everything", agent: null, by };
-  const agent = agentOfLaneId(id);
-  return agent !== null ? { kind: "agent", agent, by } : { kind: "own", agent: null, by };
-}
 
 export function agentLane(items: AttentionItem[], agentId: string): AgentLane {
   const listed = agentLanes(items).find((l) => l.agent_id === agentId);

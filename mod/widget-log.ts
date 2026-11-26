@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import { join } from "node:path";
-import type { Scope, WidgetActor, WidgetChange, WidgetLogEntry, WidgetManifestEntry } from "../core/desk-core.ts";
+import type { Scope, WidgetActor, WidgetChange, WidgetLogEntry, WidgetManifestEntry } from "../core/canvas-core.ts";
 import type { WidgetsDiff } from "./widgets-fs.ts";
 import { writeJsonAtomic } from "./json-file.ts";
 

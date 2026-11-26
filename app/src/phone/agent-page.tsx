@@ -8,7 +8,7 @@ import type { AgentDetails } from "../agents/agents";
 import { Diff } from "../agents/changes-page";
 import { ago } from "../shared/ago";
 import { READING, answered, valueOf, type Fetched } from "../shared/fetched";
-import { avatarUrl } from "../desk/env";
+import { avatarUrl } from "../workspace/env";
 
 import { useAgentDetails, type PhoneAgentsApi } from "./agents";
 import { DeskRow } from "./home";
@@ -18,8 +18,8 @@ import { navigate } from "./router";
 import { Avatar, PhoneRow, RowIcon, RowSection } from "./rows";
 import { Button } from "../components";
 import { BackButton, Scroll, TopBar } from "./ui";
-import type { DeskSummary, MemoryCommit } from "../../../core/frame-types.ts";
-import { isMainChat, MAIN_CHAT_ID } from "../../../core/desk-core.ts";
+import type { ChatSummary, MemoryCommit } from "../../../core/frame-types.ts";
+import { isMainChat, MAIN_CHAT_ID } from "../../../core/canvas-core.ts";
 
 function useMemoryLog(api: PhoneAgentsApi, agentId: string) {
   const [commits, setCommits] = useState<MemoryCommit[] | null>(null);
@@ -57,7 +57,7 @@ export function AgentPage({
 }: {
   agentId: string;
   name: string | null;
-  desks: DeskSummary[];
+  desks: ChatSummary[];
   items: AttentionItem[];
   api: PhoneAgentsApi;
   banner?: ReactNode;
@@ -115,7 +115,7 @@ function Hero({
   agentId: string;
   name: string;
   details: AgentDetails | null;
-  desks: DeskSummary[];
+  desks: ChatSummary[];
   running: boolean;
 }) {
   const live = liveDeskCount(desks, agentId);
@@ -142,7 +142,7 @@ function Hero({
   );
 }
 
-function Conversations({ agentId, desks, items }: { agentId: string; desks: DeskSummary[]; items: AttentionItem[] }) {
+function Conversations({ agentId, desks, items }: { agentId: string; desks: ChatSummary[]; items: AttentionItem[] }) {
   const mine = desks.filter((x) => x.agent_id === agentId && x.status === "live" && x.conversation_id);
   const marks = new Map(items.filter((i) => i.agent_id === agentId).map((i) => [i.id, i]));
   return (

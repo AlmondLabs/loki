@@ -4,7 +4,7 @@ import type { AccountThreads } from "../account-threads.ts";
 import { accountIdOf, accountView, type Accounts } from "../accounts.ts";
 import { JiraClient, JiraError, type JiraSecret } from "../jira.ts";
 import type { Handoff } from "../handoff.ts";
-import type { InboxLedger } from "../inbox-ledger.ts";
+import type { FlowLedger } from "../flow-ledger.ts";
 import type { OutsideThreads } from "../outside-threads.ts";
 import type { GoogleSignIn } from "../google-signin.ts";
 import type { SlackSessions } from "../slack-session.ts";
@@ -26,7 +26,7 @@ export interface AccountsDeps {
   threads?: ThreadWrites;
   handoff?: Pick<Handoff, "propose" | "handOff">;
   outside?: Pick<OutsideThreads, "read" | "reply" | "compose" | "unsend" | "resend" | "discardUnsent" | "react" | "searchEmoji" | "searchPeople">;
-  ledger?: Pick<InboxLedger, "record">;
+  ledger?: Pick<FlowLedger, "record">;
   connect?: AccountConnectDeps;
   otherMacs?: () => MacAccountView[];
 }

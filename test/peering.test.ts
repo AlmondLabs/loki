@@ -2,14 +2,14 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, test, vi } from "vitest";
-import type { DeskSummary, InboxRow, LanStatus, TailnetDevice } from "../core/frame-types.ts";
+import type { ChatSummary, FlowRow, LanStatus, TailnetDevice } from "../core/frame-types.ts";
 import { memorySecrets } from "../daemon/credentials.ts";
 import { memoryRepos } from "../daemon/memory-sync.ts";
 import { PAIRING_TTL_MS } from "../mod/pairing.ts";
 import { startPeering, type PeerListener, type PeeringDeps } from "../mod/peering.ts";
 import { SeenStore } from "../mod/seen.ts";
 
-function mac(opts: { tailnet?: TailnetDevice[]; desks?: DeskSummary[]; inbox?: InboxRow[] } = {}) {
+function mac(opts: { tailnet?: TailnetDevice[]; desks?: ChatSummary[]; inbox?: FlowRow[] } = {}) {
   const dir = mkdtempSync(join(tmpdir(), "loki-peering-"));
   const pushed: object[] = [];
   const needed: boolean[] = [];
@@ -37,7 +37,7 @@ function mac(opts: { tailnet?: TailnetDevice[]; desks?: DeskSummary[]; inbox?: I
     },
     tailscale: { devices: () => opts.tailnet ?? [] },
     broadcast: (msg) => pushed.push({ ...msg, to: "everyone" }),
-    local: { desks: () => opts.desks ?? [], inbox: () => opts.inbox ?? [] },
+    local: { chats: () => opts.desks ?? [], flow: () => opts.inbox ?? [] },
     dirs: { peers: join(dir, "peers.json"), state: dir, data: dir, widgets: join(dir, "widgets"), uploads: join(dir, "uploads") },
   });
   return { peering, pushed, needed, done: () => (peering.stop(), rmSync(dir, { recursive: true, force: true })) };
@@ -82,7 +82,7 @@ describe("the paired Macs, as the mod uses them (plan 052)", () => {
     const m = mac();
     try {
       m.peering.pushed("seen");
-      m.peering.pushed("recall_changed");
+      m.peering.pushed("learn_changed");
       m.peering.pushed("lists_changed");
       vi.advanceTimersByTime(1000);
       expect(m.pushed).toEqual([{ type: "state_changed", folders: ["learn"], to: "macs" }]);
@@ -92,11 +92,11 @@ describe("the paired Macs, as the mod uses them (plan 052)", () => {
   });
 
   test("with no Mac paired the lists are this Mac's, the inbox newest first, and nothing blocks a delete", () => {
-    const row = (id: string, at: string) => ({ id, last_message_at: at }) as InboxRow;
+    const row = (id: string, at: string) => ({ id, last_message_at: at }) as FlowRow;
     const m = mac({ inbox: [row("old", "2026-10-01T00:00:00Z"), row("new", "2026-10-28T00:00:00Z")] });
     try {
-      expect(m.peering.inbox().map((r) => r.id)).toEqual(["new", "old"]);
-      expect(m.peering.desks()).toEqual([]);
+      expect(m.peering.flow().map((r) => r.id)).toEqual(["new", "old"]);
+      expect(m.peering.summaries()).toEqual([]);
       expect(m.peering.agentDeleteBlocked("ada")).toBeNull();
     } finally {
       m.done();

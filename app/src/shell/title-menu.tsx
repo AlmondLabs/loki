@@ -11,7 +11,7 @@ import {
   DropdownMenuTrigger,
 } from "@/ui/dropdown-menu";
 import { cx } from "../components/parts";
-import { keyboard, type Platform } from "../desk/env";
+import { keyboard, type Platform } from "../workspace/env";
 import { lastInput } from "../kit/motion";
 import { KEYMAP, formatKeys, keyFor, keysOf, labelOf, menuSpec, runAction, type Binding } from "./keymap";
 import { MenuIcon } from "lucide-react";

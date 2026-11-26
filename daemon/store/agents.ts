@@ -3,7 +3,7 @@ import { mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { randomUUID } from "node:crypto";
-import { backendName } from "../../core/desk-core.ts";
+import { backendName } from "../../core/canvas-core.ts";
 import { readLocalAgent } from "../../mod/agents.ts";
 import { writeJsonAtomic } from "../../mod/json-file.ts";
 

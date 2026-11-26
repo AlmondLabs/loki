@@ -27,7 +27,6 @@ function world(opts: { archived?: boolean; chats?: Record<string, TargetChat>; a
   const agents = new Set(opts.agents ?? [FRIDAY, IRA]);
   const calls: ChatCall[] = [];
   const pushes: Array<{ chat: string; events: ChatEvent[] }> = [];
-  const tracked: Array<{ event: string; properties: Record<string, unknown> }> = [];
   let made = 0;
   const call = (f: ChatCall): Promise<CallOutcome> => {
     calls.push(f);
@@ -57,25 +56,23 @@ function world(opts: { archived?: boolean; chats?: Record<string, TargetChat>; a
     agentHome: (id) => (id === IRA ? "mac-mini" : null),
     call,
     push: (agentId, conversationId, events) => pushes.push({ chat: `${agentId}/${conversationId}`, events }),
-    track: (event, properties) => tracked.push({ event, properties }),
     now: () => new Date("2026-10-29T10:00:00Z"),
     newId: () => `sugg-${++n}`,
   });
   const stored = () => must(records.get(key(SOURCE)), "the source chat").suggestions;
-  return { s, records, chats, agents, calls, pushes, tracked, stored, call };
+  return { s, records, chats, agents, calls, pushes, stored, call };
 }
 
 const suggest = (w: ReturnType<typeof world>, target: SuggestionTarget = INFRA) =>
   w.s.add(SOURCE, { title: "Fix the flaky lock test", text: "The lock test in /work/loki/test/lock.test.ts sleeps; wait on a condition.", target });
 
 describe("making a suggestion", () => {
-  test("it is kept on the source chat as pending, every client hears the chat's open suggestions, and it is counted", async () => {
+  test("it is kept on the source chat as pending, and every client hears the chat's open suggestions", async () => {
     const w = world();
     const made = await suggest(w);
     expect(made).toMatchObject({ id: "sugg-1", status: "pending", target: INFRA, created_at: "2026-10-29T10:00:00.000Z" });
     expect(w.stored()).toEqual([made]);
     expect(w.pushes.at(-1)).toEqual({ chat: key(SOURCE), events: [{ kind: "suggestions", suggestions: [made] }] });
-    expect(w.tracked).toEqual([{ event: "suggestion_made", properties: { agent: FRIDAY, target: "existing" } }]);
   });
 
   test("a suggestion needs a title, a text and a target", async () => {
@@ -85,7 +82,7 @@ describe("making a suggestion", () => {
     await expect(w.s.add({ agent_id: FRIDAY, conversation_id: "conv-none" }, { title: "t", text: "x", target: INFRA })).rejects.toThrow("no chat conv-none");
   });
 
-  test("a suggestion added to an archived chat brings the chat back into the Inbox (R15)", async () => {
+  test("a suggestion added to an archived chat brings the chat back into the Flow (R15)", async () => {
     const w = world({ archived: true });
     await suggest(w);
     expect(w.calls).toEqual([{ type: "chat_update", ...SOURCE, archived: false }]);
@@ -390,11 +387,10 @@ describe("sending across three Macs (KTD3)", () => {
 });
 
 describe("the suggestion frames", () => {
-  test("a decision answers with the suggestion as it stands and who settled it, and records the decision", async () => {
+  test("a decision answers with the suggestion as it stands and who settled it", async () => {
     const w = world();
     const made = await suggest(w);
-    const captured: Array<{ event: string; properties?: Record<string, unknown> }> = [];
-    const { bridge } = bridgeWith({ suggestions: w.s, capture: (_c, event, properties) => captured.push({ event, properties }) });
+    const { bridge } = bridgeWith({ suggestions: w.s });
     const phone = client("d1", "dev-1");
     bridge.onMessage(phone, { type: "suggestion_decide", request_id: "r1", ...SOURCE, suggestion_id: made.id, action: "send" });
     await settled();
@@ -404,10 +400,6 @@ describe("the suggestion frames", () => {
     bridge.onMessage(desktop, { type: "suggestion_decide", request_id: "r2", ...SOURCE, suggestion_id: made.id, action: "reject" });
     await settled();
     expect(desktop.sent.at(-1)).toMatchObject({ type: "suggestion_decided", request_id: "r2", done: false, message: "already sent from the phone" });
-    expect(captured).toEqual([
-      { event: "suggestion_decided", properties: { action: "send", outcome: "done", by: "phone" } },
-      { event: "suggestion_decided", properties: { action: "reject", outcome: "refused", by: "desktop" } },
-    ]);
   });
 
   test("a re-point frame changes the target", async () => {

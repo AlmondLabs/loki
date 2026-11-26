@@ -9,7 +9,7 @@ import { createRegistry, MemoryStorage } from "@earendil-works/pi-durable";
 import { AgentStore } from "../daemon/kernel/index.ts";
 import { StoreManager } from "../daemon/kernel/stores.ts";
 import { ChatProjection } from "../daemon/chats.ts";
-import { PassRunner, type PassAnswer, type PassInput, type PassJob, type PassSpec } from "../daemon/passes.ts";
+import { PassRunner, type PassAnswer, type PassInput, type PassJob, type PassSpec, type PassSummary } from "../daemon/passes.ts";
 import type { ChatEngine } from "../daemon/kernel/index.ts";
 import { DOCTOR_TOOLS } from "../daemon/doctor.ts";
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -64,7 +64,7 @@ async function setup(opts: { quietMs?: number; busy?: () => boolean; canRun?: ()
     },
     apply: (_input, answer) => ({ items: { kept: answer.text === "kept" ? 1 : 0 } }),
   };
-  const events: Array<Record<string, unknown>> = [];
+  const events: PassSummary[] = [];
   const reports: string[] = [];
   const runner = new PassRunner({
     stores,
@@ -77,7 +77,7 @@ async function setup(opts: { quietMs?: number; busy?: () => boolean; canRun?: ()
     busy: () => Promise.resolve(opts.busy?.() ?? false),
     ...(opts.canRun ? { canRun: () => Promise.resolve(opts.canRun?.() ?? true) } : {}),
     ...(opts.acp ? { acp: opts.acp } : {}),
-    capture: (_e, p) => events.push(p),
+    onPass: (p) => events.push(p),
     report: (m) => reports.push(m),
     quietMs: opts.quietMs ?? 0,
   });

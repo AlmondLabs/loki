@@ -2,8 +2,8 @@ import type { Context } from "@earendil-works/chord";
 import { withCancel } from "@earendil-works/chord/context";
 import type { EntryRecord, Registry } from "@earendil-works/pi-durable";
 import { readLocalAgent } from "../mod/agents.ts";
-import { formatTranscript } from "../mod/recall-worker.ts";
-import { isWriterChat } from "../core/recall/model.ts";
+import { formatTranscript } from "../mod/learn-worker.ts";
+import { isWriterChat } from "../core/learn/model.ts";
 import { daemonTimeReminder } from "../core/attention/content.ts";
 import type { TranscriptRow } from "../core/attention/transcript.ts";
 import type { ChatProjection } from "./chats.ts";
@@ -73,6 +73,21 @@ export interface PassJob {
   apply(input: PassInput, answer: PassAnswer): Promise<PassResult> | PassResult;
 }
 
+export interface PassSummary {
+  job: string;
+  agent: string;
+  outcome: string;
+  items: Record<string, unknown>;
+  request_id?: string | null;
+  chat?: string;
+  chats?: string[];
+  entries_read?: number;
+  files?: number;
+  chars?: number;
+  engine?: string;
+  duration_ms: number;
+}
+
 interface Deps {
   stores: StoreManager;
   chats: ChatProjection;
@@ -87,7 +102,7 @@ interface Deps {
     engineFor(agentId: string): Promise<ChatEngine | null>;
     ask(agentId: string, engine: ChatEngine, spec: PassSpec & { timeoutMs: number }): Promise<PassAnswer>;
   };
-  capture?(event: string, properties: Record<string, unknown>): void;
+  onPass?(summary: PassSummary): void;
   report?(message: string): void;
   now?(): Date;
   quietMs?: number;
@@ -307,9 +322,9 @@ export class PassRunner {
     const { state } = this.deps;
     let parts: PassPart[] = [];
     let requestId: string | null = null;
-    const finish = (outcome: RunOutcome, extra: Record<string, unknown> = {}) => {
+    const finish = (outcome: RunOutcome, extra: Partial<PassSummary> = {}) => {
       const read = parts.reduce((n, p) => n + p.lines - p.from, 0);
-      this.deps.capture?.("pass_finished", {
+      this.deps.onPass?.({
         job: job.name,
         agent: agentId,
         chat: parts[0]?.chatId ?? chatIds[0],
@@ -453,8 +468,8 @@ export class PassRunner {
   private async doctor(agentId: string, deadline: number): Promise<DoctorResult> {
     const started = this.now();
     const requestId = `pass:doctor:${agentId}:${started.getTime().toString(36)}`;
-    const finish = (result: DoctorResult, extra: Record<string, unknown> = {}) => {
-      this.deps.capture?.("pass_finished", {
+    const finish = (result: DoctorResult, extra: Partial<PassSummary> = {}) => {
+      this.deps.onPass?.({
         job: "doctor",
         agent: agentId,
         outcome: result.outcome,

@@ -13,7 +13,7 @@ import { learnJob } from "../daemon/learn.ts";
 import { PassRunner } from "../daemon/passes.ts";
 import { PassState } from "../daemon/passes-state.ts";
 import { createAgent } from "../daemon/store/agents.ts";
-import { RecallStore, isoDay } from "../mod/recall.ts";
+import { LearnStore, isoDay } from "../mod/learn.ts";
 import { must } from "./fixtures/must.ts";
 
 const ctx = BACKGROUND_CONTEXT;
@@ -39,7 +39,7 @@ async function setup(opts: { cap?: number } = {}) {
   chats.follow(stores, () => {});
   const state = new PassState(join(dir, "state"));
   state.setSettings({ reflection: { enabled: false }, learn: { enabled: true, daily_cap: opts.cap ?? 5 } });
-  const recall = new RecallStore(join(dir, "recall"));
+  const recall = new LearnStore(join(dir, "recall"));
   let now = new Date(Date.now() + 60_000);
   const reports: string[] = [];
   const prompts: string[] = [];

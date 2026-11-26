@@ -6,7 +6,7 @@ import { agentLaneId, laneItems, type Lane, type ResolvedLane } from "../core/at
 import { idOf } from "../core/attention/queue.ts";
 import type { ChatFace, FlowLane } from "../core/attention/use-attention.ts";
 import { LANE_KEYS, createActiveLaneStore } from "../app/src/shared/active-lane.ts";
-import { Inbox, type Deck, type InboxMoves } from "../app/src/phone/inbox.tsx";
+import { Flow, type Deck, type FlowMoves } from "../app/src/phone/flow.tsx";
 import { LaneTitle, laneDetails } from "../app/src/phone/lane-sheet.tsx";
 import { clockText } from "../core/attention/lane-times.ts";
 import { EMPTY_DECK, commitCard, deckQueue, laneChoices, otherLanesLine, reconcileDeck } from "../app/src/phone/deck.ts";
@@ -58,7 +58,7 @@ const fakeDeck = (visible: AttentionItem[]): Deck => ({
   resting: false,
 });
 
-const moves: InboxMoves = {
+const moves: FlowMoves = {
   read: () => Promise.resolve({ error: null, ask: false, rest: null }),
   later: () => Promise.resolve({ error: null, ask: false, rest: null }),
   archive: () => Promise.resolve(null),
@@ -84,7 +84,7 @@ function inPage(el: ReactElement): string {
 function inbox(lane: ResolvedLane | null, visible: AttentionItem[]): string {
   const flow = flowIn(lane);
   return inPage(
-    createElement(Inbox, {
+    createElement(Flow, {
       items,
       loaded: true,
       available: true,

@@ -21,8 +21,8 @@ const roundTrip = (r: Route) => expect(parseRoute(formatRoute(r))).toEqual(r);
 
 describe("tabs", () => {
   test("each tab formats and parses", () => {
-    expect(TABS).toEqual(["home", "inbox", "agents", "more"]);
-    for (const tab of ["home", "inbox", "agents", "more"] as const) {
+    expect(TABS).toEqual(["home", "flow", "agents", "more"]);
+    for (const tab of ["home", "flow", "agents", "more"] as const) {
       expect(formatRoute({ kind: "tab", tab })).toBe(`#/${tab}`);
       roundTrip({ kind: "tab", tab });
     }
@@ -42,7 +42,7 @@ describe("tabs", () => {
     expect(parseRoute("#/c/only-agent")).toEqual(HOME);
   });
   test("the leading # is optional", () => {
-    expect(parseRoute("/inbox")).toEqual({ kind: "tab", tab: "inbox" });
+    expect(parseRoute("/inbox")).toEqual({ kind: "tab", tab: "flow" });
   });
 });
 
@@ -160,10 +160,10 @@ describe("ownership and Back", () => {
     expect(parentOf({ kind: "agent", agentId: "a" })).toEqual({ kind: "tab", tab: "agents" });
     expect(parentOf(file)).toEqual({ kind: "agent", agentId: "a" });
     expect(parentOf(conv)).toEqual({ kind: "tab", tab: "home" });
-    expect(parentOf({ kind: "tab", tab: "inbox" })).toEqual({ kind: "tab", tab: "inbox" });
+    expect(parentOf({ kind: "tab", tab: "flow" })).toEqual({ kind: "tab", tab: "flow" });
   });
   test("Back goes to the launching destination when there is one", () => {
-    const inbox: Route = { kind: "tab", tab: "inbox" };
+    const inbox: Route = { kind: "tab", tab: "flow" };
     expect(backTarget(conv, inbox)).toEqual(inbox);
     expect(backTarget(conv, null)).toEqual({ kind: "tab", tab: "home" });
     expect(backTarget({ kind: "archive" }, { kind: "tab", tab: "more" })).toEqual({ kind: "tab", tab: "more" });
@@ -172,7 +172,7 @@ describe("ownership and Back", () => {
   test("the origin rides in the history entry and survives foreign state", () => {
     const s = entryState({ other: 1 }, "#/inbox");
     expect(s).toMatchObject({ other: 1, lokiFrom: "#/inbox", lokiDepth: 1 });
-    expect(originOf(s)).toEqual({ kind: "tab", tab: "inbox" });
+    expect(originOf(s)).toEqual({ kind: "tab", tab: "flow" });
     expect(depthOf(s)).toBe(1);
     expect(depthOf(entryState(s, "#/c/a/c"))).toBe(2);
     for (const junk of [null, undefined, 3, "x", {}, { lokiFrom: 4, lokiDepth: "2" }]) {
@@ -181,7 +181,7 @@ describe("ownership and Back", () => {
     }
   });
   test("labels for Back read as destinations", () => {
-    expect(labelOf({ kind: "tab", tab: "inbox" })).toBe("flow");
+    expect(labelOf({ kind: "tab", tab: "flow" })).toBe("flow");
     expect(labelOf({ kind: "tab", tab: "more" })).toBe("more");
     expect(labelOf({ kind: "search" })).toBe("search");
     expect(labelOf({ kind: "archive" })).toBe("archive");
@@ -224,10 +224,10 @@ describe("navigation labels", () => {
     const { navLabel, TAB_LABEL } = await import("../app/src/phone/tab-bar.tsx");
     const { countText } = await import("../app/src/components/index.tsx");
     expect(TABS.map((t) => TAB_LABEL[t])).toEqual(["Home", "Flow", "Agents", "More"]);
-    expect(navLabel("inbox", 0)).toBe("Flow");
-    expect(navLabel("inbox", 1)).toBe("Flow, 1 waiting");
-    expect(navLabel("inbox", 3)).toBe("Flow, 3 waiting");
-    expect(navLabel("inbox", 100)).toBe("Flow, 99+ waiting");
+    expect(navLabel("flow", 0)).toBe("Flow");
+    expect(navLabel("flow", 1)).toBe("Flow, 1 waiting");
+    expect(navLabel("flow", 3)).toBe("Flow, 3 waiting");
+    expect(navLabel("flow", 100)).toBe("Flow, 99+ waiting");
     expect(countText(99)).toBe("99");
     expect(countText(250)).toBe("99+");
     expect(navLabel("home", 0)).toBe("Home");

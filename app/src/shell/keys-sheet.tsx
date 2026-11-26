@@ -1,6 +1,6 @@
 import { Button, Kbd, Meta, Sheet, sentence } from "../components";
 import { KEYMAP, formatKeys, keyFor, keysOf, labelOf, takenBy, wasFor, type Binding, type Platform, type Segment, type Where } from "./keymap";
-import { keyboard } from "../desk/env";
+import { keyboard } from "../workspace/env";
 
 export function KeysSheet({ segment, onClose, onSettings }: { segment: Segment; onClose: () => void; onSettings: () => void }) {
   const groups = keysFor(segment, KEYMAP, keyboard);
@@ -34,7 +34,7 @@ export function KeysSheet({ segment, onClose, onSettings }: { segment: Segment; 
                 </span>
                 <span style={{ color: "var(--loki-fg)" }}>
                   {sentence(b.label)}
-                  {!b.typing && !b.note && (segment === "inbox" || segment === "desk") && (
+                  {!b.typing && !b.note && (segment === "flow" || segment === "chats") && (
                     <span className="loki-meta loki-meta--wrap" style={{ marginLeft: 8 }}>
                       Not while typing
                     </span>
@@ -62,7 +62,7 @@ export function keysSheetNote(os: Platform = keyboard): string {
 }
 
 export function keysFor(segment: Segment, map: Binding[] = KEYMAP, os: Platform = keyboard): Array<{ where: Where; title: string; rows: Binding[] }> {
-  const wheres: Where[] = segment === "desk" ? ["desk", "chat", "anywhere"] : [segment, "anywhere"];
+  const wheres: Where[] = segment === "chats" ? ["chats", "chat", "anywhere"] : [segment, "anywhere"];
   const here = (b: Binding): Binding | null => {
     const own = keysOf(b, os);
     const taken =
@@ -82,13 +82,13 @@ export function keysFor(segment: Segment, map: Binding[] = KEYMAP, os: Platform 
     .filter((g) => g.rows.length > 0);
 }
 
-const PLACE: Partial<Record<Segment, string>> = { desk: "Chats", inbox: "Flow" };
+const PLACE: Partial<Record<Segment, string>> = { chats: "Chats", flow: "Flow" };
 
 const TITLE: Partial<Record<Where, string>> = {
   anywhere: "Everywhere in loki",
   chat: "The message box",
-  desk: "In a chat",
-  inbox: "In Flow",
+  chats: "In a chat",
+  flow: "In Flow",
   learn: "In Learn",
   agents: "In Agents",
   settings: "In Settings",

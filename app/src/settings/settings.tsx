@@ -5,7 +5,7 @@ import { Labels, type LabelsApi } from "./labels";
 import { Lanes, type LaneAccountsApi, type LanesApi, type LanesProps } from "./lanes";
 import { Accounts, type AccountsApi, type AgentName } from "./accounts";
 import { useEffect, useState, type ReactNode } from "react";
-import { inDesktop, keyboard, modBase, notYetOn, platform, systemName, type Platform } from "../desk/env";
+import { inDesktop, keyboard, modBase, notYetOn, platform, systemName, type Platform } from "../workspace/env";
 import { formatKeys, keyFor, keyRows, registerActions, takenBy, wasFor } from "../shell/keymap";
 import { osWords, runsOn } from "../shell/os-words";
 import { Button, Dot, Field, IconButton, Sheet, Switch, sentence } from "../components";
@@ -21,8 +21,8 @@ import type { LokiUpdate, UpdateState } from "../shell/use-loki-update";
 import { restartToUpdate } from "../shell/update-notice";
 import { channelOf, type Channel } from "../../../core/version.ts";
 import type { GlobalShortcut } from "../shell/use-global-shortcut";
-import type { Recall as RecallModel } from "../shell/use-recall";
-import { RecallSettings } from "../recall/recall-parts";
+import type { Learn as LearnModel } from "../shell/use-learn";
+import { LearnSettings } from "../learn/learn-parts";
 import { BLOCKED_POINTS, FOCUS_POINTS, NEW_POINTS } from "../../../core/attention/priority.ts";
 import { FOCUS_HALF_LIFE_H } from "../../../core/attention/focus.ts";
 import { REST_GROWTH, laterOf, type CardKind, type RestFirst, type RestLater, type ReturnTimes } from "../../../core/attention/rest.ts";
@@ -130,7 +130,7 @@ export function Settings({
   update: LokiUpdate;
   working: boolean;
   shortcut: GlobalShortcut;
-  recall: RecallModel;
+  recall: LearnModel;
   usage: UsageApi;
   returnTimes: ReturnTimesApi;
   lanes: LanesApi;
@@ -152,7 +152,7 @@ export function Settings({
   const pageBody: Record<SettingsPage, () => ReactNode> = {
     loki: () => <LokiPage update={update} working={working} harness={harness} daemon={daemon} modConnection={modConnection} deskCount={deskCount} />,
     usage: () => <UsagePage usage={usage} />,
-    inbox: () => <InboxPage returnTimes={returnTimes} lanes={{ lanes, accounts, agents }} />,
+    flow: () => <FlowPage returnTimes={returnTimes} lanes={{ lanes, accounts, agents }} />,
     accounts: () =>
       chatLink === "open" ? <Accounts api={accounts} agents={agents} /> : <Setting label="Not linked" help="loki's daemon is not linked yet." />,
     providers: () => (
@@ -423,7 +423,7 @@ function InstallFold({ install }: { install: InstallReport | null }) {
 
 function modNote(install: InstallReport): React.ReactNode {
   if (install.mod === "custom") return <Note>Your own copy is in place; the app leaves it alone</Note>;
-  if (install.mod === "linked") return <Note>Development build — the daemon runs this checkout's mod/boot.ts</Note>;
+  if (install.mod === "linked") return <Note>Development build — the daemon runs from this checkout</Note>;
   if (install.mod === "skipped") return <Note>Development build — the app's own copy is in place; set LOKI_INSTALL=1 to refresh it</Note>;
   return null;
 }
@@ -431,7 +431,7 @@ function modNote(install: InstallReport): React.ReactNode {
 function ModFact({ install }: { install: InstallReport | null }) {
   return (
     <Fact
-      label="Mod"
+      label="Daemon"
       value={
         install ? (
           <span>
@@ -481,7 +481,7 @@ function SkillsPage({ globalSkills }: { globalSkills: GlobalSkillsApi }) {
   return <Skills api={globalSkills} />;
 }
 
-function RecallPage({ recall }: { recall: RecallModel }) {
+function RecallPage({ recall }: { recall: LearnModel }) {
   const { snap } = recall;
   useEffect(() => {
     if (!snap) void recall.refresh();
@@ -489,7 +489,7 @@ function RecallPage({ recall }: { recall: RecallModel }) {
   return (
     <Block help="Flashcards and leads written in the background from chats that have gone quiet, off until you turn it on.">
       {snap ? (
-        <RecallSettings
+        <LearnSettings
           worker={snap.worker}
           onSettings={(s) => void recall.settings(s)}
           onRun={() => void recall.run()}
@@ -557,7 +557,7 @@ function McpPage({ mcp, chatLink }: { mcp: McpApi; chatLink: ChatLink }) {
   return chatLink === "open" ? <Mcp api={mcp} /> : <Setting label="Not linked" help="loki's daemon is not linked yet." />;
 }
 
-export function InboxPage({ returnTimes, lanes }: { returnTimes: ReturnTimesApi; lanes?: LanesProps }) {
+export function FlowPage({ returnTimes, lanes }: { returnTimes: ReturnTimesApi; lanes?: LanesProps }) {
   const { times, set } = returnTimes;
   return (
     <>
@@ -742,7 +742,7 @@ function KeysPage({ shortcut }: { shortcut: GlobalShortcut }) {
                     {b.label}
                     {b.typing ? (
                       ""
-                    ) : b.where === "inbox" || b.where === "desk" ? (
+                    ) : b.where === "flow" || b.where === "chats" ? (
                       <span style={{ marginLeft: 8, fontSize: "var(--text-xs)" }}>Not while typing</span>
                     ) : null}
                     {b.was && <span className="loki-meta loki-meta--wrap block">{sentence(wasFor(b) ?? "")}</span>}

@@ -7,7 +7,7 @@ import { AgentStore } from "../daemon/kernel/index.ts";
 import { ChatProjection } from "../daemon/chats.ts";
 import { entrySteps } from "../core/attention/pi-steps.ts";
 import { foldSteps } from "../core/attention/thread.ts";
-import { conversationDirName } from "../core/desk-core.ts";
+import { conversationDirName } from "../core/canvas-core.ts";
 import { sampleEntries } from "./fixtures/entries.ts";
 
 const ctx = BACKGROUND_CONTEXT;

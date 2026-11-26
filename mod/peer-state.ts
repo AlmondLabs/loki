@@ -1,7 +1,7 @@
 import type { LabelColorsSnapshot } from "../daemon/labels.ts";
 import type { PeerLink } from "./peer-link.ts";
 import type { PinChange } from "./pins.ts";
-import type { RecallSnapshot } from "./recall-sync.ts";
+import type { LearnSnapshot } from "./learn-sync.ts";
 import type { MarksSnapshot } from "./seen.ts";
 import type { McpSnapshot } from "../daemon/config-sync.ts";
 import { STATE_FOLDERS, type StateFolder } from "../core/frames.ts";
@@ -13,9 +13,9 @@ export interface PersonState {
   marks: MarksSnapshot;
   pins: Record<string, PinChange>;
   labels: LabelColorsSnapshot;
-  learn?: RecallSnapshot;
+  learn?: LearnSnapshot;
   mcp: McpSnapshot;
-  mods?: RecallSnapshot;
+  mods?: LearnSnapshot;
 }
 
 export interface StateMoved {

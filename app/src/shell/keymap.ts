@@ -1,7 +1,7 @@
-import { keyboard, type Platform } from "../desk/env";
+import { keyboard, type Platform } from "../workspace/env";
 
 export type { Platform };
-export type Segment = "desk" | "inbox" | "learn" | "agents" | "settings";
+export type Segment = "chats" | "flow" | "learn" | "agents" | "settings";
 export type Where = "anywhere" | Segment | "chat" | "global";
 
 export interface Binding {
@@ -22,14 +22,14 @@ export interface Binding {
 export const MENUS = ["loki", "Go", "Chat", "Flow", "Learn", "View"] as const;
 
 export const KEYMAP: Binding[] = [
-  { id: "segment.desk", keys: ["cmd+1"], where: "anywhere", label: "Chats", typing: true, menu: "View/segments" },
-  { id: "segment.inbox", keys: ["cmd+2"], where: "anywhere", label: "Flow", typing: true, menu: "View/segments" },
+  { id: "segment.chats", keys: ["cmd+1"], where: "anywhere", label: "Chats", typing: true, menu: "View/segments" },
+  { id: "segment.flow", keys: ["cmd+2"], where: "anywhere", label: "Flow", typing: true, menu: "View/segments" },
   { id: "segment.agents", keys: ["cmd+4"], where: "anywhere", label: "Agents", typing: true, menu: "View/segments" },
   { id: "segment.learn", keys: ["cmd+5"], where: "anywhere", label: "Learn", typing: true, menu: "View/segments" },
   { id: "segment.settings", keys: ["cmd+6", "cmd+,"], where: "anywhere", label: "Settings…", typing: true, menu: "loki/settings" },
   { id: "app.update", keys: [], where: "anywhere", label: "Check for Updates…", typing: true, menu: "loki/update" },
   { id: "search.open", keys: ["cmd+k"], where: "anywhere", label: "Search", typing: true, menu: "Go" },
-  { id: "desk.new", keys: ["cmd+n"], where: "anywhere", label: "New Chat", typing: true, menu: "Go" },
+  { id: "chat.new", keys: ["cmd+n"], where: "anywhere", label: "New Chat", typing: true, menu: "Go" },
   {
     id: "column.toggle",
     keys: ["ctrl+cmd+s"],
@@ -38,7 +38,7 @@ export const KEYMAP: Binding[] = [
     label: "Show / Hide Sidebar",
     typing: true,
     menu: "View/column",
-    was: "was {inbox.deny} outside Flow",
+    was: "was {flow.deny} outside Flow",
   },
   {
     id: "list.toggle",
@@ -70,25 +70,25 @@ export const KEYMAP: Binding[] = [
   { id: "keys.sheet", keys: ["shift+/"], where: "anywhere", label: "Keys for This View", menu: "View/help" },
   { id: "layer.peel", keys: ["escape"], where: "anywhere", label: "close the topmost layer", note: "handled by the layer" },
 
-  { id: "desk.prev", keys: ["cmd+["], where: "desk", label: "Previous Chat", typing: true, menu: "Go/step" },
-  { id: "desk.next", keys: ["cmd+]"], where: "desk", label: "Next Chat", typing: true, menu: "Go/step" },
-  { id: "desk.done", keys: ["cmd+shift+enter"], where: "desk", label: "Mark as Read", typing: true, menu: "Go/done" },
-  { id: "chat.toggle", keys: ["cmd+/"], where: "desk", label: "Show / Hide Chat", typing: true, menu: "Chat" },
-  { id: "chat.close", keys: ["cmd+w"], where: "desk", label: "Close Chat", typing: true, menu: "Chat" },
-  { id: "chat.focus", keys: ["cmd+l"], where: "desk", label: "Focus Message Box", typing: true, menu: "Chat" },
-  { id: "chat.find", keys: ["cmd+f"], where: "desk", label: "Find in Transcript…", typing: true, menu: "Chat" },
-  { id: "chat.model", keys: ["cmd+shift+m"], where: "desk", label: "Change Model…", typing: true, menu: "Chat" },
-  { id: "chat.mode", keys: ["cmd+shift+p"], where: "desk", label: "Change Permission Mode…", typing: true, menu: "Chat" },
-  { id: "chat.suggestions", keys: ["cmd+shift+s"], where: "desk", label: "Show Suggestions…", typing: true, menu: "Chat" },
-  { id: "chat.allow", keys: ["cmd+enter"], where: "desk", label: "Allow Step", typing: true, menu: "Chat/decide" },
-  { id: "chat.deny", keys: ["cmd+shift+backspace"], where: "desk", label: "Deny Step", typing: true, menu: "Chat/decide" },
+  { id: "chat.prev", keys: ["cmd+["], where: "chats", label: "Previous Chat", typing: true, menu: "Go/step" },
+  { id: "chat.next", keys: ["cmd+]"], where: "chats", label: "Next Chat", typing: true, menu: "Go/step" },
+  { id: "chat.done", keys: ["cmd+shift+enter"], where: "chats", label: "Mark as Read", typing: true, menu: "Go/done" },
+  { id: "chat.toggle", keys: ["cmd+/"], where: "chats", label: "Show / Hide Chat", typing: true, menu: "Chat" },
+  { id: "chat.close", keys: ["cmd+w"], where: "chats", label: "Close Chat", typing: true, menu: "Chat" },
+  { id: "chat.focus", keys: ["cmd+l"], where: "chats", label: "Focus Message Box", typing: true, menu: "Chat" },
+  { id: "chat.find", keys: ["cmd+f"], where: "chats", label: "Find in Transcript…", typing: true, menu: "Chat" },
+  { id: "chat.model", keys: ["cmd+shift+m"], where: "chats", label: "Change Model…", typing: true, menu: "Chat" },
+  { id: "chat.mode", keys: ["cmd+shift+p"], where: "chats", label: "Change Permission Mode…", typing: true, menu: "Chat" },
+  { id: "chat.suggestions", keys: ["cmd+shift+s"], where: "chats", label: "Show Suggestions…", typing: true, menu: "Chat" },
+  { id: "chat.allow", keys: ["cmd+enter"], where: "chats", label: "Allow Step", typing: true, menu: "Chat/decide" },
+  { id: "chat.deny", keys: ["cmd+shift+backspace"], where: "chats", label: "Deny Step", typing: true, menu: "Chat/decide" },
   // Outside (Windows): Ctrl+Alt+arrows belong to the system off the Mac: screen rotation on Windows, where Ctrl+Alt is also
   // AltGr, and workspaces on Linux.
   {
     id: "chat.left",
     keys: ["cmd+left", "alt+cmd+left"],
     keysOn: { windows: ["cmd+left", "cmd+shift+["], linux: ["cmd+left", "cmd+shift+["] },
-    where: "desk",
+    where: "chats",
     label: "Move Chat Left",
     typing: true,
     menu: "Chat/place",
@@ -98,46 +98,46 @@ export const KEYMAP: Binding[] = [
     id: "chat.right",
     keys: ["cmd+right", "alt+cmd+right"],
     keysOn: { windows: ["cmd+right", "cmd+shift+]"], linux: ["cmd+right", "cmd+shift+]"] },
-    where: "desk",
+    where: "chats",
     label: "Move Chat Right",
     typing: true,
     menu: "Chat/place",
     menuAccel: false,
   },
-  { id: "view.fit", keys: ["cmd+0"], where: "desk", label: "Fit All Widgets", typing: true, menu: "View" },
-  { id: "view.reset", keys: ["cmd+shift+0"], where: "desk", label: "Actual Size (1:1)", typing: true, menu: "View" },
-  { id: "view.zoomIn", keys: ["cmd+=", "cmd+shift+="], where: "desk", label: "Zoom In", typing: true, menu: "View" },
-  { id: "view.zoomOut", keys: ["cmd+-"], where: "desk", label: "Zoom Out", typing: true, menu: "View" },
-  { id: "desk.arrange", keys: ["cmd+shift+a"], where: "desk", label: "Arrange Widgets", typing: true, menu: "View/canvas" },
-  { id: "desk.undo", keys: ["cmd+z"], where: "desk", label: "Undo Widget Move", menu: "View/canvas", menuAccel: false },
-  { id: "desk.messages", keys: ["escape"], where: "desk", label: "back to Messages from the Canvas or Advisor tab", note: "handled by the shell" },
+  { id: "view.fit", keys: ["cmd+0"], where: "chats", label: "Fit All Widgets", typing: true, menu: "View" },
+  { id: "view.reset", keys: ["cmd+shift+0"], where: "chats", label: "Actual Size (1:1)", typing: true, menu: "View" },
+  { id: "view.zoomIn", keys: ["cmd+=", "cmd+shift+="], where: "chats", label: "Zoom In", typing: true, menu: "View" },
+  { id: "view.zoomOut", keys: ["cmd+-"], where: "chats", label: "Zoom Out", typing: true, menu: "View" },
+  { id: "canvas.arrange", keys: ["cmd+shift+a"], where: "chats", label: "Arrange Widgets", typing: true, menu: "View/canvas" },
+  { id: "canvas.undo", keys: ["cmd+z"], where: "chats", label: "Undo Widget Move", menu: "View/canvas", menuAccel: false },
+  { id: "canvas.messages", keys: ["escape"], where: "chats", label: "back to Messages from the Canvas or Advisor tab", note: "handled by the shell" },
 
   { id: "chat.send", keys: ["enter"], where: "chat", label: "send", typing: true, note: "the box" },
   { id: "chat.newline", keys: ["shift+enter"], where: "chat", label: "new line", typing: true, note: "the box" },
   { id: "chat.reply", keys: ["1", "2", "3", "4"], where: "chat", label: "send a quick reply, while one has focus", note: "a quick reply with focus" },
   { id: "chat.dictate", keys: ["cmd+d"], keysOn: { windows: [], linux: [] }, where: "chat", label: "dictate", typing: true, note: "the box" },
 
-  { id: "inbox.next", keys: ["cmd+]", "right"], where: "inbox", label: "Mark as Read", typing: true, menu: "Flow" },
-  { id: "inbox.later", keys: ["cmd+[", "left"], where: "inbox", label: "Later", typing: true, menu: "Flow" },
-  { id: "inbox.archive", keys: ["cmd+e", "e"], where: "inbox", label: "Archive", typing: true, menu: "Flow" },
-  { id: "inbox.label", keys: ["l"], where: "inbox", label: "Add a Label", menu: "Flow", menuAccel: false },
-  { id: "inbox.approve", keys: ["cmd+enter", "a"], where: "inbox", label: "Approve", typing: true, menu: "Flow/decide" },
-  { id: "inbox.deny", keys: ["cmd+shift+d", "d"], where: "inbox", label: "Deny", typing: true, menu: "Flow/decide" },
-  { id: "inbox.open", keys: ["cmd+o", "o"], where: "inbox", label: "Open the Chat", typing: true, menu: "Flow/go" },
-  { id: "inbox.reply", keys: ["r"], where: "inbox", label: "reply (focus the box)" },
-  { id: "inbox.reply_sender", keys: ["shift+r"], where: "inbox", label: "reply to the sender only (mail)" },
-  { id: "inbox.forward", keys: ["f"], where: "inbox", label: "forward (mail)" },
-  { id: "inbox.react", keys: ["cmd+shift+\\"], where: "inbox", label: "react with an emoji" },
-  { id: "inbox.undo", keys: ["cmd+z", "z"], where: "inbox", label: "Undo Last Decision", menu: "Flow/go", menuAccel: false },
+  { id: "flow.next", keys: ["cmd+]", "right"], where: "flow", label: "Mark as Read", typing: true, menu: "Flow" },
+  { id: "flow.later", keys: ["cmd+[", "left"], where: "flow", label: "Later", typing: true, menu: "Flow" },
+  { id: "flow.archive", keys: ["cmd+e", "e"], where: "flow", label: "Archive", typing: true, menu: "Flow" },
+  { id: "flow.label", keys: ["l"], where: "flow", label: "Add a Label", menu: "Flow", menuAccel: false },
+  { id: "flow.approve", keys: ["cmd+enter", "a"], where: "flow", label: "Approve", typing: true, menu: "Flow/decide" },
+  { id: "flow.deny", keys: ["cmd+shift+d", "d"], where: "flow", label: "Deny", typing: true, menu: "Flow/decide" },
+  { id: "flow.open", keys: ["cmd+o", "o"], where: "flow", label: "Open the Chat", typing: true, menu: "Flow/go" },
+  { id: "flow.reply", keys: ["r"], where: "flow", label: "reply (focus the box)" },
+  { id: "flow.reply_sender", keys: ["shift+r"], where: "flow", label: "reply to the sender only (mail)" },
+  { id: "flow.forward", keys: ["f"], where: "flow", label: "forward (mail)" },
+  { id: "flow.react", keys: ["cmd+shift+\\"], where: "flow", label: "react with an emoji" },
+  { id: "flow.undo", keys: ["cmd+z", "z"], where: "flow", label: "Undo Last Decision", menu: "Flow/go", menuAccel: false },
 
-  { id: "recall.reveal", keys: ["space", "enter", "down"], where: "learn", label: "show the answer (then: got it)" },
-  { id: "recall.again", keys: ["left", "1"], where: "learn", label: "again (shows the answer first)" },
-  { id: "recall.good", keys: ["right", "2"], where: "learn", label: "got it (shows the answer first)" },
-  { id: "recall.delete", keys: ["x", "backspace"], where: "learn", label: "Delete Card (the worker learns from it)", menu: "Learn", menuAccel: false },
-  { id: "recall.undo", keys: ["z"], where: "learn", label: "Undo Delete", menu: "Learn", menuAccel: false },
-  { id: "recall.edit", keys: ["e"], where: "learn", label: "Edit Card", menu: "Learn", menuAccel: false },
-  { id: "recall.open", keys: ["cmd+o", "o"], where: "learn", label: "Open the Source Chat", typing: true, menu: "Learn/go" },
-  { id: "recall.refresh", keys: ["cmd+r"], where: "learn", label: "Refresh", typing: true, menu: "Learn/go" },
+  { id: "learn.reveal", keys: ["space", "enter", "down"], where: "learn", label: "show the answer (then: got it)" },
+  { id: "learn.again", keys: ["left", "1"], where: "learn", label: "again (shows the answer first)" },
+  { id: "learn.good", keys: ["right", "2"], where: "learn", label: "got it (shows the answer first)" },
+  { id: "learn.delete", keys: ["x", "backspace"], where: "learn", label: "Delete Card (the worker learns from it)", menu: "Learn", menuAccel: false },
+  { id: "learn.undo", keys: ["z"], where: "learn", label: "Undo Delete", menu: "Learn", menuAccel: false },
+  { id: "learn.edit", keys: ["e"], where: "learn", label: "Edit Card", menu: "Learn", menuAccel: false },
+  { id: "learn.open", keys: ["cmd+o", "o"], where: "learn", label: "Open the Source Chat", typing: true, menu: "Learn/go" },
+  { id: "learn.refresh", keys: ["cmd+r"], where: "learn", label: "Refresh", typing: true, menu: "Learn/go" },
   { id: "learn.prevView", keys: ["cmd+["], where: "learn", label: "Previous View", typing: true, menu: "Learn/step" },
   { id: "learn.nextView", keys: ["cmd+]"], where: "learn", label: "Next View", typing: true, menu: "Learn/step" },
 
@@ -441,7 +441,7 @@ export function keySegment(segment: Segment, dialog: DialogState): Segment {
   return dialog === "preferences" ? "settings" : segment;
 }
 
-export const WHERE_ORDER: Where[] = ["anywhere", "desk", "chat", "inbox", "learn", "agents", "settings", "global"];
+export const WHERE_ORDER: Where[] = ["anywhere", "chats", "chat", "flow", "learn", "agents", "settings", "global"];
 
 export function keyRows(os: Platform = keyboard, map: Binding[] = KEYMAP): Binding[] {
   return WHERE_ORDER.flatMap((where) => map.filter((b) => b.where === where))
@@ -473,7 +473,7 @@ export interface Command {
 }
 
 export function commandsFor(segment: Segment, os: Platform = keyboard, map: Binding[] = KEYMAP): Command[] {
-  const here: Where[] = segment === "desk" ? ["anywhere", "desk", "chat"] : ["anywhere", segment];
+  const here: Where[] = segment === "chats" ? ["anywhere", "chats", "chat"] : ["anywhere", segment];
   return map
     .filter((b) => b.menu && b.id !== "search.open" && here.includes(b.where) && actions.has(b.id))
     .map((b) => {

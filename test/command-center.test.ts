@@ -32,20 +32,20 @@ describe("plain ⌘K's commands and models", () => {
   });
 
   test("commands are the menu-bar actions registered now and on this screen, with their keys; never ⌘K itself", () => {
-    release.push(registerActions({ "desk.new": () => {}, "desk.done": () => {}, "inbox.archive": () => {}, "search.open": () => {} }));
-    const chats = commandsFor("desk", "macos");
+    release.push(registerActions({ "chat.new": () => {}, "chat.done": () => {}, "flow.archive": () => {}, "search.open": () => {} }));
+    const chats = commandsFor("chats", "macos");
     expect(chats.map((c) => `${c.label} ${c.keys ?? ""}`)).toEqual(["New Chat ⌘N", "Mark as Read ⌘⇧↵"]);
-    expect(commandsFor("inbox", "macos").map((c) => c.label)).toEqual(["New Chat", "Archive"]);
+    expect(commandsFor("flow", "macos").map((c) => c.label)).toEqual(["New Chat", "Archive"]);
     expect(KEYMAP.find((b) => b.id === "search.open")?.menu).toBeTruthy();
   });
 
   test("a command matches when its label holds every word typed, and none show before typing", () => {
     const list = [
-      { id: "desk.new", label: "New Chat…", keys: "⌘N" },
-      { id: "desk.done", label: "Mark as Read", keys: null },
+      { id: "chat.new", label: "New Chat…", keys: "⌘N" },
+      { id: "chat.done", label: "Mark as Read", keys: null },
     ];
     expect(matchCommands(list, "")).toEqual([]);
-    expect(matchCommands(list, "mark read").map((c) => c.id)).toEqual(["desk.done"]);
+    expect(matchCommands(list, "mark read").map((c) => c.id)).toEqual(["chat.done"]);
   });
 
   test("models show only with a chat open and something typed, at most three, names that start with the query first", () => {

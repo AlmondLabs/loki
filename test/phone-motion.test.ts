@@ -7,7 +7,7 @@ import type { Route } from "../app/src/phone/router.ts";
 import { must } from "./fixtures/must.ts";
 
 const home: Route = { kind: "tab", tab: "home" };
-const inbox: Route = { kind: "tab", tab: "inbox" };
+const inbox: Route = { kind: "tab", tab: "flow" };
 const conv: Route = { kind: "conversation", agentId: "a", conversationId: "c", prefill: null };
 const agent: Route = { kind: "agent", agentId: "a" };
 

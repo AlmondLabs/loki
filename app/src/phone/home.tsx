@@ -4,18 +4,18 @@ import { labelColor } from "../chat/labels";
 import type { AttentionItem } from "../../../core/attention/model.ts";
 import type { Runtime } from "../../../core/attention/protocol.ts";
 import { ago } from "../shared/ago";
-import { AgentFace } from "../desk/agent-chip";
-import type { Homes } from "../shell/desk-sidebar";
+import { AgentFace } from "../workspace/agent-chip";
+import type { Homes } from "../shell/chat-sidebar";
 import { HomeMark } from "../shell/home-mark";
 import { deskRowState } from "../shell/sidebar-model";
-import { avatarUrl } from "../desk/env";
+import { avatarUrl } from "../workspace/env";
 
-import { BADGE } from "../desk/catch-up";
-import { agentChips } from "../shell/desk-tree";
+import { BADGE } from "../workspace/catch-up";
+import { agentChips } from "../shell/chat-tree";
 import type { SidebarSection } from "../shell/sidebar-model";
 import { Button, Chip, Field, Sheet } from "../components";
 import { Icon, type IconName } from "./icons";
-import { deskName, homeLists, shortcutLine, type HomeAttention, type HomeCounts, type LinkState, type Shortcut } from "./model";
+import { chatTitle, homeLists, shortcutLine, type HomeAttention, type HomeCounts, type LinkState, type Shortcut } from "./model";
 import type { Me } from "./pair";
 import { navigate, openConversation, type Route } from "./router";
 import { PhoneRow, RowIcon, RowSection, SkeletonRows } from "./rows";
@@ -23,17 +23,17 @@ import { Scroll, useTopClearance } from "./ui";
 import { RenameSheet } from "./rename-sheet";
 import { chosenFolder, folderName, foldersOf, shownFolders } from "./new-chat-folders";
 import { canRename } from "../shell/sidebar-model";
-import type { DeskSummary } from "../../../core/frame-types.ts";
+import type { ChatSummary } from "../../../core/frame-types.ts";
 import { messageOf } from "../../../core/errors.ts";
-import { isMainChat } from "../../../core/desk-core.ts";
+import { isMainChat } from "../../../core/canvas-core.ts";
 
-export function openDesk(d: DeskSummary) {
+export function openChat(d: ChatSummary) {
   if (d.agent_id && d.conversation_id) openConversation(d.agent_id, d.conversation_id);
 }
 
-export type ArchiveDesk = (d: DeskSummary, archived: boolean) => Promise<string | null>;
-export type RenameDeskName = (d: DeskSummary, name: string) => Promise<string | null>;
-export type SetDeskPurpose = (d: DeskSummary, purpose: string) => Promise<string | null>;
+export type ArchiveChat = (d: ChatSummary, archived: boolean) => Promise<string | null>;
+export type RenameChatTitle = (d: ChatSummary, name: string) => Promise<string | null>;
+export type SetChatPurpose = (d: ChatSummary, purpose: string) => Promise<string | null>;
 
 const LINK_WORD: Record<LinkState, string> = { online: "Mac connected", connecting: "connecting to the Mac", offline: "Mac unreachable" };
 
@@ -61,7 +61,7 @@ export function Home({
 }: {
   me: Me;
   link: LinkState;
-  desks: DeskSummary[];
+  desks: ChatSummary[];
   desksLoaded: boolean;
   agents: Array<{ id: string; name: string }>;
   items: AttentionItem[];
@@ -73,9 +73,9 @@ export function Home({
   homes?: Homes;
   labelList?: LabelView[] | null;
   onPin: (agentId: string, conversationId: string, pinned: boolean) => void;
-  onArchive: ArchiveDesk | null;
-  onRename: RenameDeskName | null;
-  onPurpose?: SetDeskPurpose | null;
+  onArchive: ArchiveChat | null;
+  onRename: RenameChatTitle | null;
+  onPurpose?: SetChatPurpose | null;
   recentFolders: () => Promise<Partial<Record<string, string[]>>>;
   onCreate: (agentId: string, folder: string, name: string) => Promise<Runtime>;
   onTopCard: (item: AttentionItem) => void;
@@ -88,7 +88,7 @@ export function Home({
     saveFolds(next);
   };
   const [sheet, setSheet] = useState<"menu" | "new" | null>(null);
-  const [acting, setActing] = useState<DeskSummary | null>(null);
+  const [acting, setActing] = useState<ChatSummary | null>(null);
 
   const refresh = useEffectEvent(onRefresh);
   useEffect(() => refresh(), []);
@@ -112,7 +112,7 @@ export function Home({
         <ShortcutRail counts={counts} />
         <FilterPills query={query} labelList={labelList} onQuery={setQuery} />
 
-        <AttentionSection attention={attention} more={more} waiting={counts.inbox} onTopCard={onTopCard} />
+        <AttentionSection attention={attention} more={more} waiting={counts.flow} onTopCard={onTopCard} />
         <DeskSections
           groups={groups}
           marks={marks}
@@ -180,11 +180,11 @@ function ActingDesk({
   onPurpose,
   onClose,
 }: {
-  desk: DeskSummary;
+  desk: ChatSummary;
   onPin: (agentId: string, conversationId: string, pinned: boolean) => void;
-  onArchive: ArchiveDesk | null;
-  onRename: RenameDeskName | null;
-  onPurpose: SetDeskPurpose | null;
+  onArchive: ArchiveChat | null;
+  onRename: RenameChatTitle | null;
+  onPurpose: SetChatPurpose | null;
   onClose: () => void;
 }) {
   const { agent_id: agentId, conversation_id: conversationId } = desk;
@@ -218,7 +218,7 @@ function AttentionSection({
       icon="inbox"
       title="Needs your attention"
       count={waiting}
-      onTitle={() => navigate({ kind: "tab", tab: "inbox" })}
+      onTitle={() => navigate({ kind: "tab", tab: "flow" })}
       titleLabel={`Needs your attention, ${waiting} waiting. Open Flow`}
     >
       <ul className="loki-phone-list" aria-label="Needs your attention">
@@ -231,7 +231,7 @@ function AttentionSection({
               type="button"
               className="loki-phone-row loki-phone-row--quiet"
               data-launch="home:inbox-more"
-              onClick={() => navigate({ kind: "tab", tab: "inbox" })}
+              onClick={() => navigate({ kind: "tab", tab: "flow" })}
             >
               <span className="loki-phone-row-copy loki-phone-link">{more} more in Flow</span>
             </button>
@@ -265,7 +265,7 @@ function DeskSections({
   loaded: boolean;
   nothingMatches: boolean;
   filtered: boolean;
-  onActions: (d: DeskSummary) => void;
+  onActions: (d: ChatSummary) => void;
   onNew: () => void;
   onClearFilters: () => void;
 }) {
@@ -301,7 +301,7 @@ function DeskSections({
       })}
       {!filtered && (
         <ul className="loki-phone-list" aria-label="New chat">
-          <li data-flip="new-desk">
+          <li data-flip="new-workspace">
             <button type="button" className="loki-phone-row loki-phone-row--quiet" onClick={onNew}>
               <RowIcon name="plus" />
               <span className="loki-phone-row-copy">New chat</span>
@@ -363,7 +363,7 @@ function HomeHeader({ me, link, filtered, onMenu, banner }: { me: Me; link: Link
 }
 
 const SHORTCUTS: Array<{ kind: Shortcut; label: string; icon: IconName; to: Route }> = [
-  { kind: "inbox", label: "Flow", icon: "inbox", to: { kind: "tab", tab: "inbox" } },
+  { kind: "flow", label: "Flow", icon: "inbox", to: { kind: "tab", tab: "flow" } },
   { kind: "learn", label: "Learn", icon: "learn", to: { kind: "learn" } },
   { kind: "agents", label: "Agents", icon: "agents", to: { kind: "tab", tab: "agents" } },
   { kind: "archive", label: "Archive", icon: "archive", to: { kind: "archive" } },
@@ -374,7 +374,7 @@ function ShortcutRail({ counts }: { counts: HomeCounts }) {
     <nav className="loki-phone-rail" aria-label="Shortcuts">
       {SHORTCUTS.map((s) => {
         const line = shortcutLine(s.kind, counts);
-        const lit = (s.kind === "inbox" && counts.inbox > 0) || (s.kind === "learn" && counts.learn > 0);
+        const lit = (s.kind === "flow" && counts.flow > 0) || (s.kind === "learn" && counts.learn > 0);
         return (
           <button
             key={s.kind}
@@ -429,7 +429,7 @@ function AttentionRow({ entry: { item, desk, opens }, onTopCard }: { entry: Home
         if (opens === "chat") openConversation(item.agent_id, item.id);
         else {
           onTopCard(item);
-          navigate({ kind: "tab", tab: "inbox" });
+          navigate({ kind: "tab", tab: "flow" });
         }
       }}
     />
@@ -443,14 +443,14 @@ export function DeskRow({
   homes,
   inPinned = false,
 }: {
-  desk: DeskSummary;
+  desk: ChatSummary;
   mark: AttentionItem | undefined;
   onActions: (() => void) | null;
   homes?: Homes;
   inPinned?: boolean;
 }) {
   const row = deskRowState(mark, d);
-  const name = deskName(d);
+  const name = chatTitle(d);
   const agentHome = d.agent_id ? homes?.of(d.agent_id)?.mac : null;
   return (
     <PhoneRow
@@ -469,14 +469,14 @@ export function DeskRow({
       label={`${name}, ${d.agent_name ?? "agent"}${d.pinned ? ", pinned" : ""}${row.badgeNoun ? `, ${row.badgeNoun}` : row.note ? `, ${row.note}` : ""}`}
       launch={`desk:${d.scope}`}
       flip={d.conversation_id ? `conv:${d.agent_id}/${d.conversation_id}` : undefined}
-      onOpen={() => openDesk(d)}
+      onOpen={() => openChat(d)}
       onActions={onActions}
       actionsLabel={`Actions for ${name}`}
     />
   );
 }
 
-const canArchive = (d: DeskSummary) => !!d.conversation_id && !isMainChat(d.conversation_id) && d.status !== "deleted";
+const canArchive = (d: ChatSummary) => !!d.conversation_id && !isMainChat(d.conversation_id) && d.status !== "deleted";
 
 export function DeskActions({
   desk: d,
@@ -486,7 +486,7 @@ export function DeskActions({
   onRename,
   onPurpose = null,
 }: {
-  desk: DeskSummary;
+  desk: ChatSummary;
   onClose: () => void;
   onPin: ((pinned: boolean) => void) | null;
   onArchive: ((archived: boolean) => Promise<string | null>) | null;
@@ -515,11 +515,11 @@ export function DeskActions({
   if (renaming && onRename)
     return <RenameSheet name={d.title ?? ""} onRename={onRename} onClose={onClose} purpose={d.purpose} onPurpose={onPurpose ?? undefined} />;
   return (
-    <Sheet label={`${deskName(d)} actions`} onClose={onClose} placement="bottom" className="loki-phone-sheet">
+    <Sheet label={`${chatTitle(d)} actions`} onClose={onClose} placement="bottom" className="loki-phone-sheet">
       <div className="loki-phone-sheet-head">
         <AgentFace name={d.agent_name} src={d.agent_id ? avatarUrl(d.agent_id) : null} size={36} />
         <div className="loki-phone-sheet-copy">
-          <div className="loki-phone-title loki-phone-ellipsis">{deskName(d)}</div>
+          <div className="loki-phone-title loki-phone-ellipsis">{chatTitle(d)}</div>
           <div className="loki-phone-meta loki-phone-ellipsis">
             {d.agent_name ?? "agent"}
             {d.status !== "live" ? ` · ${d.status}` : ""}
@@ -527,7 +527,7 @@ export function DeskActions({
         </div>
       </div>
       <ul className="loki-phone-list">
-        <SheetRow icon="chevron-right" label="Open chat" onClick={() => (onClose(), openDesk(d))} />
+        <SheetRow icon="chevron-right" label="Open chat" onClick={() => (onClose(), openChat(d))} />
         {onPin && <SheetRow icon="pin" label={d.pinned ? "Unpin" : "Pin to the top"} onClick={() => (onPin(!d.pinned), onClose())} />}
         {canRename(d) && (
           <SheetRow icon="pencil" label="Rename" aside={onRename ? null : "Not connected"} disabled={!onRename} onClick={() => setRenaming(true)} />

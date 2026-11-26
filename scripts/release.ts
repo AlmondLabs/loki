@@ -303,7 +303,6 @@ const updateFiles = (version: string): UpdateFile[] => [
 ];
 
 export const DESKTOP_JSON = "desktop.json";
-export const FROZEN_LATEST_JSON = "latest.json";
 
 export interface DesktopJson {
   version: string;
@@ -409,7 +408,6 @@ export function publish({
   versioned,
   rolling,
   manifest,
-  frozen,
   sha,
   notesFile,
   repo = "",
@@ -421,7 +419,6 @@ export function publish({
   versioned: string[];
   rolling: string[];
   manifest: string;
-  frozen: string;
   sha: string;
   notesFile: string;
   repo?: string;
@@ -429,12 +426,11 @@ export function publish({
   gh: (...args: string[]) => string;
 }): { dmg: string } {
   if (!versioned.length || !rolling.length) throw new Error("publish: no files");
-  if (basename(manifest) !== DESKTOP_JSON || basename(frozen) !== FROZEN_LATEST_JSON)
-    throw new Error(`publish: the manifests go up as ${DESKTOP_JSON} and ${FROZEN_LATEST_JSON}, not ${basename(manifest)} and ${basename(frozen)}`);
+  if (basename(manifest) !== DESKTOP_JSON) throw new Error(`publish: the manifest goes up as ${DESKTOP_JSON}, not ${basename(manifest)}`);
   const dmg = versioned.find((f) => f.endsWith(".dmg")) ?? versioned[0];
   const upload = (tag: string, files: string[]) => gh("release", "upload", tag, ...files, "--clobber");
   const finish = (tag: string) => {
-    upload(tag, [...rolling, frozen]);
+    upload(tag, [...rolling]);
     upload(tag, [manifest]);
   };
   if (kind === "stable") {
@@ -480,86 +476,18 @@ export function publish({
   throw new Error(`publish: kind is stable or nightly, not ${kind}`);
 }
 
-function frozenVersion(path: string, version: string, from: string): string {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(readFileSync(path, "utf8"));
-  } catch (err) {
-    throw new Error(`${from}'s latest.json is not JSON: ${err instanceof Error ? err.message : String(err)}`, { cause: err });
-  }
-  const frozen = typeof parsed === "object" && parsed !== null && "version" in parsed ? parsed.version : undefined;
-  if (typeof frozen !== "string" || compareVersions(frozen, version) === null) throw new Error(`${from}'s latest.json names no version`);
-  if (byVersion(frozen, version) >= 0)
-    throw new Error(
-      `${from}'s latest.json announces ${frozen}, not older than ${version}: it is not the last Tauri release's, and a Tauri loki must never install this one`,
-    );
-  return frozen;
-}
-
-export function frozenLatestJson({
-  kind,
-  version,
-  given,
-  dir,
-  gh,
-}: {
-  kind: string;
-  version: string;
-  given?: string;
-  dir: string;
-  gh: (...args: string[]) => string;
-}): { path: string; version: string } {
-  rmSync(dir, { recursive: true, force: true });
-  mkdirSync(dir, { recursive: true });
-  const path = join(dir, FROZEN_LATEST_JSON);
-  if (given) {
-    copyFileSync(given, path);
-    return { path, version: frozenVersion(path, version, given) };
-  }
-  const tag =
-    kind === "nightly"
-      ? NIGHTLY_TAG
-      : publicStables(gh)
-          .filter((t) => STABLE_TAG.test(t) && byVersion(t.slice(1), version) < 0)
-          .sort((a, b) => byVersion(a.slice(1), b.slice(1)))
-          .at(-1);
-  if (tag === undefined) throw new Error(`no stable before ${version} carries a latest.json to freeze: give the last Tauri release's latest.json to publish`);
-  try {
-    gh("release", "download", tag, "--pattern", FROZEN_LATEST_JSON, "--dir", dir, "--clobber");
-  } catch (err) {
-    throw new Error(`could not download latest.json from ${tag} to carry it over: ${err instanceof Error ? err.message : String(err)}`, { cause: err });
-  }
-  if (!existsSync(path)) throw new Error(`${tag} carries no latest.json to carry over: give the last Tauri release's latest.json to publish`);
-  return { path, version: frozenVersion(path, version, tag) };
-}
-
-export function filesNamedBy(latestJsonText: string): string[] {
-  const parsed: unknown = JSON.parse(latestJsonText);
-  const platforms = typeof parsed === "object" && parsed !== null && "platforms" in parsed ? parsed.platforms : undefined;
-  if (typeof platforms !== "object" || platforms === null) return [];
-  const urls = Object.values(platforms).map((p: unknown) => (typeof p === "object" && p !== null && "url" in p ? p.url : undefined));
-  return urls.filter((u): u is string => typeof u === "string").map((u) => decodeURIComponent(u.slice(u.lastIndexOf("/") + 1)));
-}
-
 const VERSIONED_FILE = /^loki_(\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?)_/;
 
-export const staleNightlyFiles = (assets: readonly string[], version: string, keep: readonly string[] = []): string[] =>
+export const staleNightlyFiles = (assets: readonly string[], version: string): string[] =>
   assets.filter((a) => {
     const carried = VERSIONED_FILE.exec(a)?.[1];
-    return carried !== undefined && carried !== version && !keep.includes(a);
+    return carried !== undefined && carried !== version;
   });
 
-export function pruneNightly(version: string, gh: (...args: string[]) => string, dir: string): string[] {
+export function pruneNightly(version: string, gh: (...args: string[]) => string): string[] {
   const state = releaseState(NIGHTLY_TAG, gh);
   if (!state) return [];
-  let keep: string[] = [];
-  if (state.assets.includes(FROZEN_LATEST_JSON)) {
-    rmSync(dir, { recursive: true, force: true });
-    mkdirSync(dir, { recursive: true });
-    gh("release", "download", NIGHTLY_TAG, "--pattern", FROZEN_LATEST_JSON, "--dir", dir, "--clobber");
-    keep = filesNamedBy(readFileSync(join(dir, FROZEN_LATEST_JSON), "utf8"));
-  }
-  const stale = staleNightlyFiles(state.assets, version, keep);
+  const stale = staleNightlyFiles(state.assets, version);
   for (const name of stale) gh("release", "delete-asset", NIGHTLY_TAG, name, "--yes");
   return stale;
 }
@@ -591,22 +519,19 @@ function cmdDesktopJson(version: string, dir: string): string {
   return `${JSON.stringify(json, null, 2)}\n`;
 }
 
-function cmdPublish(kind: string, version: string, dir: string, given: string | undefined): void {
+function cmdPublish(kind: string, version: string, dir: string): void {
   if (!dir) throw new Error("publish: give the folder the builds' files were downloaded to");
   const sha = git("rev-parse", "HEAD");
   const notes = notesFor(version, sha);
   const to = join(root, ".release-assets");
   rmSync(to, { recursive: true, force: true });
   const staged = stageRelease({ version, tag: releaseTag(version), repo: repoName(), notes: notes.text, now: new Date(), from: dir, to });
-  const frozen = frozenLatestJson({ kind, version, given, dir: join(root, ".release-frozen"), gh });
-  console.error(`release: carrying over the latest.json that announces ${frozen.version}, unchanged`);
   const { dmg } = publish({
     kind,
     version,
     versioned: staged.versioned,
     rolling: staged.rolling,
     manifest: staged.manifest,
-    frozen: frozen.path,
     sha,
     notesFile: notes.file,
     repo: repoName(),
@@ -640,16 +565,16 @@ if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.me
         process.stdout.write(cmdDesktopJson(args[0] ?? "", args[1] ?? "."));
         break;
       case "publish":
-        cmdPublish(args[0] ?? "", args[1] ?? "", args[2] ?? "", args[3]);
+        cmdPublish(args[0] ?? "", args[1] ?? "", args[2] ?? "");
         break;
       case "prune-nightly": {
-        const gone = pruneNightly(args[0] ?? "", gh, join(root, ".release-frozen"));
+        const gone = pruneNightly(args[0] ?? "", gh);
         console.error(`release: removed ${gone.length} earlier nightly file${gone.length === 1 ? "" : "s"}`);
         break;
       }
       default:
         console.error(
-          "usage: bun run release plan | version stable [sha] | version nightly <run> | draft <version> | set <version> | notes [version] | desktop-json <version> <dir> | publish <stable|nightly> <version> <dir> [latest.json to carry over] | prune-nightly <version>",
+          "usage: bun run release plan | version stable [sha] | version nightly <run> | draft <version> | set <version> | notes [version] | desktop-json <version> <dir> | publish <stable|nightly> <version> <dir> | prune-nightly <version>",
         );
         process.exit(2);
     }

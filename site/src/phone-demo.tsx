@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { Inbox, useDeck, type InboxMoves } from "../../app/src/phone/inbox";
+import { Flow, useDeck, type FlowMoves } from "../../app/src/phone/flow";
 import type { MoveResult } from "../../core/attention/use-attention.ts";
 import type { SuggestionSource } from "../../app/src/chat/suggestion-card";
 import "../../app/src/phone/phone.css";
@@ -25,7 +25,7 @@ export function PhoneDemo() {
   };
   const [taken] = useState(() => new Map<string, "read" | "later" | "archive">());
   const moved: MoveResult = { error: null, ask: false, rest: null };
-  const moves: InboxMoves = {
+  const moves: FlowMoves = {
     read: (item) => (chats.seen(item.id), taken.set(item.id, "read"), Promise.resolve(moved)),
     later: (item) => (taken.set(item.id, "later"), Promise.resolve(moved)),
     archive: (item) => (chats.archive(item.id), taken.set(item.id, "archive"), Promise.resolve(null)),
@@ -72,7 +72,7 @@ export function PhoneDemo() {
               <i />
             </span>
           </div>
-          <Inbox
+          <Flow
             items={items}
             loaded
             available

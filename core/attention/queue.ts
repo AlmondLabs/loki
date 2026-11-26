@@ -15,7 +15,7 @@ export function catchUpQueue(items: AttentionItem[]): AttentionItem[] {
   return items.filter((i) => NEEDS_YOU.has(i.status));
 }
 
-export function inboxQueue(items: AttentionItem[], resting = false): AttentionItem[] {
+export function flowQueue(items: AttentionItem[], resting = false): AttentionItem[] {
   return items.filter((i) => i.status !== "running" && (resting || !i.resting));
 }
 
@@ -43,7 +43,7 @@ export function mergeQueue(
   decided: Decision[],
   { resting = false, selectedId = null }: MergeOptions = {},
 ): AttentionItem[] {
-  const actionable = inboxQueue(items, resting);
+  const actionable = flowQueue(items, resting);
   const actionableIds = new Set(actionable.map(idOf));
   const lastDecision = new Map<string, Decision>();
   for (const d of decided) lastDecision.set(idOf(d.item), d);
@@ -75,7 +75,7 @@ function placeArrivals(rows: AttentionItem[], arrivals: AttentionItem[], floor: 
 }
 
 export function leaveRow(queue: AttentionItem[], leftId: string, items: AttentionItem[], resting = false): AttentionItem[] {
-  if (inboxQueue(items, resting).some((i) => idOf(i) === leftId)) return queue;
+  if (flowQueue(items, resting).some((i) => idOf(i) === leftId)) return queue;
   const next = queue.filter((i) => idOf(i) !== leftId);
   return next.length === queue.length ? queue : next;
 }

@@ -3,14 +3,14 @@ import type { AttentionItem } from "../../../core/attention/model.ts";
 import type { AgentDetails, AgentsApi } from "../agents/agents";
 import { ago } from "../shared/ago";
 import { READING, answered, valueOf, type Fetched } from "../shared/fetched";
-import { avatarUrl } from "../desk/env";
+import { avatarUrl } from "../workspace/env";
 
 import { AGENT_FILTERS, agentLine, agentRows, agentsShown, type AgentFilter, type AgentRowModel, type LinkState } from "./model";
 import { navigate } from "./router";
 import { Avatar, PhoneRow, SkeletonRows } from "./rows";
 import { Button, Chip } from "../components";
 import { Scroll, TopBar } from "./ui";
-import type { DeskSummary } from "../../../core/frame-types.ts";
+import type { ChatSummary } from "../../../core/frame-types.ts";
 
 export type PhoneAgentsApi = Pick<AgentsApi, "get" | "read" | "log" | "diff">;
 
@@ -55,7 +55,7 @@ export function Agents({
   agents: Array<{ id: string; name: string }>;
   loaded: boolean;
   link: LinkState;
-  desks: DeskSummary[];
+  desks: ChatSummary[];
   items: AttentionItem[];
   api: PhoneAgentsApi;
   banner?: ReactNode;

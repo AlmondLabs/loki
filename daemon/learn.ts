@@ -1,8 +1,8 @@
-import { LEADS_PER_CONVERSATION, buildPrompt, parseExtraction, similarFront, type Slice } from "../core/recall/extract.ts";
-import { keepsFailing } from "../core/recall/fsrs.ts";
-import { writerChatId, type Card, type Lead } from "../core/recall/model.ts";
-import { formatTranscript, overlappingCards, MAX_OPEN_LEADS, REPLAY_CHARS } from "../mod/recall-worker.ts";
-import { isoDay, newCardId, type RecallStore } from "../mod/recall.ts";
+import { LEADS_PER_CONVERSATION, buildPrompt, parseExtraction, similarFront, type Slice } from "../core/learn/extract.ts";
+import { keepsFailing } from "../core/learn/fsrs.ts";
+import { writerChatId, type Card, type Lead } from "../core/learn/model.ts";
+import { formatTranscript, overlappingCards, MAX_OPEN_LEADS, REPLAY_CHARS } from "../mod/learn-worker.ts";
+import { isoDay, newCardId, type LearnStore } from "../mod/learn.ts";
 import type { ChatProjection } from "./chats.ts";
 import type { PassJob } from "./passes.ts";
 import { MIN_NEW_CHARS } from "./passes.ts";
@@ -13,7 +13,7 @@ const FAILING_PER_RUN = 5;
 export const INSTRUCTIONS = `You are writing study cards for the person you work with, from a stretch of one of your conversations with them. Answer with the JSON the request asks for and nothing else; you have no tools here.`;
 
 interface Deps {
-  store: RecallStore;
+  store: LearnStore;
   state: PassState;
   chats: ChatProjection;
 }
@@ -24,7 +24,7 @@ export function learnJob(deps: Deps): PassJob {
   return {
     name: "learn",
     chatId: writerChatId,
-    title: "recall",
+    title: "learn",
     instructions: INSTRUCTIONS,
     tools: () => [],
     open: (_settings, now) => room(now) > 0,
@@ -104,7 +104,7 @@ export function learnJob(deps: Deps): PassJob {
           source: sourceOf(cand.slice),
           created_at: at,
           updated_at: at,
-          updated_by: "recall",
+          updated_by: "learn",
           previous: [],
         };
         store.add(card);
@@ -116,7 +116,7 @@ export function learnJob(deps: Deps): PassJob {
         const cur = byId.get(rev.id);
         if (!cur) continue;
         if ((rev.front ?? cur.card.front) === cur.card.front && (rev.back ?? cur.card.back) === cur.card.back) continue;
-        store.edit(rev.id, { front: rev.front, back: rev.back }, "recall", now);
+        store.edit(rev.id, { front: rev.front, back: rev.back }, "learn", now);
         revised += 1;
       }
       const openLeads = store.leads();

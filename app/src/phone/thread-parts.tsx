@@ -1,9 +1,9 @@
 import { useMemo } from "react";
-import { scopeFor } from "../../../core/desk-core.ts";
+import { scopeFor } from "../../../core/canvas-core.ts";
 import type { AttentionItem } from "../../../core/attention/model.ts";
 import { useInlineWidgets } from "../chat/use-inline-widgets";
 import type { MessageLayout, TranscriptRow } from "../chat/transcript";
-import { avatarUrl } from "../desk/env";
+import { avatarUrl } from "../workspace/env";
 import { dayLabel, unreadBoundary } from "../shared/thread";
 
 export function useThreadLayout(

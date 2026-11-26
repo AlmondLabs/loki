@@ -7,7 +7,7 @@ import { LokiVersionFact } from "../app/src/settings/settings.tsx";
 import type { LokiUpdate, UpdateState, UpdateStatus } from "../app/src/shell/use-loki-update.ts";
 
 const RELEASES = "https://github.com/owner/loki/releases";
-const status = (state: UpdateState, s: Partial<UpdateStatus> = {}): UpdateStatus => ({ channel: "stable", current: "2026.1116.0", state, moved: false, ...s });
+const status = (state: UpdateState, s: Partial<UpdateStatus> = {}): UpdateStatus => ({ channel: "stable", current: "2026.1116.0", state, ...s });
 
 function fakeUpdate(s: UpdateStatus | null) {
   const calls = { check: 0, channels: [] as string[], restart: 0 };

@@ -24,7 +24,7 @@ const packageDir = (name: string, from: string): string => {
   return dir;
 };
 rmSync(out, { recursive: true, force: true });
-mkdirSync(`${out}/mod`, { recursive: true });
+mkdirSync(`${out}/daemon`, { recursive: true });
 
 const { version } = JSON.parse(readFileSync(here("../package.json"), "utf8")) as { version: string };
 
@@ -56,24 +56,6 @@ const hasApp = existsSync(`${appDist}/index.html`);
 
 await Promise.all([
   build({
-    entryPoints: [here("../mod/index.ts")],
-    define: { "process.env.LOKI_VERSION": JSON.stringify(version) },
-    outfile: `${out}/mod/loki-mod.mjs`,
-    bundle: true,
-    minify: true,
-    keepNames: true,
-    platform: "node",
-    format: "esm",
-    target: "node22",
-    external: ["esbuild"],
-    // Outside (esbuild): `ws` reaches Node's builtins with require(), and without a `require` in scope esbuild's ESM
-    // shim throws "Dynamic require of \"events\" is not supported" the moment Node imports the bundle.
-    banner: { js: 'import { createRequire as __lokiCreateRequire } from "node:module"; const require = __lokiCreateRequire(import.meta.url);' },
-    footer: { js: agentSlackNotice },
-    legalComments: "none",
-    logLevel: "warning",
-  }),
-  build({
     entryPoints: [here("../daemon/main.ts")],
     define: { "process.env.LOKI_VERSION": JSON.stringify(version) },
     outfile: `${out}/daemon/daemon.mjs`,
@@ -85,7 +67,10 @@ await Promise.all([
     target: "node22",
     // Outside (esbuild): it cannot bundle the keychain binding's native code, which ships beside the daemon.
     external: ["esbuild", "@napi-rs/keyring"],
+    // Outside (esbuild): `ws` reaches Node's builtins with require(), and without a `require` in scope esbuild's ESM
+    // shim throws "Dynamic require of \"events\" is not supported" the moment Node imports the bundle.
     banner: { js: 'import { createRequire as __lokiCreateRequire } from "node:module"; const require = __lokiCreateRequire(import.meta.url);' },
+    footer: { js: agentSlackNotice },
     legalComments: "none",
     logLevel: "warning",
   }),
@@ -116,7 +101,6 @@ if (hasApp) {
 }
 const stamp = createHash("sha256")
   .update(version)
-  .update(readFileSync(`${out}/mod/loki-mod.mjs`))
   .update(readFileSync(`${out}/daemon/daemon.mjs`))
   .update(readFileSync(`${out}/daemon/codemode-worker.mjs`));
 if (hasApp) stamp.update(readFileSync(`${out}/app/index.html`));

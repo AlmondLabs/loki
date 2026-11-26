@@ -1,15 +1,15 @@
 import { useEffect, useState } from "react";
 import { Notices, notify } from "../components";
-import { inDesktop, settingsWindow } from "../desk/env";
+import { inDesktop, settingsWindow } from "../workspace/env";
 import { currentWindow, listen } from "./desktop";
-import { useDesk } from "../desk/use-desk";
+import { useWorkspace } from "../workspace/use-workspace";
 import { Settings } from "../settings/settings";
 import { useDaemonStatus } from "./bootstrap";
 import { MODELS_CHANGED_KEY } from "./open-settings";
 import { useChatLayout } from "./use-chat-layout";
 import { useGlobalShortcut } from "./use-global-shortcut";
 import { useLokiUpdate } from "./use-loki-update";
-import { useRecall } from "./use-recall";
+import { useLearn } from "./use-learn";
 import { useShellAttention } from "./use-shell-attention";
 import { preferencesProps } from "./views";
 
@@ -24,10 +24,10 @@ function closeThisWindow(): void {
 }
 
 export function SettingsWindow() {
-  const desk = useDesk();
-  const catchUp = useShellAttention(desk, desk.attention.capture);
+  const desk = useWorkspace();
+  const catchUp = useShellAttention(desk);
   const daemon = useDaemonStatus();
-  const recall = useRecall(desk, "settings", (m) => void notify(m));
+  const recall = useLearn(desk, "settings", (m) => void notify(m));
   const update = useLokiUpdate();
   const shortcut = useGlobalShortcut();
   const chat = useChatLayout(desk);

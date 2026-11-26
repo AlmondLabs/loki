@@ -4,7 +4,7 @@ import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import type { DeskSummary } from "../core/frame-types.ts";
+import type { ChatSummary } from "../core/frame-types.ts";
 import { memorySecrets } from "../daemon/credentials.ts";
 import { createBridge } from "../mod/bridge.ts";
 import { ChatRouter } from "../mod/chat-router.ts";
@@ -46,7 +46,7 @@ function client(deviceId?: string): Client & { sent: Array<Record<string, unknow
   return { scope: CONV, sent, ...(deviceId ? { deviceId } : {}), send: (m) => sent.push(m as Record<string, unknown>) };
 }
 
-const IRA_DESK: DeskSummary = {
+const IRA_DESK: ChatSummary = {
   scope: CONV,
   title: "plan the week",
   status: "live",
@@ -99,7 +99,7 @@ async function macs() {
           forget: () => Promise.resolve(false),
           hello: () => farPeers.hello(),
           agents: () => ({ agents: [], tombstones: [] }),
-          chats: () => ({ desks: [IRA_DESK], inbox: [] }),
+          chats: () => ({ chats: [IRA_DESK], flow: [] }),
           state: () => ({ marks: {}, pins: {}, labels: {}, learn: {}, mcp: {}, mods: {} }),
           memory: (agentId) => Promise.resolve({ agent_id: agentId, bundle: null }),
           moves: {

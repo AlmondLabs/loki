@@ -1,4 +1,4 @@
-import type { Scope } from "../../core/desk-core.ts";
+import type { Scope } from "../../core/canvas-core.ts";
 import type { PayloadOf, PushFrame, ReplyOf, RequestName, SendName } from "../../core/frames.ts";
 import type { Client } from "../server.ts";
 import { messageOf } from "../../core/errors.ts";
@@ -7,7 +7,6 @@ export interface FrameContext {
   client: Client;
   push(frame: PushFrame): void;
   broadcast(frame: PushFrame, scope?: Scope): void;
-  track(event: string, properties?: Record<string, unknown>): void;
 }
 
 export type Outcome<R> = { ok: true; reply: R; afterReply?: () => void } | { ok: false; message: string };

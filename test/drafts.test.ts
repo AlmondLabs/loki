@@ -3,10 +3,10 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { createSavedDrafts, savedDrafts } from "../core/attention/use-attention.ts";
 import { buildItems, keyOf } from "../core/attention/model.ts";
-import { inboxQueue } from "../core/attention/queue.ts";
+import { flowQueue } from "../core/attention/queue.ts";
 import { restAfterNext } from "../core/attention/rest.ts";
 import { createDrafts, draftKey, drafts, type SavedLayer } from "../app/src/shared/drafts.ts";
-import { Card, CardConversation } from "../app/src/phone/inbox.tsx";
+import { Card, CardConversation } from "../app/src/phone/flow.tsx";
 import { ConversationHeader } from "../app/src/chat/conversation.tsx";
 import { attentionItem } from "./fixtures/attention.ts";
 
@@ -126,12 +126,12 @@ describe("the Inbox mark and the purpose line", () => {
     const now = Date.parse("2026-10-29T10:00:00Z");
     const conv = { id: "c1", agent_id: "a1", agent_name: "ira", title: null, last_message_at: null, archived: false, has_draft: true };
     const [item] = buildItems([conv], new Map(), new Map(), {}, now);
-    expect(inboxQueue([item]).map((i) => i.id)).toEqual(["c1"]);
+    expect(flowQueue([item]).map((i) => i.id)).toEqual(["c1"]);
     const rest = restAfterNext(item, undefined, true, now);
     expect(rest).not.toBeNull();
     const [rested] = buildItems([conv], new Map(), new Map(), {}, now, {}, {}, rest ? { [keyOf("a1", "c1")]: rest } : {});
     expect(rested.resting).toBe(true);
-    expect(inboxQueue([rested])).toEqual([]);
+    expect(flowQueue([rested])).toEqual([]);
   });
 
   test("the chat header shows its purpose under the name, and nothing when it has none", () => {

@@ -1,5 +1,5 @@
 import type { FileAttachment, ImageAttachment } from "../../../core/attention/content.ts";
-import { inLan, injectedToken, modBase } from "../desk/env";
+import { inLan, injectedToken, modBase } from "../workspace/env";
 
 const MAX_EDGE = 1600;
 

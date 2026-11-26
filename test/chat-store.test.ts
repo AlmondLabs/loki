@@ -8,7 +8,7 @@ import type { ChatEngineView } from "../core/models.ts";
 import type { OutsideChange, OutsideWrite } from "../core/frame-types.ts";
 import { call, piece } from "./fixtures/chat-events.ts";
 import { must } from "./fixtures/must.ts";
-import { MAIN_CHAT_ID } from "../core/desk-core.ts";
+import { MAIN_CHAT_ID } from "../core/canvas-core.ts";
 
 const ADA: Runtime = { agent_id: "ada", conversation_id: "c1" };
 const ENGINE: ChatEngineView = { agent: "claude", name: "Claude Code", model: "sonnet", modes: [], commands: [] };
@@ -110,11 +110,9 @@ function daemon(rows: Array<ConversationInfo & Digest> = [row("c1", "2026-10-29T
     labels: { get: () => Promise.resolve({ labels: [] }) },
     close: () => {},
   };
-  const captured: string[] = [];
   const host: ChatStoreHost = {
     markSeen: () => {},
     listConversations: () => Promise.resolve(answers.noList ? null : rows),
-    capture: (event) => captured.push(event),
   };
   const store = new ChatStore(host);
   const stop = store.connect(client as unknown as ChatClient);
@@ -130,7 +128,6 @@ function daemon(rows: Array<ConversationInfo & Digest> = [row("c1", "2026-10-29T
     sent,
     started,
     answers,
-    captured,
     updates,
     outside,
     refuse,
@@ -202,7 +199,6 @@ describe("the chat store (plan 052)", () => {
     d.events({ kind: "approval", request_id: "r1", tool_name: "bash", input: {} });
     d.events({ kind: "step", step: piece("still thinking") });
     await flush();
-    expect(d.captured.filter((e) => e === "approval_requested")).toHaveLength(1);
     const face = () => d.store.getSnapshot().live.get("ada/c1")?.pending?.requestId ?? null;
     expect(face()).toBe("r1");
     d.answers.approval = false;
@@ -326,7 +322,7 @@ describe("the chat store (plan 052)", () => {
   test("a main chat can be neither archived nor renamed, and nothing reaches the daemon", async () => {
     const d = daemon();
     await flush();
-    expect(await d.store.archiveConversation(MAIN_CHAT_ID, true, "inbox", "ada")).toBe("a main chat cannot be archived");
+    expect(await d.store.archiveConversation(MAIN_CHAT_ID, true, "flow", "ada")).toBe("a main chat cannot be archived");
     expect(await d.store.renameConversation(MAIN_CHAT_ID, "x")).toBe("a main chat cannot be renamed");
     expect(d.updates).toEqual([]);
     d.stop();
@@ -335,10 +331,9 @@ describe("the chat store (plan 052)", () => {
   test("an archive names the chat's agent to the daemon and takes the chat off the list", async () => {
     const d = daemon();
     await flush();
-    expect(await d.store.archiveConversation("c1", true, "inbox", "ada")).toBeNull();
+    expect(await d.store.archiveConversation("c1", true, "flow", "ada")).toBeNull();
     expect(d.updates).toEqual([["c1", { archived: true }, "ada"]]);
     expect(d.store.getSnapshot().conversations).toEqual([]);
-    expect(d.captured).toContain("chat_archived");
     d.stop();
   });
 

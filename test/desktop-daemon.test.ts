@@ -10,7 +10,6 @@ import {
   daemonEnv,
   DaemonSupervisor,
   emptyStatus,
-  oldDataNote,
   progressDue,
   restartDelay,
   wrapChild,
@@ -124,7 +123,7 @@ function harness(overrides: Partial<DaemonDeps> = {}) {
     platform: "darwin",
     parentPid: 777,
     env: { PATH: "/usr/bin:/bin", ELECTRON_RUN_AS_NODE: "1", NODE_OPTIONS: "--inspect", HOME: "/home/x" },
-    entries: { entry: join(lokiDir, "daemon", "daemon.mjs"), modEntry: join(lokiDir, "mod", "loki-mod.mjs") },
+    entry: join(lokiDir, "daemon", "daemon.mjs"),
     findNode: () => Promise.resolve({ found: true, node: "/opt/node/bin/node", dir: "/opt/node/bin", version: [24, 1, 0] }),
     git: null,
     toolsMissing: () => Promise.resolve(null),
@@ -173,7 +172,7 @@ function harness(overrides: Partial<DaemonDeps> = {}) {
 describe("the daemon's command and environment", () => {
   test("its sources run with type stripping, its bundle as it is, and both are told loki's pid", () => {
     const base = { node: "/usr/local/bin/node", dir: "/home/x/.loki", tokenFile: "/home/x/.loki/token", parentPid: 4242 };
-    expect(daemonCommand({ ...base, entry: "/src/loki/daemon/main.ts", modEntry: "/src/loki/mod/boot.ts" })).toEqual({
+    expect(daemonCommand({ ...base, entry: "/src/loki/daemon/main.ts" })).toEqual({
       command: "/usr/local/bin/node",
       args: [
         "--disable-warning=ExperimentalWarning",
@@ -182,15 +181,13 @@ describe("the daemon's command and environment", () => {
         "--loki-daemon",
         "--dir",
         "/home/x/.loki",
-        "--mod",
-        "/src/loki/mod/boot.ts",
         "--token-file",
         "/home/x/.loki/token",
         "--parent-pid",
         "4242",
       ],
     });
-    const bundle = daemonCommand({ ...base, entry: "/data/daemon/daemon.mjs", modEntry: "/data/mod/loki-mod.mjs" });
+    const bundle = daemonCommand({ ...base, entry: "/data/daemon/daemon.mjs" });
     expect(bundle.args.slice(0, 2)).toEqual(["--disable-warning=ExperimentalWarning", "/data/daemon/daemon.mjs"]);
   });
 
@@ -276,12 +273,6 @@ describe("the supervisor's rules", () => {
     expect(note).toContain("daemon.log");
   });
 
-  test("only the old-data exit stops the restarts with its note", () => {
-    const log = join("logs", "daemon.log");
-    expect(oldDataNote(4, log)).toContain("2026.1116");
-    for (const other of [null, 0, 1, 3]) expect(oldDataNote(other, log)).toBeNull();
-  });
-
   test("download progress goes out at its ends and at most every quarter second between", () => {
     const p = (done: number, total: number | null = 1000) => ({ name: "git" as const, version: "2.56.1", done, total });
     expect(progressDue(null, 0, p(500))).toBe(true);
@@ -354,19 +345,6 @@ describe("supervision", () => {
     await h.clock.advance(30_000);
     expect(h.requests.map((r) => r.at)).toEqual([0, 30_000, 60_000]);
     expect(h.daemon.status().error).toBeNull();
-  });
-
-  test("exit 4 stops restarting and publishes the old-data note, and Try Again starts it once more", async () => {
-    const h = harness();
-    await h.daemon.start();
-    h.last().exit(4);
-    await h.clock.advance(120_000);
-    expect(h.requests).toHaveLength(1);
-    const status = must(h.published.at(-1), "a status");
-    expect(status.error).toContain("2026.1116");
-    expect(status.error).toContain("daemon.log");
-    await h.daemon.retry();
-    expect(h.requests).toHaveLength(2);
   });
 
   test("exit 0 after a dev restart starts the daemon again; exit 0 while quitting does not", async () => {

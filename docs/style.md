@@ -67,8 +67,8 @@ there says why, and the ones that still fire somewhere carry their count until a
 **Data** **review** (the types make most of it checked):
 
 - Data loki owns is snake_case: bridge frame fields and the request envelope (`request_id`), chat events, the files
-  loki writes under `~/.loki`, suggestions on a chat, tool arguments, analytics properties. Frame and event names were
-  already snake_case (`chat_create`, `suggestion_made`).
+  loki writes under `~/.loki`, suggestions on a chat and tool arguments. Frame and event names are
+  snake_case (`chat_create`, `suggestion_made`).
 - Its TypeScript types use those names directly (`desk.agent_id`, `row.last_message_at`); there is no conversion layer.
   Identifiers stay camelCase: `const { agent_id: agentId } = desk`, `{ agent_id: agentId }`.
 - State that never leaves the app (React state, view models, `AttentionItem`'s own fields) is camelCase like any
@@ -82,7 +82,7 @@ there says why, and the ones that still fire somewhere carry their count until a
 
 **Modules**:
 
-- **Named exports only**; no `export default`. Excepted: tools' config files, and `mod/index.ts` and `mod/boot.ts`,
+- **Named exports only**; no `export default`. Excepted: tools' config files,
   which the mod loader imports by default. **checked**: oxlint (`no-restricted-exports`).
 - **`import type`** for types. **checked**: `verbatimModuleSyntax` and `consistent-type-imports`.
 - `core/`, `mod/`, `daemon/` and `desktop/` import each other with the `.ts` extension (Node runs the first three unbundled); `app/` imports
@@ -182,27 +182,13 @@ that touches `app/` (new findings against `main`); it does not fail CI, so it is
 
 ## 5. Comments
 
-- **The code says what it does and why; a comment is the exception.** A comment stays only when it is one of these:
-  - a legal or licence header;
-  - behaviour forced by something outside loki that we cannot reshape (a dependency, the platform, a vendor, a
-    protocol), true today on a live path. Its first line starts `Outside (<what>): `, naming that outside thing from
-    the list `OUTSIDE` in `eslint-comments.mjs`; a new name is added to the list in review;
-  - `// prettier-ignore`, or a lint suppression whose rule is faulty, pedantic or style-only: an
-    `oxlint-disable… -- reason`, a react-doctor directive, `@ts-expect-error` with its reason, or `@vite-ignore`;
-  - a doc comment (`/** … */`) that states a contract across a process or disk boundary: the frames between the
-    daemon and the app, files saved under `~/.loki`, the API the daemon hands the mod, the arguments of the agent's
-    tools, and the shell's commands the app calls through `window.lokiDesktop`;
-  - an issue or RFC link that explains a constraint the code cannot express.
-
-  When it is not clear that one of these applies, the comment goes. **checked**: `bun run lint` fails on any other
-  comment in TypeScript and JavaScript (the `loki/comments` rule, `app/src/ui` aside) and in `.github` YAML
-  (`scripts/workflow-comments.ts`, where a pinned action's `# vX.Y.Z` also stays). A doc comment counts only in `core/`,
-  `daemon/`, `desktop/`, `mod/` and `app/src/`; whether it really states a boundary's contract is **review**.
-- **A surprise in loki's own code is fixed, not explained**: rename, extract, add a type or change the design until the
-  code reads plainly. A comment that would explain it marks the change still to make. **review**.
-- A suppression whose rule catches real bugs is not allowed; the code changes instead. **review**.
-- No commented-out code, no `TODO`, no plan or unit tags, no history of the edit; git keeps all of it. **review**.
-- A comment that stays is written in full sentences and plain words, and changes with the code beside it. **review**.
+- **Explain the non-obvious *why*, not the obvious *what*.** Prefer clear naming, types, and extracted helpers first; keep comments concise and current with the code beside them. **review**.
+- **Rules enforced by `loki/comments` (`checked`: `bun run lint`)**:
+  - `oxlint-disable` directives must explain why after ` -- `;
+  - no `eslint-disable` directives (configured rules are fixed or updated in config);
+  - no `TODO` or `FIXME` markers;
+  - no commented-out code (and keep JSDoc `/** ... */` focused on contracts across process, storage, or API boundaries).
+- **Workflow YAML comments (`scripts/workflow-comments.ts`, checked by `bun run lint`)** also reject `TODO` and `FIXME`.
 
 ## 6. Words on screen
 
@@ -272,7 +258,7 @@ commit.
 - Types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`; `!` after the
   scope for a breaking change.
 - Scopes are loki's areas: `chat`, `history` (a chat's history pages and their rows), `acp` (chats on an ACP agent
-  such as Claude Code), `mcp`, `memory` (an agent's memory and its notes), `learn`, `phone`, `desk`, `inbox`,
+  such as Claude Code), `mcp`, `memory` (an agent's memory and its notes), `learn`, `phone`, `canvas`, `flow`,
   `agents`, `settings`, `peers` (paired Macs), `motion` (animation and gestures), `daemon`, `mod`, `core`, `app`,
   `shell`, `release`, `deps`, `style` (this guide and its tooling). The scope may be left out for changes across the
   tree. The list lives in `scripts/check-pr-title.ts`; a new area adds its scope there, here and in AGENTS.md.

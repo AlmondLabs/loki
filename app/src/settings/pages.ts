@@ -2,7 +2,7 @@ import type { IconName } from "../shared/icons";
 export type SettingsPage =
   | "loki"
   | "usage"
-  | "inbox"
+  | "flow"
   | "accounts"
   | "providers"
   | "engines"
@@ -25,7 +25,7 @@ export const GROUPS: readonly SettingsGroup[] = [
   { title: "General", pages: ["appearance", "chat", "keys"] },
   { title: "Models and tools", pages: ["providers", "engines", "mcp", "skills"] },
   { title: "Your devices", pages: ["macs", "phone"] },
-  { title: "Flow and Learn", pages: ["inbox", "accounts", "learn"] },
+  { title: "Flow and Learn", pages: ["flow", "accounts", "learn"] },
   { title: "Labels", pages: ["labels"] },
   { title: "loki", pages: ["loki", "usage"] },
 ];
@@ -35,7 +35,7 @@ export const PAGES: Array<{ id: SettingsPage }> = GROUPS.flatMap((g) => g.pages.
 const TITLES: Record<SettingsPage, string> = {
   loki: "About",
   usage: "Usage",
-  inbox: "Flow",
+  flow: "Flow",
   accounts: "Accounts",
   providers: "Providers",
   engines: "Engines",
@@ -61,7 +61,7 @@ export const PAGE_ICON: Record<SettingsPage, { icon: IconName; tint: string }> =
   skills: { icon: "skill", tint: "var(--loki-label-4)" },
   macs: { icon: "laptop", tint: "var(--loki-label-5)" },
   phone: { icon: "phone", tint: "var(--loki-label-3)" },
-  inbox: { icon: "inbox", tint: "var(--loki-label-5)" },
+  flow: { icon: "inbox", tint: "var(--loki-label-5)" },
   accounts: { icon: "mail", tint: "var(--loki-label-0)" },
   learn: { icon: "learn", tint: "var(--loki-label-2)" },
   labels: { icon: "tag", tint: "var(--loki-label-1)" },
@@ -72,7 +72,7 @@ export const PAGE_ICON: Record<SettingsPage, { icon: IconName; tint: string }> =
 export const PAGE_WORDS: Partial<Record<SettingsPage, string[]>> = {
   loki: ["loki", "daemon", "node", "mod", "version", "update", "install", "files", "folders", "logs"],
   usage: ["cost", "spend", "tokens", "price"],
-  inbox: ["inbox", "order", "score", "focus", "archive", "lane", "lanes"],
+  flow: ["flow", "inbox", "order", "score", "focus", "archive", "lane", "lanes"],
   accounts: ["gmail", "email", "mail", "slack", "connect", "google", "jira", "atlassian", "token"],
   providers: ["models", "api key", "openai", "anthropic"],
   engines: ["claude code", "acp", "agents"],

@@ -35,7 +35,7 @@ describe("which frames go to another Mac", () => {
     expect(r.target({ type: "chat_send", conversation_id: "conv-1", agent_id: "a" })).toEqual({ mac: MINI, reachable: true });
     expect(await r.target({ type: "chat_send", conversation_id: "conv-2" })).toBeNull();
     expect(r.target({ type: "gesture", gesture: { id: "conv-1/w", kind: "focus" } })).toEqual({ mac: MINI, reachable: true });
-    expect(r.target({ type: "desk_get", scope: "conv-1" })).toEqual({ mac: MINI, reachable: true });
+    expect(r.target({ type: "canvas_get", scope: "conv-1" })).toEqual({ mac: MINI, reachable: true });
     expect(r.target({ type: "seen_mark", conversation_id: "conv-1" })).toBeNull();
   });
 

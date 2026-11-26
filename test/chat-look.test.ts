@@ -32,7 +32,7 @@ describe("the thread under the floating header and dock", () => {
   test("any thread with a dock beside it pads by the dock, the chat inset on the canvas too, not only the hosts named", () => {
     expect(css).toMatch(/:has\(> \.loki-dock\) \[data-slot="message-scroller-content"\] \{\s*padding-bottom: calc\(var\(--loki-dock-height\) \+ 20px\);/);
     expect(css).toMatch(/:has\(> \.loki-dock\) \[data-slot="message-scroller-button"\] \{\s*bottom: calc\(var\(--loki-dock-height\) \+ 12px\);/);
-    expect(css).not.toMatch(/\.loki-(desk-pane-messages|flow-card) \[data-slot="message-scroller-content"\] \{[^}]*--loki-dock-height/);
+    expect(css).not.toMatch(/\.loki-(canvas-pane-messages|flow-card) \[data-slot="message-scroller-content"\] \{[^}]*--loki-dock-height/);
   });
 
   test("the dock is measured again when it comes back: kept in state, not in a ref that re-runs nothing", () => {
@@ -49,7 +49,7 @@ describe("the keyboard (U5)", () => {
     const deny = KEYMAP.find((b) => b.id === "chat.deny");
     expect(allow?.keys).toEqual(["cmd+enter"]);
     expect(deny?.keys).toEqual(["cmd+shift+backspace"]);
-    expect(KEYMAP.filter((b) => b.where === "desk" && b.keys.includes("cmd+backspace"))).toEqual([]);
+    expect(KEYMAP.filter((b) => b.where === "chats" && b.keys.includes("cmd+backspace"))).toEqual([]);
     const chat = menuSpec(KEYMAP, "macos").find((m) => m.title === "Chat");
     const ids = (chat?.items ?? []).flatMap((i) => ("id" in i ? [i.id] : []));
     expect(ids).toEqual(expect.arrayContaining(["chat.allow", "chat.deny"]));
@@ -73,7 +73,7 @@ describe("the keyboard (U5)", () => {
 
 describe("Flow (U6)", () => {
   test("a Gmail card's moves are symbols named in Apple's words, their keys in the tooltip, Archive last and prominent", async () => {
-    const { OutsideItemActions } = await import("../app/src/desk/outside-toolbar.tsx");
+    const { OutsideItemActions } = await import("../app/src/workspace/outside-toolbar.tsx");
     const facts = {
       provider: "gmail" as const,
       account_id: "gmail:ada@example.com",
@@ -124,7 +124,7 @@ describe("the wording pass", () => {
     const { AgentTurn } = await import("../app/src/item/agent-turn.tsx");
     const { AgentPlan } = await import("../app/src/item/agent-plan.tsx");
     const { Thought } = await import("../app/src/item/thought.tsx");
-    const { OutsideItemHeader } = await import("../app/src/desk/outside-toolbar.tsx");
+    const { OutsideItemHeader } = await import("../app/src/workspace/outside-toolbar.tsx");
     const turn = html(createElement(AgentTurn, { agentName: "friday", state: "needs you", failed: 0, took: "2 min", parts: [], draw: () => null }));
     expect(turn).toContain("Worked 2 min");
     expect(turn).toContain("Needs you");
@@ -226,11 +226,11 @@ describe("a Flow card asks one thing at a time (U16)", () => {
   });
 
   test("the card's moves are its header's, and the box has no row of buttons under it", () => {
-    const card = readFileSync(join(import.meta.dirname, "..", "app", "src", "desk", "catch-up.tsx"), "utf8");
+    const card = readFileSync(join(import.meta.dirname, "..", "app", "src", "workspace", "catch-up.tsx"), "utf8");
     expect(card).toContain("moves={moves}");
     expect(card).not.toContain("footer=");
-    const parts = readFileSync(join(import.meta.dirname, "..", "app", "src", "desk", "catch-up-parts.tsx"), "utf8");
-    for (const key of ["inbox.later", "inbox.next", "inbox.archive", "inbox.open"]) expect(parts).toContain(`deckKey("${key}", moves.typing)`);
+    const parts = readFileSync(join(import.meta.dirname, "..", "app", "src", "workspace", "catch-up-parts.tsx"), "utf8");
+    for (const key of ["flow.later", "flow.next", "flow.archive", "flow.open"]) expect(parts).toContain(`deckKey("${key}", moves.typing)`);
   });
 });
 
@@ -258,7 +258,7 @@ describe("one detail inset (plan 2026-11-14-2224, U3)", () => {
   });
 
   test("an outside card's thread and reply box are centred, 20px in", async () => {
-    const { OutsideCard } = await import("../app/src/desk/outside-card.tsx");
+    const { OutsideCard } = await import("../app/src/workspace/outside-card.tsx");
     const facts = {
       provider: "slack" as const,
       account_id: "slack:acme",
@@ -294,7 +294,7 @@ describe("one detail inset (plan 2026-11-14-2224, U3)", () => {
   });
 
   test("Learn's review deck stays centred, and All Cards starts at the edge", async () => {
-    const { LearnColumn } = await import("../app/src/recall/recall-parts.tsx");
+    const { LearnColumn } = await import("../app/src/learn/learn-parts.tsx");
     const column = (view: "review" | "all") => html(createElement(LearnColumn, { view, children: "body" }));
     expect(column("review")).toContain("margin:0 auto");
     expect(column("all")).not.toContain("auto");

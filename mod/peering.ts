@@ -1,7 +1,7 @@
 import { join } from "node:path";
-import type { Scope } from "../core/desk-core.ts";
-import { scopeFor } from "../core/desk-core.ts";
-import type { DeskSummary, InboxRow, LanStatus, TailnetDevice } from "../core/frame-types.ts";
+import type { Scope } from "../core/canvas-core.ts";
+import { scopeFor } from "../core/canvas-core.ts";
+import type { ChatSummary, FlowRow, LanStatus, TailnetDevice } from "../core/frame-types.ts";
 import { stateFolders, type MacAccountView } from "../core/frames.ts";
 import { Awake } from "../daemon/awake.ts";
 import { applyMcp, isModPath, listModFiles, mcpSnapshot } from "../daemon/config-sync.ts";
@@ -14,9 +14,9 @@ import { ChatDirectory } from "./chat-directory.ts";
 import { ChatMoves } from "./chat-moves.ts";
 import { ChatRouter } from "./chat-router.ts";
 import type { ChatSource } from "./chat-source.ts";
-import type { DeskRegistry } from "./desks.ts";
+import type { ChatRegistry } from "./chats.ts";
 import type { ChatBackend } from "./frames/chat.ts";
-import { sortDesks } from "./frames/desks.ts";
+import { sortChats } from "./frames/canvas.ts";
 import type { PeersDeps } from "./frames/peers.ts";
 import { seenFrame } from "./frames/seen.ts";
 import { log } from "./log.ts";
@@ -30,8 +30,8 @@ import { PeerState } from "./peer-state.ts";
 import { PeerSync } from "./peer-sync.ts";
 import { PEER_PROTOCOL, PeerKeys, PeerStore, Peers, macName } from "./peers.ts";
 import { applyPinChanges, pinChanges } from "./pins.ts";
-import { applyFiles, applyRecall, filesSnapshot, recallSnapshot } from "./recall-sync.ts";
-import { recallDir } from "./recall.ts";
+import { applyFiles, applyLearn, filesSnapshot, learnSnapshot } from "./learn-sync.ts";
+import { learnDir } from "./learn.ts";
 import { RemoteChats, peerChatsReply } from "./remote-chats.ts";
 import type { SeenStore } from "./seen.ts";
 import type { PushTo } from "./sockets.ts";
@@ -66,11 +66,11 @@ export interface PeeringDeps {
     | "onAnswerLanded"
   >;
   seen: SeenStore;
-  desks: Pick<DeskRegistry, "forgetConversations">;
+  desks: Pick<ChatRegistry, "forgetConversations">;
   sockets: { push(msg: object, opts?: { to?: PushTo; scope?: Scope }): void; phoneListener(): PeerListener | null };
   tailscale: { devices(): TailnetDevice[] };
   broadcast: (msg: object, scope?: Scope) => void;
-  local: { desks: () => DeskSummary[]; inbox: () => InboxRow[] };
+  local: { chats: () => ChatSummary[]; flow: () => FlowRow[] };
   dirs: Pick<typeof paths, "peers" | "state" | "data" | "widgets" | "uploads">;
 }
 
@@ -78,8 +78,8 @@ export interface Peering {
   peers: Peers;
   router: ChatRouter;
   frames: NonNullable<PeersDeps["peers"]>;
-  desks(): DeskSummary[];
-  inbox(): InboxRow[];
+  summaries(): ChatSummary[];
+  flow(): FlowRow[];
   pushed(type: string): void;
   chatBlocked(agentId: string, conversationId: string): string | null;
   mac(macId: string | null): { name: string; reachable: boolean };
@@ -91,7 +91,7 @@ export interface Peering {
   stop(): void;
 }
 
-const STATE_PUSHES = new Set(["seen", "seen_chat", "desks", "recall_changed"]);
+const STATE_PUSHES = new Set(["seen", "seen_chat", "chats", "learn_changed"]);
 const STATE_POLL_MS = 5 * 60_000;
 
 export function startPeering(deps: PeeringDeps): Peering {
@@ -121,9 +121,8 @@ export function startPeering(deps: PeeringDeps): Peering {
       .map((d) => ({ ...d, paired: paired.has(d.address) }));
     return { me: { mac_id: macId, name: thisMacName, host: tailnetHost() }, peers: peerStore.list((id) => links.reachable(id)), tailnet };
   };
-  const desks = (): DeskSummary[] => sortDesks([...deps.local.desks(), ...remoteChats.desks()]);
-  const inbox = (): InboxRow[] =>
-    [...deps.local.inbox(), ...remoteChats.inbox()].sort((a, b) => (b.last_message_at ?? "").localeCompare(a.last_message_at ?? ""));
+  const summaries = (): ChatSummary[] => sortChats([...deps.local.chats(), ...remoteChats.summaries()]);
+  const flow = (): FlowRow[] => [...deps.local.flow(), ...remoteChats.flow()].sort((a, b) => (b.last_message_at ?? "").localeCompare(a.last_message_at ?? ""));
   const links: PeerLinks = new PeerLinks({
     token: (id) => peerKeys.get(id),
     defaults: { protocol: PEER_PROTOCOL },
@@ -257,7 +256,7 @@ export function startPeering(deps: PeeringDeps): Peering {
       pins: pinChanges(),
       labels: chatBackend.labelColors(),
       mcp: mcpSnapshot(join(dirs.data, "mcp.json"), join(dirs.state, "mcp-sync.json")),
-      ...(folders.includes("learn") ? { learn: recallSnapshot(recallDir()) } : {}),
+      ...(folders.includes("learn") ? { learn: learnSnapshot(learnDir()) } : {}),
       ...(folders.includes("mods") ? { mods: filesSnapshot(join(dirs.data, "mods"), MOD_FILES) } : {}),
     }),
     apply: (id, theirs) => {
@@ -265,14 +264,14 @@ export function startPeering(deps: PeeringDeps): Peering {
         marks: seen.applyRemote(id, theirs.marks),
         pins: applyPinChanges(theirs.pins),
         labels: chatBackend.applyLabelColors(theirs.labels),
-        learn: theirs.learn ? applyRecall(recallDir(), theirs.learn) : false,
+        learn: theirs.learn ? applyLearn(learnDir(), theirs.learn) : false,
         mcp: applyMcp(join(dirs.data, "mcp.json"), join(dirs.state, "mcp-sync.json"), theirs.mcp),
         mods: theirs.mods ? applyFiles(join(dirs.data, "mods"), MOD_FILES, theirs.mods) : false,
       };
       if (moved.marks) sockets.push(seenFrame({ seen }));
-      if (moved.pins) sockets.push({ type: "desks", desks: desks() });
+      if (moved.pins) sockets.push({ type: "chats", chats: summaries() });
       if (moved.labels) sockets.push({ type: "lists_changed" });
-      if (moved.learn) sockets.push({ type: "recall_changed" });
+      if (moved.learn) sockets.push({ type: "learn_changed" });
       return moved;
     },
     link: (id) => links.get(id),
@@ -354,7 +353,7 @@ export function startPeering(deps: PeeringDeps): Peering {
     forget: (id) => peers.forget(id),
     hello: () => peers.hello(),
     agents: () => peerAgents.snapshot(),
-    chats: () => peerChatsReply(deps.local.desks(), deps.local.inbox()),
+    chats: () => peerChatsReply(deps.local.chats(), deps.local.flow()),
     state: (folders) => peerState.snapshotNow(folders),
     where: (chat) => directory.answer(chat),
     group: {
@@ -370,10 +369,10 @@ export function startPeering(deps: PeeringDeps): Peering {
     peers,
     router,
     frames,
-    desks,
-    inbox,
+    summaries,
+    flow,
     pushed: (type) => {
-      if (STATE_PUSHES.has(type)) peerState.changed(type === "recall_changed" ? "learn" : undefined);
+      if (STATE_PUSHES.has(type)) peerState.changed(type === "learn_changed" ? "learn" : undefined);
     },
     chatBlocked: (agentId, conversationId) => chatMoves.blocked(agentId, conversationId),
     mac: (id) =>

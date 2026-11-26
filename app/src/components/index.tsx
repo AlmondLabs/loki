@@ -20,7 +20,7 @@ import { lastInput } from "../kit/motion";
 import { Icon, type IconName } from "../shared/icons";
 import { capitalChildren, capitalFirst } from "../kit/words";
 import { ariaShortcut } from "../shell/keymap";
-import { inLan } from "../desk/env";
+import { inLan } from "../workspace/env";
 import { Button as UiButton } from "@/ui/button";
 import { Switch as UiSwitch } from "@/ui/switch";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/ui/input-group";

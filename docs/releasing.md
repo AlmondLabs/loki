@@ -65,13 +65,11 @@ and its branch deleted.
 4. **publish** runs only when all three builds succeeded, and only on `main`. A run from any other branch, of either
    kind, builds all three and keeps the files as the run's artifacts, and never touches a release or the `nightly` tag,
    so it checks that a branch builds. `release.ts publish` writes `desktop.json` from the builds' `.sig` files (it
-   fails, naming the platform, when one is missing), fetches the `latest.json` to carry over (below, "The Tauri
-   manifest"), then uploads in this order:
+   fails, naming the platform, when one is missing), then uploads in this order:
    1. the versioned files: the `.dmg`, `loki_<v>_aarch64.app.tar.gz` (the Mac's update archive, renamed so it carries
       the version), the `-setup.exe`, the AppImage, each update file's `.sig`, and the `.deb`;
    2. the install scripts' unversioned copies, replaced with `--clobber`: `loki-macos-arm64.app.tar.gz` (the Mac's
-      update archive), `loki-windows-x64-setup.exe` and `loki-linux-x86_64.AppImage`, and the carried-over
-      `latest.json`, byte for byte;
+      update archive), `loki-windows-x64-setup.exe` and `loki-linux-x86_64.AppImage`;
    3. `desktop.json`, last, so nothing that reads it ever finds a file missing.
 
    It then renders the cask from the `.dmg`, attaches `cask.rb` to the release and pushes it to the tap. Each of those
@@ -80,25 +78,22 @@ and its branch deleted.
    changes nothing on it and makes the cask from the `.dmg` it shipped with. A stable that finishes after a newer one
    is already out is published but not made latest, so `releases/latest` never goes back a version. The nightly is
    never deleted: its new files go up beside the last one's, the `nightly` tag moves, `desktop.json` goes up last, the
-   tap gets the new cask, and only then are the earlier nightlies' files removed (`release.ts prune-nightly`): every
-   file whose name carries another version, except the files the carried-over `latest.json` names, and never
-   `latest.json`, `desktop.json`, `cask.rb` or the unversioned copies. A nightly cancelled by a newer one at any point
+   tap gets the new cask, and only then are earlier nightlies' versioned files removed (`release.ts prune-nightly`). A nightly cancelled by a newer one at any point
    still downloads. A re-run of an older nightly after a newer one went out fails at `publish` before it uploads
    anything, so the cask, tap and prune steps after it don't run either.
 
 ## What a release carries
 
-| file                                                                                      | for                                                                                                    |
-| ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `desktop.json`                                                                            | the updater: version, notes, date, and per platform the versioned update file's URL and signature      |
-| `latest.json`                                                                             | the last Tauri release's manifest, carried over unchanged so Tauri installs never take an Electron one |
-| `loki_<v>_aarch64.dmg`                                                                    | a download by hand, and the casks                                                                      |
-| `loki_<v>_aarch64.app.tar.gz` (+ `.sig`)                                                  | the Mac's update file (`darwin-aarch64`)                                                               |
-| `loki_<v>_x64-setup.exe` (+ `.sig`)                                                       | the Windows installer and update file (`windows-x86_64`)                                               |
-| `loki_<v>_amd64.AppImage` (+ `.sig`)                                                      | the Linux AppImage and update file (`linux-x86_64`)                                                    |
-| `loki_<v>_amd64.deb`                                                                      | Debian and Ubuntu; it does not update itself                                                           |
-| `loki-macos-arm64.app.tar.gz`, `loki-windows-x64-setup.exe`, `loki-linux-x86_64.AppImage` | the install scripts (`site/public/install.sh`, `install.ps1`)                                          |
-| `cask.rb`                                                                                 | what the tap carries, to check                                                                         |
+| file                                                                                      | for                                                                                               |
+| ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `desktop.json`                                                                            | the updater: version, notes, date, and per platform the versioned update file's URL and signature |
+| `loki_<v>_aarch64.dmg`                                                                    | a download by hand, and the casks                                                                 |
+| `loki_<v>_aarch64.app.tar.gz` (+ `.sig`)                                                  | the Mac's update file (`darwin-aarch64`)                                                          |
+| `loki_<v>_x64-setup.exe` (+ `.sig`)                                                       | the Windows installer and update file (`windows-x86_64`)                                          |
+| `loki_<v>_amd64.AppImage` (+ `.sig`)                                                      | the Linux AppImage and update file (`linux-x86_64`)                                               |
+| `loki_<v>_amd64.deb`                                                                      | Debian and Ubuntu; it does not update itself                                                      |
+| `loki-macos-arm64.app.tar.gz`, `loki-windows-x64-setup.exe`, `loki-linux-x86_64.AppImage` | the install scripts (`site/public/install.sh`, `install.ps1`)                                     |
+| `cask.rb`                                                                                 | what the tap carries, to check                                                                    |
 
 loki's updater (`desktop/update/`) reads `https://github.com/AlmondLabs/loki/releases/latest/download/desktop.json` on
 the Stable channel and `https://github.com/AlmondLabs/loki/releases/download/nightly/desktop.json` on the Nightly one;
@@ -110,28 +105,15 @@ can be tried by hand.
 
 The install scripts put the Electron app where its updater expects it. On a Mac, `install.sh` unpacks
 `loki-macos-arm64.app.tar.gz` and moves `loki.app` into `/Applications` (or `~/Applications`), replacing the one
-there, the Tauri app included; with loki open it stops and asks the person to quit it first. On Linux it places
+there; with loki open it stops and asks the person to quit it first. On Linux it places
 `loki.AppImage` in `~/.local/share/loki` with a menu entry. On Windows, `install.ps1` runs the installer with `/S`:
 it installs for the person alone, into `%LOCALAPPDATA%\Programs\loki`, and lists itself in Installed apps under the
 name `loki <version>` (a key named for a GUID under `HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall`); the
-script checks both. The installer closes a Tauri loki and runs its uninstaller first (`desktop/nsis/remove-tauri.nsh`),
-which leaves `~/.loki` alone.
+script checks both.
 
 The `.deb` installs an AppArmor profile for `/opt/loki/loki` (`desktop/linux/after-install.sh`), because Ubuntu 24.04
 and later let only programs with a profile make the user namespaces Chromium's sandbox needs. The AppImage has no
 such profile; how it starts on Ubuntu 24.04 is still to be checked by hand.
-
-## The Tauri manifest
-
-loki moved from Tauri to Electron, and the two read different manifests: the Tauri app reads `latest.json`, the
-Electron app `desktop.json`. A Tauri loki never installs an Electron build; its last release shows a notice to
-reinstall once `desktop.json` exists. So that a Tauri loki sees no update, and no failed check, every Electron release
-carries the last Tauri release's `latest.json` unchanged, on both channels: `release.ts publish` downloads it from the
-newest public stable before this one (a stable) or from the `nightly` release itself (a nightly), refuses one that
-announces a version not older than this release's, and uploads it byte for byte. Give it a file instead as the fourth
-argument (`bun run release publish <kind> <version> <dir> <latest.json>`) if the release it would come from has lost
-it. The nightly prune keeps the files that `latest.json` names, so a Tauri nightly older than the last one can still
-update to it.
 
 ## Versions
 

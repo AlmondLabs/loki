@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { builtinModels } from "@earendil-works/pi-ai/providers/all";
@@ -32,19 +32,16 @@ import { topUsualModel } from "../mod/usual-models.ts";
 import { ChatProjection } from "./chats.ts";
 import { StoreManager } from "./kernel/stores.ts";
 import { listAgents } from "./store/agents.ts";
-import { checkOldData } from "./old-data.ts";
 import { acquire, type Lock } from "./lock.ts";
 import { loadModFolder, watchFiles } from "./mods/files.ts";
 import { DevReload } from "./dev-reload.ts";
 import { buildPage, isPageSource } from "./page-build.ts";
-import { MOD_API_VERSION, type ModApi } from "./mods/api.ts";
-import type { Host } from "../mod/index.ts";
-import { ModRegistry, type LoadResult } from "./mods/registry.ts";
-import { appVersion, createAnalytics } from "../mod/analytics.ts";
+import { MOD_API_VERSION } from "./mods/api.ts";
+import { activateLoki } from "../mod/index.ts";
+import { ModRegistry } from "./mods/registry.ts";
 import { McpTools } from "./mcp/index.ts";
-import { paths } from "../mod/paths.ts";
-import { RecallStore } from "../mod/recall.ts";
-import { TurnTelemetry, harnessVersion } from "./telemetry.ts";
+import { appVersion, paths } from "../mod/paths.ts";
+import { LearnStore } from "../mod/learn.ts";
 import { UsageLedger } from "./usage.ts";
 import { readAcpAgents } from "./acp/agents.ts";
 import { AcpChats } from "./acp/chats.ts";
@@ -53,12 +50,9 @@ import { openInBrowser } from "./acp/open-url.ts";
 import { agentPrompt } from "./acp/prompt.ts";
 import { reporter } from "./report.ts";
 import { watchParent } from "./parent-watch.ts";
-import { messageOf } from "../core/errors.ts";
 import { SCRIPT_TIMEOUT_MS, SCRIPT_TOOL, checkScripts, scriptExtensions, scriptSandbox } from "./scripts.ts";
 
 export const EXIT_HELD = 3;
-/** The exit for a loki folder this build refuses (`checkOldData`); the shell's supervisor (desktop/daemon.ts) stops restarting on it. */
-export const EXIT_OLD_DATA = 4;
 
 /**
  * The flag every start passes so the shell can tell loki's daemon from any other Node process: desktop/procs.ts
@@ -72,7 +66,6 @@ const { values: args } = parseArgs({
   options: {
     [DAEMON_MARKER]: { type: "boolean" },
     dir: { type: "string" },
-    mod: { type: "string" },
     "token-file": { type: "string" },
     "parent-pid": { type: "string" },
     "check-scripts": { type: "boolean" },
@@ -82,8 +75,8 @@ if (args["check-scripts"]) {
   console.log(await checkScripts());
   process.exit(0);
 }
-if (!args.dir || !args.mod) {
-  report("--dir and --mod are required");
+if (!args.dir) {
+  report("--dir is required");
   process.exit(2);
 }
 
@@ -99,31 +92,8 @@ const context = BACKGROUND_CONTEXT;
 const mods = new ModRegistry(report);
 
 const backend = join(args.dir, "backend");
-const oldData = checkOldData({ stateDir: paths.state, storesDir: join(args.dir, "stores"), agents: listAgents(backend) });
-if (!oldData.ok) {
-  report(oldData.reason);
-  lock.release();
-  process.exit(EXIT_OLD_DATA);
-}
 process.env.LOKI_BACKEND_DIR = backend;
 process.env.LOKI_PINS_FILE ??= join(args.dir, "state", "pins.json");
-type CoreActivate = (api: ModApi, host: Host) => unknown;
-interface CoreModule {
-  default: CoreActivate;
-  build?: (opts?: { fresh?: boolean }) => Promise<CoreActivate>;
-}
-const modPath = args.mod;
-const initialBuild = import(pathToFileURL(modPath).href).then(
-  async (mod): Promise<{ core: CoreModule; built: CoreActivate } | { error: unknown }> => {
-    const coreModule = mod as CoreModule;
-    try {
-      return { core: coreModule, built: coreModule.build ? await coreModule.build({ fresh: false }) : coreModule.default };
-    } catch (error) {
-      return { error };
-    }
-  },
-  (error: unknown) => ({ error }),
-);
 const secrets =
   process.env.LOKI_KEYCHAIN === "0"
     ? memorySecrets()
@@ -192,7 +162,7 @@ const passes = new PassRunner({
   state: passState,
   backendDir: backend,
   context,
-  jobs: [reflectionJob, learnJob({ store: new RecallStore(), state: passState, chats })],
+  jobs: [reflectionJob, learnJob({ store: new LearnStore(), state: passState, chats })],
   busy,
   canRun,
   acp: {
@@ -213,7 +183,6 @@ const passes = new PassRunner({
       return { text, toolCalls: lokiTools.takeCalls(agentId, spec.chatId) };
     },
   },
-  capture: (event, properties) => analytics.capture("mod", event, properties),
   report,
 });
 async function startPassCursors(): Promise<void> {
@@ -261,7 +230,6 @@ const acp = new AcpChats({
   openUrl: (url) => openInBrowser(url, report),
   configFile: acpFile,
   cacheFile: join(args.dir, "state", "acp-offered.json"),
-  capture: (event, properties) => analytics.capture("mod", event, properties),
   report,
 });
 const advisors = new AdvisorConsults({
@@ -293,19 +261,7 @@ const chat: DaemonChats = new DaemonChats({
   advisors,
 });
 chats.follow(stores, report);
-const analytics = createAnalytics({
-  path: process.env.LOKI_ANALYTICS === "0" ? null : paths.events,
-  statePath: paths.analytics,
-  appVersion: appVersion(paths.root),
-});
-mcp.setCapture((event, properties) => analytics.capture("mod", event, properties));
-const telemetry = new TurnTelemetry({
-  capture: (event, properties) => analytics.capture("mod", event, properties),
-  harnessVersion: harnessVersion(paths.root),
-  context,
-  report,
-});
-telemetry.follow(stores);
+const eventsLog = join(args.dir, "logs", "events.jsonl");
 const usage = new UsageLedger({
   file: join(paths.state, "usage.json"),
   context,
@@ -313,7 +269,7 @@ const usage = new UsageLedger({
     const slash = model.indexOf("/");
     return slash > 0 ? (models.getModel(model.slice(0, slash), model.slice(slash + 1))?.cost.input ?? null) : null;
   },
-  eventsFiles: [`${paths.events}.1`, paths.events],
+  eventsFiles: [`${eventsLog}.1`, eventsLog],
   report,
 });
 usage.follow(stores);
@@ -324,82 +280,10 @@ const agentsReady = Promise.all(
   }),
 ).then(() => chats.metadataLoaded());
 
-let core: CoreModule | null = null;
-const loadCore = async (fresh = false): Promise<LoadResult> => {
-  let built: CoreActivate;
-  if (!fresh && core === null) {
-    const init = await initialBuild;
-    if ("error" in init) {
-      const refused = `mod loki did not build, so the one running stays: ${messageOf(init.error)}`;
-      report(refused);
-      return { refused };
-    }
-    core = init.core;
-    built = init.built;
-  } else {
-    try {
-      core ??= (await import(pathToFileURL(modPath).href)) as CoreModule;
-      built = core.build ? await core.build({ fresh }) : core.default;
-    } catch (error) {
-      const refused = `mod loki did not build, so the one running stays: ${messageOf(error)}`;
-      report(refused);
-      return { refused };
-    }
-  }
-  return mods.load({
-    name: "loki",
-    apiVersion: MOD_API_VERSION,
-    activate: (api) =>
-      built(api, {
-        chats,
-        chat,
-        analytics,
-        macId: installId(),
-        secrets: secrets ?? memorySecrets(),
-        memory: memoryRepos,
-        suggestions: {
-          read: async (agentId, id) => {
-            const store = await stores.get(agentId);
-            const conversation = await store.chat(id, context);
-            const info = conversation ? await store.chatInfo(conversation.id, context) : undefined;
-            return info ? { suggestions: info.suggestions ?? [], archived: info.archived } : null;
-          },
-          write: async (agentId, id, suggestions) => {
-            if (!(await (await stores.get(agentId)).updateChat(id, { suggestions }, context))) throw new Error(`no chat ${id}`);
-          },
-        },
-        askLink: async (agentId, conversationId, link, signal) => {
-          const reply = await approvals.ask<{ answers: Record<string, unknown> }>(
-            agentId,
-            conversationId,
-            { kind: "question", request_id: `link-${randomUUID()}`, input: { link } },
-            signal,
-          );
-          return parseLinkAnswer(reply.answers.answers);
-        },
-        daemon: devReload,
-        usage: {
-          rows: () => usage.rows(),
-          priced: (model) => {
-            // Outside (ACP): an agent prices its own calls, and reports dollars rather than rates.
-            if (model.startsWith("acp:")) return true;
-            const slash = model.indexOf("/");
-            const cost = slash > 0 ? models.getModel(model.slice(0, slash), model.slice(slash + 1))?.cost : undefined;
-            return !!cost && cost.input + cost.output > 0;
-          },
-          seeded: () => usage.seeded(),
-          onChange: (listener) => usage.onChange(listener),
-        },
-      }),
-  });
-};
-const checkout = args.mod.endsWith("boot.ts") ? dirname(dirname(args.mod)) : null;
+const here = fileURLToPath(new URL(import.meta.url));
+const checkout = here.endsWith(".ts") ? dirname(dirname(here)) : null;
 const builtPage = checkout && process.env.LOKI_BUILT_PAGE === "1" ? checkout : null;
 const devReload: DevReload = new DevReload({
-  reloadMod: async () => {
-    const result = await loadCore(true);
-    return "loaded" in result ? "ok" : result.refused;
-  },
   ...(builtPage ? { buildPage: () => buildPage(builtPage) } : {}),
   restart: (why) => stop(`${why}, restarting as asked`),
   idle: async () => {
@@ -408,19 +292,62 @@ const devReload: DevReload = new DevReload({
   },
   report,
 });
-await Promise.all([agentsReady, initialBuild]);
-await loadCore(false);
+await agentsReady;
+await mods.load({
+  name: "loki",
+  apiVersion: MOD_API_VERSION,
+  activate: (api) =>
+    activateLoki(api, {
+      chats,
+      chat,
+      macId: installId(),
+      secrets: secrets ?? memorySecrets(),
+      memory: memoryRepos,
+      suggestions: {
+        read: async (agentId, id) => {
+          const store = await stores.get(agentId);
+          const conversation = await store.chat(id, context);
+          const info = conversation ? await store.chatInfo(conversation.id, context) : undefined;
+          return info ? { suggestions: info.suggestions ?? [], archived: info.archived } : null;
+        },
+        write: async (agentId, id, suggestions) => {
+          if (!(await (await stores.get(agentId)).updateChat(id, { suggestions }, context))) throw new Error(`no chat ${id}`);
+        },
+      },
+      askLink: async (agentId, conversationId, link, signal) => {
+        const reply = await approvals.ask<{ answers: Record<string, unknown> }>(
+          agentId,
+          conversationId,
+          { kind: "question", request_id: `link-${randomUUID()}`, input: { link } },
+          signal,
+        );
+        return parseLinkAnswer(reply.answers.answers);
+      },
+      daemon: devReload,
+      usage: {
+        rows: () => usage.rows(),
+        priced: (model) => {
+          // Outside (ACP): an agent prices its own calls, and reports dollars rather than rates.
+          if (model.startsWith("acp:")) return true;
+          const slash = model.indexOf("/");
+          const cost = slash > 0 ? models.getModel(model.slice(0, slash), model.slice(slash + 1))?.cost : undefined;
+          return !!cost && cost.input + cost.output > 0;
+        },
+        seeded: () => usage.seeded(),
+        onChange: (listener) => usage.onChange(listener),
+      },
+    }),
+});
 mcp.start();
 void lokiTools.start().catch((error: unknown) => report(`loki tools did not start: ${String(error)}`));
 void advisors.start().catch((error: unknown) => report(`advisor consults did not settle: ${String(error)}`));
 const sources = (f: string) => f.endsWith(".ts") && !f.includes(".loki-build");
 const watching = checkout
   ? [
-      watchFiles(join(checkout, "mod"), sources, (file) => devReload.modChanged(`mod/${file}`)),
+      watchFiles(join(checkout, "mod"), sources, (file) => devReload.daemonChanged(`mod/${file}`)),
       watchFiles(join(checkout, "core"), sources, (file) => {
         devReload.daemonChanged(`core/${file}`);
         devReload.pageChanged(`core/${file}`);
-        return devReload.modChanged(`core/${file}`);
       }),
       watchFiles(join(checkout, "daemon"), sources, (file) => devReload.daemonChanged(`daemon/${file}`)),
       ...(builtPage ? [watchFiles(join(checkout, "app"), isPageSource, (file) => devReload.pageChanged(`app/${file}`))] : []),

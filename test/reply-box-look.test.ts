@@ -3,7 +3,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { MailCompose } from "../core/frame-types.ts";
 import { ItemReplyBox } from "../app/src/item/reply-box.tsx";
-import { MailAddressLine, startAddressing } from "../app/src/desk/mail-address.tsx";
+import { MailAddressLine, startAddressing } from "../app/src/workspace/mail-address.tsx";
 
 const noop = () => {};
 const html = renderToStaticMarkup;

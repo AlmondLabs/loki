@@ -13,11 +13,11 @@ import {
 import { createRecents } from "../app/src/shared/recents.ts";
 
 import type { AttentionItem } from "../core/attention/model.ts";
-import type { DeskSummary } from "../core/frame-types.ts";
+import type { ChatSummary } from "../core/frame-types.ts";
 import { must } from "./fixtures/must.ts";
 import { outsideItem } from "./fixtures/outside-item.ts";
 
-const desk = (scope: string, over: Partial<DeskSummary> = {}): DeskSummary => ({
+const desk = (scope: string, over: Partial<ChatSummary> = {}): ChatSummary => ({
   scope,
   title: scope,
   status: "live",
@@ -98,9 +98,9 @@ describe("desktop search: what it finds (AE5)", () => {
     const old = flatHits(search(buildIndex(src), "old notes"))[0];
     expect(old.dim).toBe(true);
     expect(topHit(search(buildIndex(src), "learn"))?.target).toEqual({ kind: "section", segment: "learn" });
-    expect(topHit(search(buildIndex(src), "flow"))?.target).toEqual({ kind: "section", segment: "inbox" });
-    expect(topHit(search(buildIndex(src), "inbox"))?.target).toEqual({ kind: "section", segment: "inbox" });
-    expect(topHit(search(buildIndex(src), "inbox"))?.title).toBe("Flow");
+    expect(topHit(search(buildIndex(src), "flow"))?.target).toEqual({ kind: "section", segment: "flow" });
+    expect(topHit(search(buildIndex(src), "flow"))?.target).toEqual({ kind: "section", segment: "flow" });
+    expect(topHit(search(buildIndex(src), "flow"))?.title).toBe("Flow");
     expect(flatHits(search(buildIndex(src), "tasks")).some((h) => h.title === "Tasks")).toBe(false);
     expect(topHit(search(buildIndex(src), "providers"))?.target).toEqual({ kind: "preferences", page: "providers" });
     expect(topHit(search(buildIndex(src), "preferences"))?.target).toEqual({ kind: "preferences", page: null });

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { ChatDirectory, type ChatRef } from "../mod/chat-directory.ts";
-import { scopeFor } from "../core/desk-core.ts";
+import { scopeFor } from "../core/canvas-core.ts";
 
 const BOOK = "aaaaaaaa-1111-4111-8111-111111111111";
 const MINI = "bbbbbbbb-2222-4222-8222-222222222222";

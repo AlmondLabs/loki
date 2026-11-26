@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { ChatEvent } from "../core/attention/model.ts";
-import type { DeskStatus, SavedDraft, Suggestion, SuggestionTarget } from "../core/frame-types.ts";
+import type { ChatStatus, SavedDraft, Suggestion, SuggestionTarget } from "../core/frame-types.ts";
 import { DRAFT_HELD, FRAMES, type ChatState, type SuggestionAction } from "../core/frames.ts";
 import { suggestedMark } from "../core/harness.ts";
 import type { ChatBackend } from "./frames/chat.ts";
@@ -20,7 +20,7 @@ export interface SuggestionRecords {
 
 export interface TargetChat {
   title: string | null;
-  status: DeskStatus;
+  status: ChatStatus;
   has_draft: boolean;
 }
 
@@ -38,7 +38,6 @@ export interface SuggestionsOptions {
   agentHome?(agentId: string): string | null;
   call(frame: ChatCall): Promise<CallOutcome>;
   push(agentId: string, conversationId: string, events: ChatEvent[]): void;
-  track?(event: string, properties: Record<string, unknown>): void;
   now?(): Date;
   newId?(): string;
 }
@@ -118,7 +117,6 @@ export class Suggestions {
       const out = await this.opts.call({ type: "chat_update", ...source, archived: false });
       if (!out.ok) throw new Error(out.message);
     }
-    this.opts.track?.("suggestion_made", { agent: source.agent_id, target: "conversation_id" in input.target ? "existing" : "new" });
     return suggestion;
   }
 

@@ -5,7 +5,7 @@ import { createRoot } from "react-dom/client";
 import * as jsxRuntime from "react/jsx-runtime";
 import * as recharts from "recharts";
 import * as kit from "../kit/index";
-import { mergeData } from "../../../core/desk-core.ts";
+import { mergeData } from "../../../core/canvas-core.ts";
 import { messageOf } from "../../../core/errors.ts";
 
 declare global {

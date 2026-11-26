@@ -1,13 +1,13 @@
 import { unviewed, type AttentionItem } from "../../../core/attention/model.ts";
-import type { DeskSummary, MacIdentity } from "../../../core/frame-types.ts";
+import type { ChatSummary, MacIdentity } from "../../../core/frame-types.ts";
 import { labelQuery } from "../../../core/labels.ts";
-import { isMainChat } from "../../../core/desk-core.ts";
+import { isMainChat } from "../../../core/canvas-core.ts";
 
 export type MarkKind = "waits" | "failed" | "finished" | "running" | "archived" | "deleted" | "none";
 
 export function deskMark(
   item: AttentionItem | undefined,
-  status: DeskSummary["status"],
+  status: ChatSummary["status"],
 ): { kind: MarkKind; color: string; border: string; title: string; pulse: boolean } {
   if (status === "deleted") return { kind: "deleted", color: "transparent", border: "var(--loki-negative)", title: "conversation deleted", pulse: false };
   if (status === "archived") return { kind: "archived", color: "transparent", border: "var(--loki-muted)", title: "archived", pulse: false };
@@ -28,8 +28,8 @@ export function deskMark(
   return { kind: "none", color: "transparent", border: "transparent", title: "", pulse: false };
 }
 
-export const canArchive = (d: DeskSummary): boolean => !!d.conversation_id && !isMainChat(d.conversation_id) && d.status !== "deleted";
-export const canRename = (d: DeskSummary): boolean => !!d.conversation_id && !isMainChat(d.conversation_id) && d.status !== "deleted";
+export const canArchive = (d: ChatSummary): boolean => !!d.conversation_id && !isMainChat(d.conversation_id) && d.status !== "deleted";
+export const canRename = (d: ChatSummary): boolean => !!d.conversation_id && !isMainChat(d.conversation_id) && d.status !== "deleted";
 
 export const DESK_NAME_MAX = 80;
 
@@ -37,10 +37,10 @@ export function cleanDeskName(raw: string): string | null {
   const name = raw.replace(/\s+/g, " ").trim().slice(0, DESK_NAME_MAX).trimEnd();
   return name || null;
 }
-export const canLabel = (d: DeskSummary): boolean => !!d.agent_id && !!d.conversation_id && d.status !== "deleted";
-export const canMove = (d: DeskSummary): boolean => !!d.agent_id && !!d.conversation_id && d.status !== "deleted";
+export const canLabel = (d: ChatSummary): boolean => !!d.agent_id && !!d.conversation_id && d.status !== "deleted";
+export const canMove = (d: ChatSummary): boolean => !!d.agent_id && !!d.conversation_id && d.status !== "deleted";
 
-export const canPin = (d: DeskSummary): boolean => !!d.agent_id && !!d.conversation_id && d.status === "live";
+export const canPin = (d: ChatSummary): boolean => !!d.agent_id && !!d.conversation_id && d.status === "live";
 
 export interface RowState {
   kind: MarkKind;
@@ -51,7 +51,7 @@ export interface RowState {
   note?: string;
 }
 
-export function deskRowState(item: AttentionItem | undefined, d: Pick<DeskSummary, "status">): RowState {
+export function deskRowState(item: AttentionItem | undefined, d: Pick<ChatSummary, "status">): RowState {
   const mark = deskMark(item, d.status);
   const waits = mark.kind === "waits";
   const finished = mark.kind === "finished";
@@ -73,7 +73,7 @@ export function doneAction(item: AttentionItem | undefined | null): "done" | "un
 }
 
 export interface SidebarRow extends RowState {
-  desk: DeskSummary;
+  desk: ChatSummary;
   main: boolean;
   current: boolean;
 }
@@ -92,10 +92,10 @@ export interface SidebarModel {
   empty: boolean;
 }
 
-const byRecent = (a: DeskSummary, b: DeskSummary) => (b.last_active ?? "").localeCompare(a.last_active ?? "");
+const byRecent = (a: ChatSummary, b: ChatSummary) => (b.last_active ?? "").localeCompare(a.last_active ?? "");
 
 export function sidebarModel(
-  desks: DeskSummary[],
+  desks: ChatSummary[],
   items: AttentionItem[],
   opts: { query?: string; current?: string; agents?: Array<{ id: string; name: string }> },
 ): SidebarModel {
@@ -104,10 +104,10 @@ export function sidebarModel(
   const filtering = q !== "" || query.labels.length > 0;
   const itemOf = new Map(items.map((i) => [`${i.agent_id}/${i.id}`, i]));
   const names = new Map((opts.agents ?? []).map((a) => [a.id, a.name]));
-  const agentName = (d: DeskSummary) => (d.agent_id ? (names.get(d.agent_id) ?? d.agent_name) : d.agent_name) ?? (d.agent_id ? "Agent" : "Other chats");
-  const matches = (d: DeskSummary) =>
+  const agentName = (d: ChatSummary) => (d.agent_id ? (names.get(d.agent_id) ?? d.agent_name) : d.agent_name) ?? (d.agent_id ? "Agent" : "Other chats");
+  const matches = (d: ChatSummary) =>
     query.labels.every((l) => d.labels?.includes(l)) && (!q || (d.title ?? "").toLowerCase().includes(q) || agentName(d).toLowerCase().includes(q));
-  const row = (d: DeskSummary): SidebarRow => ({
+  const row = (d: ChatSummary): SidebarRow => ({
     desk: d,
     ...deskRowState(itemOf.get(`${d.agent_id}/${d.conversation_id}`), d),
     main: isMainChat(d.conversation_id),
@@ -125,7 +125,7 @@ export function sidebarModel(
   const sections: SidebarSection[] = [];
   const pinned = shown.filter((d) => d.pinned).sort(byRecent);
   if (pinned.length) sections.push(section("pinned", "Pinned", null, pinned.map(row)));
-  const groups = new Map<string, DeskSummary[]>();
+  const groups = new Map<string, ChatSummary[]>();
   for (const d of shown) {
     if (d.pinned) continue;
     const k = d.agent_id ?? "";
@@ -144,7 +144,7 @@ export function sidebarModel(
   return { sections, archived, empty: filtering && sections.length === 0 && archived.length === 0 };
 }
 
-const isArchived = (status: DeskSummary["status"]) => status === "archived" || status === "deleted";
+const isArchived = (status: ChatSummary["status"]) => status === "archived" || status === "deleted";
 
 function section(id: string, title: string, agentId: string | null, rows: SidebarRow[]): SidebarSection {
   return { id, title, agentId, rows, waiting: rows.filter((r) => r.kind === "waits").length };
@@ -174,7 +174,7 @@ export function chatSourcesFrom(m: SidebarModel, agents: Array<{ id: string; nam
   ];
 }
 
-export function chatSources(desks: DeskSummary[], items: AttentionItem[], agents: Array<{ id: string; name: string }> = []): ChatSource[] {
+export function chatSources(desks: ChatSummary[], items: AttentionItem[], agents: Array<{ id: string; name: string }> = []): ChatSource[] {
   return chatSourcesFrom(sidebarModel(desks, items, { agents }), agents);
 }
 
@@ -189,7 +189,7 @@ export function sourceRowsFrom(m: SidebarModel, source: string): SourceRow[] {
 }
 
 export function sourceRows(
-  desks: DeskSummary[],
+  desks: ChatSummary[],
   items: AttentionItem[],
   opts: { source: string; query?: string; agents?: Array<{ id: string; name: string }> },
 ): SourceRow[] {
@@ -210,7 +210,7 @@ export function stateRows<R extends Pick<SidebarRow, "kind" | "unread" | "live">
   return rows.filter((r) => rowInState(r, state));
 }
 
-type Placed = Pick<DeskSummary, "status" | "pinned" | "agent_id">;
+type Placed = Pick<ChatSummary, "status" | "pinned" | "agent_id">;
 
 export function sourceHolds(source: string, d: Placed): boolean {
   if (source === ARCHIVED_CHATS) return isArchived(d.status);
@@ -227,7 +227,7 @@ export function sourceFor(d: Placed): string {
 export function openIn(
   target: { scope: string; agent_id: string | null },
   at: { source: string; query: string },
-  desks: DeskSummary[],
+  desks: ChatSummary[],
   agents?: Array<{ id: string; name: string }>,
 ): { source: string; query: string } {
   const d = desks.find((x) => x.scope === target.scope) ?? { status: "live" as const, pinned: false, agent_id: target.agent_id };
@@ -292,7 +292,7 @@ export interface MoveTarget {
 }
 
 export function moveTargets(
-  d: Pick<DeskSummary, "agent_id" | "conversation_id" | "home" | "reachable">,
+  d: Pick<ChatSummary, "agent_id" | "conversation_id" | "home" | "reachable">,
   macs: { me: MacIdentity; peers: Array<MacIdentity & { reachable: boolean }> } | null,
 ): MoveTarget[] {
   if (!macs?.peers.length || !d.agent_id || !d.conversation_id || isMainChat(d.conversation_id) || d.reachable === false) return [];

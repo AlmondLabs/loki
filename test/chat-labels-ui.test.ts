@@ -3,14 +3,14 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { labelQuery, type LabelView } from "../core/labels.ts";
 import { LOKI_COMMANDS } from "../core/attention/commands.ts";
-import type { DeskSummary } from "../core/frame-types.ts";
+import type { ChatSummary } from "../core/frame-types.ts";
 import { LabelChips, LabelEditor, labelColor, labelCommand } from "../app/src/chat/labels.tsx";
 import { Labels, type LabelsApi } from "../app/src/settings/labels.tsx";
 import { environmentNote } from "../core/attention/content.ts";
 import { canLabel, sidebarModel } from "../app/src/shell/sidebar-model.ts";
 import { buildIndex, placeHit, search, type SearchSources } from "../app/src/shell/search-model.ts";
 
-const desk = (scope: string, over: Partial<DeskSummary> = {}): DeskSummary => ({
+const desk = (scope: string, over: Partial<ChatSummary> = {}): ChatSummary => ({
   scope,
   title: scope,
   status: "live",
@@ -29,7 +29,7 @@ const LIST: LabelView[] = [
   { name: "billing", color: 1, chats: 1 },
   { name: "infra", color: 5, chats: 2 },
 ];
-const shown = (query: string, desks: DeskSummary[]) =>
+const shown = (query: string, desks: ChatSummary[]) =>
   sidebarModel(desks, [], { query })
     .sections.flatMap((s) => s.rows)
     .map((r) => r.desk.scope);

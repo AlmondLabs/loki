@@ -2,12 +2,12 @@ import { describe, expect, test, vi } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { OutsideMessage, OutsideWindow } from "../core/frame-types.ts";
-import { threadSourceOf, type ThreadControls } from "../app/src/desk/outside-card.tsx";
+import { threadSourceOf, type ThreadControls } from "../app/src/workspace/outside-card.tsx";
 import type { SlackConversation, SlackMessage, SlackMessagePage, SlackUser } from "../mod/slack.ts";
 import { slackChannelView, type CardFacts, type CardWindow } from "../mod/slack-view.ts";
 import { must } from "./fixtures/must.ts";
-import { SlackThread, fileFacts, mainMessage, planSlackRows, previewSize } from "../app/src/desk/slack-thread.tsx";
-import { QUICK_EMOJI, emojiNote, pickReaction, quickChoices, toggleReaction } from "../app/src/desk/slack-reactions.tsx";
+import { SlackThread, fileFacts, mainMessage, planSlackRows, previewSize } from "../app/src/workspace/slack-thread.tsx";
+import { QUICK_EMOJI, emojiNote, pickReaction, quickChoices, toggleReaction } from "../app/src/workspace/slack-reactions.tsx";
 
 const ACCOUNT = "slack:T1:UME";
 
