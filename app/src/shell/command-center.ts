@@ -31,6 +31,7 @@ type Listener = () => void;
 const listeners = new Set<Listener>();
 const shared: Array<{ id: number; models: SharedModels }> = [];
 let next = 1;
+const nextModelId = () => next++;
 let snapshot: SharedModels | null = null;
 
 const changed = () => {
@@ -61,7 +62,7 @@ export function useShareModels(models: SharedModels | null): void {
   const { entries = null, current = null, currentEffort = null, started = false, usual = NONE, agentName = null } = models ?? {};
   useEffect(() => {
     if (!on) return;
-    const id = next++;
+    const id = nextModelId();
     const now = modesKey === null ? null : modes.current;
     const sharedModes = now ? { current: now.current, list: now.list, pick: (m: string) => modes.current?.pick(m) } : null;
     shared.push({ id, models: { entries, current, currentEffort, started, usual, agentName, pick: (s) => pick.current?.(s), modes: sharedModes } });

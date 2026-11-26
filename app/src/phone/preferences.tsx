@@ -90,13 +90,12 @@ export function ConnectionPage({
     setError(null);
     try {
       const r = await fetch(`${modBase()}/unpair`, { method: "POST", headers: { "content-type": "application/json" }, credentials: "same-origin", body: "{}" });
-      if (!r.ok) throw new Error(`The Mac answered ${r.status}.`);
-      onUnpaired();
+      if (r.ok) onUnpaired();
+      else setError(`The Mac answered ${r.status}.`);
     } catch (err) {
       setError(messageOf(err));
-    } finally {
-      setBusy(false);
     }
+    setBusy(false);
   };
   return (
     <Page title="Connection details" backLabel={backLabel} onBack={onBack} banner={banner}>

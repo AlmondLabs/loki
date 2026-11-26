@@ -1,4 +1,4 @@
-import { createContext, useContext, type ReactNode } from "react";
+import { createContext, useContext, useMemo, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
 export interface PlaceSlots {
@@ -9,7 +9,8 @@ export interface PlaceSlots {
 const PlaceSlotsContext = createContext<PlaceSlots>({ list: null, detail: null });
 
 export function PlaceSlotsProvider({ slots, children }: { slots: PlaceSlots; children: ReactNode }) {
-  return <PlaceSlotsContext value={slots}>{children}</PlaceSlotsContext>;
+  const value = useMemo(() => ({ list: slots.list, detail: slots.detail }), [slots.list, slots.detail]);
+  return <PlaceSlotsContext value={value}>{children}</PlaceSlotsContext>;
 }
 
 export function PlaceColumns({ list, detail }: { list: ReactNode; detail: ReactNode }) {

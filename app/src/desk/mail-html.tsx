@@ -151,6 +151,7 @@ export function MailHtml({ html, title, images }: { html: string; title: string;
     const el = frame.current;
     if (!el) return;
     let observer: ResizeObserver | null = null;
+    let prevDoc: Document | null = null;
     const fit = () => {
       const page = el.contentDocument?.documentElement;
       if (page) setHeight(Math.max(40, Math.ceil(page.scrollHeight)));
@@ -163,9 +164,17 @@ export function MailHtml({ html, title, images }: { html: string; title: string;
       const href = target.getAttribute("href") ?? "";
       if (openableHref(href)) openExternal(href);
     };
+    const cleanupDoc = () => {
+      observer?.disconnect();
+      observer = null;
+      prevDoc?.removeEventListener("click", click);
+      prevDoc = null;
+    };
     const loaded = () => {
       const page = el.contentDocument;
       if (!page) return;
+      cleanupDoc();
+      prevDoc = page;
       fit();
       page.addEventListener("click", click);
       observer = new ResizeObserver(fit);
@@ -175,8 +184,7 @@ export function MailHtml({ html, title, images }: { html: string; title: string;
     if (el.contentDocument?.readyState === "complete") loaded();
     return () => {
       el.removeEventListener("load", loaded);
-      el.contentDocument?.removeEventListener("click", click);
-      observer?.disconnect();
+      cleanupDoc();
     };
   }, [doc]);
   const page = (

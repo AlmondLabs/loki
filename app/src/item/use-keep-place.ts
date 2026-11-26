@@ -32,11 +32,22 @@ export function useKeepPlace(start: number, moving: () => boolean) {
   const contentRef = useRef<HTMLDivElement>(null);
   const reading = useRef<Reading | null>(null);
   const before = useRef<Before | null>(null);
+  const frameRef = useRef(0);
   const onScroll = (el: HTMLElement) => {
-    reading.current = holdPlace(el, reading.current, true);
+    if (frameRef.current) return;
+    frameRef.current = requestAnimationFrame(() => {
+      frameRef.current = 0;
+      reading.current = holdPlace(el, reading.current, true);
+    });
   };
   const beforeReveal = (el: HTMLElement) => {
-    before.current ??= { top: el.scrollTop, height: el.scrollHeight };
+    if (frameRef.current) {
+      cancelAnimationFrame(frameRef.current);
+      frameRef.current = 0;
+      reading.current = holdPlace(el, reading.current, true);
+    }
+    const prev = before.current;
+    if (!prev) before.current = { top: el.scrollTop, height: el.scrollHeight };
   };
   useLayoutEffect(() => {
     const el = viewportRef.current;
@@ -52,7 +63,13 @@ export function useKeepPlace(start: number, moving: () => boolean) {
       if (el.clientHeight > 0) reading.current = holdPlace(el, reading.current, moving());
     });
     ro.observe(box);
-    return () => ro.disconnect();
+    return () => {
+      ro.disconnect();
+      if (frameRef.current) {
+        cancelAnimationFrame(frameRef.current);
+        frameRef.current = 0;
+      }
+    };
   }, [moving]);
   return { viewportRef, contentRef, onScroll, beforeReveal };
 }

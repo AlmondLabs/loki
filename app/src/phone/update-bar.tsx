@@ -26,7 +26,8 @@ export function useHealthBuild(): string | null {
     hiddenAt.current = document.visibilityState === "hidden" ? Date.now() : null;
     let timer: number | null = null;
     const start = () => {
-      timer ??= window.setInterval(() => void servedBuildNow().then((b) => b && setHealth(b)), 60_000);
+      if (timer !== null) return;
+      timer = window.setInterval(() => void servedBuildNow().then((b) => b && setHealth(b)), 60_000);
     };
     const stop = () => {
       if (timer !== null) window.clearInterval(timer);

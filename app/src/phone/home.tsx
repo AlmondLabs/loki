@@ -679,9 +679,8 @@ function useNewDesk(
       openConversation(rt.agent_id, rt.conversation_id);
     } catch (err) {
       setError(messageOf(err));
-    } finally {
-      setBusy(false);
     }
+    setBusy(false);
   };
   return { agentId, setAgentId, name, setName, recent, agentName, folders, folder, setFolder: setPicked, busy, error, canStart, start };
 }

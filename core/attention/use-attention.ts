@@ -133,6 +133,7 @@ export interface ChatView extends ChatFace {
 export interface ChatViews {
   conversation: (agentId: string, conversationId: string) => ChatFace;
   watchThreads: (onChange: () => void) => () => void;
+  watchThread?: (agentId: string, conversationId: string, onChange: () => void) => () => void;
   threadRows: (agentId: string, conversationId: string) => TranscriptRow[] | undefined;
 }
 
@@ -426,12 +427,17 @@ export function useConversation(chats: ChatViews, agentId: string | null, conver
 }
 
 export function useThreadRows(
-  chats: Pick<ChatViews, "watchThreads" | "threadRows">,
+  chats: Pick<ChatViews, "watchThreads" | "threadRows" | "watchThread">,
   agentId: string | null,
   conversationId: string | null,
 ): TranscriptRow[] | undefined {
+  const subscribe = useCallback(
+    (onChange: () => void) =>
+      chats.watchThread && agentId && conversationId ? chats.watchThread(agentId, conversationId, onChange) : chats.watchThreads(onChange),
+    [chats, agentId, conversationId],
+  );
   const read = () => (agentId && conversationId ? chats.threadRows(agentId, conversationId) : undefined);
-  return useSyncExternalStore(chats.watchThreads, read, read);
+  return useSyncExternalStore(subscribe, read, read);
 }
 
 function draftTextOf(c: ConversationInfo): string | null {
@@ -721,6 +727,7 @@ export function useAttention(opts: UseAttentionOptions) {
     subscribe: store.follow,
     conversation,
     watchThreads: store.watchThreads,
+    watchThread: store.watchThread,
     threadRows: store.threadRows,
     approve,
     decide: store.decide,

@@ -2,7 +2,7 @@ import { linksSeenFrom, type ChatLink } from "../../../core/chat-links.ts";
 import { LinkHeader } from "../chat/link-header";
 import { AdvisorHeader } from "../chat/advisor-header";
 import type { AdvisorView } from "../../../core/advisor.ts";
-import { useEffect, useEffectEvent, useState, type ComponentProps, type ReactNode } from "react";
+import { useCallback, useEffect, useEffectEvent, useState, type ComponentProps, type ReactNode } from "react";
 import type { LabelView } from "../../../core/labels.ts";
 import { LabelsSheet } from "./labels-sheet";
 import type { Runtime } from "../../../core/attention/protocol.ts";
@@ -91,7 +91,7 @@ export function ConversationScreen({
 }: {
   thread: Thread;
   view: ThreadView;
-  chats: Pick<ChatViews, "watchThreads" | "threadRows">;
+  chats: Pick<ChatViews, "watchThreads" | "threadRows" | "watchThread">;
   model?: string | null;
   reasoningEffort?: ReasoningEffort | null;
   models?: ModelEntry[] | null;
@@ -155,9 +155,10 @@ export function ConversationScreen({
   const asked = view.question;
   const approval = view.pending;
   const canUndo = !!onNotDone && !!item && doneAction(item) === "undone";
+  const openAdvisor = useCallback((advisorChat: string) => openConversation(thread.agentId, advisorChat), [thread.agentId]);
 
   return (
-    <OpenAdvisor.Provider value={(advisorChat) => openConversation(thread.agentId, advisorChat)}>
+    <OpenAdvisor.Provider value={openAdvisor}>
       <ThreadHeader
         thread={thread}
         view={view}
@@ -296,7 +297,7 @@ function ScreenThread({
   view,
   ...conversation
 }: Omit<ComponentProps<typeof Conversation>, "view" | "layout" | "touch" | "dim" | "gutter"> & {
-  chats: Pick<ChatViews, "watchThreads" | "threadRows">;
+  chats: Pick<ChatViews, "watchThreads" | "threadRows" | "watchThread">;
   thread: Thread;
   item: AttentionItem | null;
   heldLook: string | null;

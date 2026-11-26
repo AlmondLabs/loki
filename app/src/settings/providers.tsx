@@ -183,27 +183,35 @@ function useProviderConnect(p: ConnectProvider, onConnect: ConnectFn, onDisconne
     if (busy || !canConnect(fields, values)) return;
     setBusy(true);
     setError(null);
+    const connectFields = fieldValues(fields, values);
+    const connectMethod = authMethodId ?? undefined;
+    let connectErr: string | null;
     try {
-      const err = await onConnect(p.id, fieldValues(fields, values), authMethodId ?? undefined);
-      if (err) return setError(err);
-      setValues({});
-      onChanged?.();
-      onToggle();
-    } finally {
+      connectErr = await onConnect(p.id, connectFields, connectMethod);
+    } catch (e) {
       setBusy(false);
+      throw e;
     }
+    setBusy(false);
+    if (connectErr) return setError(connectErr);
+    setValues({});
+    onChanged?.();
+    onToggle();
   };
   const disconnect = async () => {
     if (busy) return;
     setBusy(true);
     setError(null);
+    let disconnectErr: string | null;
     try {
-      const err = await onDisconnect(p.id);
-      if (err) return setError(err);
-      onChanged?.();
-    } finally {
+      disconnectErr = await onDisconnect(p.id);
+    } catch (e) {
       setBusy(false);
+      throw e;
     }
+    setBusy(false);
+    if (disconnectErr) return setError(disconnectErr);
+    onChanged?.();
   };
   const finish = async (address: string) => {
     if (!address.trim()) return;

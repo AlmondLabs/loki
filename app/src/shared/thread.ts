@@ -22,7 +22,7 @@ function timedBoundary(rows: TranscriptRow[], seen: number): number | null | und
   if (!Number.isFinite(seen)) return undefined;
   let from = -1;
   rows.forEach((r, i) => {
-    const t = r.at ? Date.parse(r.at) : Number.NaN;
+    const t = timeOf(r);
     if (t <= seen) from = i + 1;
   });
   if (from < 0) {
@@ -101,10 +101,14 @@ export function dayPills(rows: ReadonlyArray<{ at?: string }>, now: number = Dat
 }
 
 const times = new WeakMap<object, { at: string | undefined; t: number }>();
-function dayOf(r: { at?: string }): string | null {
+export function timeOf(r: { at?: string }): number {
   let hit = times.get(r);
   if (!hit || hit.at !== r.at) times.set(r, (hit = { at: r.at, t: r.at ? Date.parse(r.at) : Number.NaN }));
-  return Number.isFinite(hit.t) ? dayKey(hit.t) : null;
+  return hit.t;
+}
+function dayOf(r: { at?: string }): string | null {
+  const t = timeOf(r);
+  return Number.isFinite(t) ? dayKey(t) : null;
 }
 
 export function clockLabel(iso: string | null | undefined): string | null {

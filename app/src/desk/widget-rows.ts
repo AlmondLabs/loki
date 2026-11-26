@@ -1,6 +1,7 @@
 import type { Scope, WidgetChange, WidgetLogEntry } from "../../../core/desk-core.ts";
 import type { TranscriptRow } from "../../../core/attention/transcript.ts";
 import type { WidgetMark } from "../chat/transcript";
+import { timeOf } from "../shared/thread";
 
 export type WidgetLogs = Record<Scope, WidgetLogEntry[]>;
 
@@ -53,7 +54,7 @@ export function widgetMarks(
   liveSince: number = SESSION_START,
 ): WidgetMark[] {
   if (!rows || !log?.length) return [];
-  const times = rows.map((r) => (r.at ? Date.parse(r.at) : Number.NaN));
+  const times = rows.map(timeOf);
   const latest = new Map<string, WidgetLogEntry>();
   const sorted = byTime(log);
   for (const e of sorted) latest.set(e.widget_id, e);
@@ -67,14 +68,35 @@ export function widgetMarks(
     widgetId: e.widget_id,
     gone: e.change === "removed" || latest.get(e.widget_id)?.change === "removed",
   });
-  if (rows.length && !times.some(Number.isFinite)) {
+  const finite: Array<{ idx: number; t: number }> = [];
+  let nonDecreasing = true;
+  let prev = -Infinity;
+  for (let i = 0; i < times.length; i++) {
+    const t = times[i];
+    if (!Number.isFinite(t)) continue;
+    if (t < prev) nonDecreasing = false;
+    prev = t;
+    finite.push({ idx: i, t });
+  }
+  if (rows.length && finite.length === 0) {
     const older = sorted.filter((e) => e.at < liveSince);
     const live = sorted.filter((e) => e.at >= liveSince).map((e) => mark(e, rows.length));
     const last = older.at(-1);
     return last ? [{ ...mark(last, rows.length), id: "earlier", earlier: older.length }, ...live] : live;
   }
-  return sorted.map((e) => {
-    const next = times.findIndex((t) => Number.isFinite(t) && t > e.at);
-    return mark(e, next < 0 ? rows.length : next);
-  });
+  const firstAfter = (at: number): number => {
+    if (!nonDecreasing) {
+      const i = finite.find((x) => x.t > at)?.idx;
+      return i ?? rows.length;
+    }
+    let lo = 0;
+    let hi = finite.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (finite[mid].t > at) hi = mid;
+      else lo = mid + 1;
+    }
+    return lo < finite.length ? finite[lo].idx : rows.length;
+  };
+  return sorted.map((e) => mark(e, firstAfter(e.at)));
 }

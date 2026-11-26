@@ -84,7 +84,8 @@ export function useDaemonStatus(): {
     try {
       setStatus(await invoke("retry_daemon"));
     } catch (e) {
-      setStatus((s) => ({ node: s?.node ?? null, preparing: null, toolsMissing: null, needsNode: s?.needsNode ?? null, otherLoki: null, error: messageOf(e) }));
+      const error = messageOf(e);
+      setStatus((s) => ({ node: s?.node ?? null, preparing: null, toolsMissing: null, needsNode: s?.needsNode ?? null, otherLoki: null, error }));
     }
   }, []);
   const installTools = useCallback(async () => {

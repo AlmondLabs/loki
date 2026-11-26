@@ -126,7 +126,13 @@ export function sidebarModel(
   const pinned = shown.filter((d) => d.pinned).sort(byRecent);
   if (pinned.length) sections.push(section("pinned", "Pinned", null, pinned.map(row)));
   const groups = new Map<string, DeskSummary[]>();
-  for (const d of shown) if (!d.pinned) groups.set(d.agent_id ?? "", [...(groups.get(d.agent_id ?? "") ?? []), d]);
+  for (const d of shown) {
+    if (d.pinned) continue;
+    const k = d.agent_id ?? "";
+    const group = groups.get(k);
+    if (group) group.push(d);
+    else groups.set(k, [d]);
+  }
   const order = [...groups].sort(
     ([a, listA], [b, listB]) => (latest.get(b) ?? "").localeCompare(latest.get(a) ?? "") || agentName(listA[0]).localeCompare(agentName(listB[0])),
   );
@@ -156,8 +162,7 @@ export interface ChatSource {
   waiting: number;
 }
 
-export function chatSources(desks: DeskSummary[], items: AttentionItem[], agents: Array<{ id: string; name: string }> = []): ChatSource[] {
-  const m = sidebarModel(desks, items, { agents });
+export function chatSourcesFrom(m: SidebarModel, agents: Array<{ id: string; name: string }> = []): ChatSource[] {
   const listed = m.sections.filter((s) => s.id !== PINNED_CHATS);
   const has = new Set(listed.map((s) => s.agentId));
   const rest = agents.filter((a) => !has.has(a.id)).sort((a, b) => a.name.localeCompare(b.name));
@@ -169,8 +174,18 @@ export function chatSources(desks: DeskSummary[], items: AttentionItem[], agents
   ];
 }
 
+export function chatSources(desks: DeskSummary[], items: AttentionItem[], agents: Array<{ id: string; name: string }> = []): ChatSource[] {
+  return chatSourcesFrom(sidebarModel(desks, items, { agents }), agents);
+}
+
 export interface SourceRow extends SidebarRow {
   section?: string;
+}
+
+export function sourceRowsFrom(m: SidebarModel, source: string): SourceRow[] {
+  if (source === ARCHIVED_CHATS) return m.archived;
+  if (source === ALL_CHATS) return m.sections.flatMap((s) => s.rows.map((r) => ({ ...r, section: s.title })));
+  return m.sections.find((s) => s.id === source)?.rows ?? [];
 }
 
 export function sourceRows(
@@ -178,10 +193,7 @@ export function sourceRows(
   items: AttentionItem[],
   opts: { source: string; query?: string; agents?: Array<{ id: string; name: string }> },
 ): SourceRow[] {
-  const m = sidebarModel(desks, items, { query: opts.query, agents: opts.agents });
-  if (opts.source === ARCHIVED_CHATS) return m.archived;
-  if (opts.source === ALL_CHATS) return m.sections.flatMap((s) => s.rows.map((r) => ({ ...r, section: s.title })));
-  return m.sections.find((s) => s.id === opts.source)?.rows ?? [];
+  return sourceRowsFrom(sidebarModel(desks, items, { query: opts.query, agents: opts.agents }), opts.source);
 }
 
 export const CHAT_STATES = ["all", "waiting", "unread", "working"] as const;

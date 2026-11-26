@@ -31,17 +31,21 @@ export function NewAgent({
     if (busy || !name.trim()) return;
     setBusy(true);
     setError(null);
+    const opts: NewAgentOptions = {
+      name: name.trim(),
+      description: description.trim() || undefined,
+      persona: persona.trim() || undefined,
+      model: model.trim() || undefined,
+    };
+    let err: string | null;
     try {
-      const err = await onCreate({
-        name: name.trim(),
-        description: description.trim() || undefined,
-        persona: persona.trim() || undefined,
-        model: model.trim() || undefined,
-      });
-      if (err) setError(err);
-    } finally {
+      err = await onCreate(opts);
+    } catch (e) {
       setBusy(false);
+      throw e;
     }
+    setBusy(false);
+    if (err) setError(err);
   };
   return (
     <div

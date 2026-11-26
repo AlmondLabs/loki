@@ -118,7 +118,9 @@ export function timesLabel(times: LaneWindow[], locale?: string): string {
   const groups = new Map<string, LaneWindow[]>();
   for (const w of times) {
     const key = MONDAY_FIRST.filter((d) => w.days.includes(d)).join(",");
-    groups.set(key, [...(groups.get(key) ?? []), w]);
+    const group = groups.get(key);
+    if (group) group.push(w);
+    else groups.set(key, [w]);
   }
   return [...groups.values()]
     .map((ws) => `${daysText(ws[0].days, locale)}, ${ws.map((w) => `${hhmmText(w.start, locale)}–${hhmmText(w.end, locale)}`).join(" and ")}`)

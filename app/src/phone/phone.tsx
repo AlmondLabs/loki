@@ -111,6 +111,7 @@ export function Phone() {
 
 function useLinkBanner(desk: DeskApi, catchUp: CatchUp, available: boolean): ReactNode {
   const linked = desk.connection === "open" && (catchUp.status === "open" || !available);
+  const unreachable = desk.connection === "closed" || catchUp.status === "closed";
   const [lastLinked, setLastLinked] = useState<string | null>(null);
   const [, setTickNow] = useState(0);
   useEffect(() => {
@@ -118,10 +119,10 @@ function useLinkBanner(desk: DeskApi, catchUp: CatchUp, available: boolean): Rea
     return () => setLastLinked(new Date().toISOString());
   }, [linked]);
   useEffect(() => {
+    if (!unreachable) return;
     const t = setInterval(() => setTickNow((n) => n + 1), 30_000);
     return () => clearInterval(t);
-  }, []);
-  const unreachable = desk.connection === "closed" || catchUp.status === "closed";
+  }, [unreachable]);
   return unreachable ? <Banner>Mac unreachable · last seen {lastSeen(lastLinked)}</Banner> : null;
 }
 

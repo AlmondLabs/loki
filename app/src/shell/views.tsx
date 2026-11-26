@@ -7,11 +7,11 @@ import { runAction } from "./keymap";
 import { SETTINGS_PAGE_KEY, type SettingsPage } from "../settings/pages";
 import { SETTINGS_WINDOW, openSettingsWindow } from "./open-settings";
 import { lastInput } from "../kit/motion";
-import { FlowPlace } from "../desk/catch-up";
 import type { PassSummaryHandler } from "../desk/use-flow-deck";
 import type { FlowKind } from "../desk/flow-kinds";
-import { Agents } from "../agents/agents";
-import { Recall } from "../recall/recall";
+const FlowPlace = lazy(() => import("../desk/catch-up").then((m) => ({ default: m.FlowPlace })));
+const Agents = lazy(() => import("../agents/agents").then((m) => ({ default: m.Agents })));
+const Recall = lazy(() => import("../recall/recall").then((m) => ({ default: m.Recall })));
 import type { Recall as RecallModel } from "./use-recall";
 import { avatarUrl } from "../desk/env";
 import type { ModelEntry } from "../chat/model-picker";
@@ -42,7 +42,9 @@ export function RecallView({
   onBegin: (agentId: string, conversationId: string, brief: string, title: string) => void;
 }) {
   return (
-    <Recall recall={recall} active={active} onOpenDesk={(agentId, conversationId) => onOpenDesk(agentId, conversationId, { chat: true })} onBegin={onBegin} />
+    <Suspense fallback={null}>
+      <Recall recall={recall} active={active} onOpenDesk={(agentId, conversationId) => onOpenDesk(agentId, conversationId, { chat: true })} onBegin={onBegin} />
+    </Suspense>
   );
 }
 
@@ -86,59 +88,61 @@ export function InboxView({
   onPass: PassSummaryHandler;
 }) {
   return (
-    <FlowPlace
-      onClose={onClose}
-      onPass={onPass}
-      items={catchUp.items}
-      lane={catchUp.flow.lane}
-      kind={kind}
-      onKind={onKind}
-      onLane={(lane) => catchUp.flow.setLaneId(lane?.id ?? "")}
-      onSignIn={() => openPreferencesOn("accounts")}
-      labelList={catchUp.labels.list}
-      onRead={(item) => catchUp.read(item, via())}
-      onLater={(item, until) => catchUp.later(item, via(), until)}
-      laterAsks={catchUp.laterAsks}
-      onArchive={(item) => catchUp.archive(item, via())}
-      onLabel={(item, labelIds) => catchUp.label(item, labelIds, via())}
-      labelsOf={catchUp.labelsOf}
-      onUndo={catchUp.undo}
-      onSeen={(item) => catchUp.seen(item)}
-      onUnread={(item) => catchUp.unread(item)}
-      onApprove={(item, requestId, behavior) => (
-        catchUp.decided(item, behavior !== "deny" ? "approve" : "deny", via()),
-        catchUp.approve(item, requestId, behavior)
-      )}
-      onAnswer={(item, requestId, answers) => (catchUp.decided(item, "answer", via()), catchUp.answer(item.runtime, requestId, answers))}
-      onReply={(item, text, images) => (catchUp.decided(item, "reply", via()), catchUp.reply(item, text, images))}
-      onStop={(item) => catchUp.stop(item.runtime)}
-      onShown={catchUp.shown}
-      onOpenDesk={(agentId, conversationId) => {
-        const item = catchUp.items.find((i) => i.agent_id === agentId && i.id === conversationId);
-        if (item) catchUp.decided(item, "open", via());
-        onOpenDesk(agentId, conversationId, { chat: true });
-      }}
-      onOpenAdvisor={onOpenAdvisor}
-      chats={catchUp}
-      loadHistory={(item) => void catchUp.loadHistory(item)}
-      widgetSource={desk}
-      modelFor={(agentId, conversationId) => desk.modelOf(scopeFor(conversationId, agentId))}
-      reasoningEffortFor={(agentId, conversationId) => desk.reasoningEffortOf(scopeFor(conversationId, agentId))}
-      models={models}
-      onLoadModels={onLoadModels}
-      onPickModel={(item, selection) => onPickModel(scopeFor(item.id, item.agent_id), item.runtime, selection)}
-      modeFor={(agentId, conversationId) => desk.modeOf(scopeFor(conversationId, agentId))}
-      onPickMode={(item, mode) => onPickMode(scopeFor(item.id, item.agent_id), item.runtime, mode)}
-      commands={catchUp.commands}
-      onCommand={(item, id, args) => {
-        const local = LOKI_COMMANDS.find((c) => c.id === id);
-        if (id === "label") {
-          const current = desk.desks.list.find((d) => d.scope === scopeFor(item.id, item.agent_id))?.labels ?? [];
-          void labelCommand(args, current, (next) => saveLabels(desk, catchUp, item.runtime, next)).then((err) => err && notice(`labels: ${err}`));
-        } else if (local?.action) runAction(local.action);
-        else void catchUp.execute(item.runtime, id, args);
-      }}
-    />
+    <Suspense fallback={null}>
+      <FlowPlace
+        onClose={onClose}
+        onPass={onPass}
+        items={catchUp.items}
+        lane={catchUp.flow.lane}
+        kind={kind}
+        onKind={onKind}
+        onLane={(lane) => catchUp.flow.setLaneId(lane?.id ?? "")}
+        onSignIn={() => openPreferencesOn("accounts")}
+        labelList={catchUp.labels.list}
+        onRead={(item) => catchUp.read(item, via())}
+        onLater={(item, until) => catchUp.later(item, via(), until)}
+        laterAsks={catchUp.laterAsks}
+        onArchive={(item) => catchUp.archive(item, via())}
+        onLabel={(item, labelIds) => catchUp.label(item, labelIds, via())}
+        labelsOf={catchUp.labelsOf}
+        onUndo={catchUp.undo}
+        onSeen={(item) => catchUp.seen(item)}
+        onUnread={(item) => catchUp.unread(item)}
+        onApprove={(item, requestId, behavior) => (
+          catchUp.decided(item, behavior !== "deny" ? "approve" : "deny", via()),
+          catchUp.approve(item, requestId, behavior)
+        )}
+        onAnswer={(item, requestId, answers) => (catchUp.decided(item, "answer", via()), catchUp.answer(item.runtime, requestId, answers))}
+        onReply={(item, text, images) => (catchUp.decided(item, "reply", via()), catchUp.reply(item, text, images))}
+        onStop={(item) => catchUp.stop(item.runtime)}
+        onShown={catchUp.shown}
+        onOpenDesk={(agentId, conversationId) => {
+          const item = catchUp.items.find((i) => i.agent_id === agentId && i.id === conversationId);
+          if (item) catchUp.decided(item, "open", via());
+          onOpenDesk(agentId, conversationId, { chat: true });
+        }}
+        onOpenAdvisor={onOpenAdvisor}
+        chats={catchUp}
+        loadHistory={(item) => void catchUp.loadHistory(item)}
+        widgetSource={desk}
+        modelFor={(agentId, conversationId) => desk.modelOf(scopeFor(conversationId, agentId))}
+        reasoningEffortFor={(agentId, conversationId) => desk.reasoningEffortOf(scopeFor(conversationId, agentId))}
+        models={models}
+        onLoadModels={onLoadModels}
+        onPickModel={(item, selection) => onPickModel(scopeFor(item.id, item.agent_id), item.runtime, selection)}
+        modeFor={(agentId, conversationId) => desk.modeOf(scopeFor(conversationId, agentId))}
+        onPickMode={(item, mode) => onPickMode(scopeFor(item.id, item.agent_id), item.runtime, mode)}
+        commands={catchUp.commands}
+        onCommand={(item, id, args) => {
+          const local = LOKI_COMMANDS.find((c) => c.id === id);
+          if (id === "label") {
+            const current = desk.desks.list.find((d) => d.scope === scopeFor(item.id, item.agent_id))?.labels ?? [];
+            void labelCommand(args, current, (next) => saveLabels(desk, catchUp, item.runtime, next)).then((err) => err && notice(`labels: ${err}`));
+          } else if (local?.action) runAction(local.action);
+          else void catchUp.execute(item.runtime, id, args);
+        }}
+      />
+    </Suspense>
   );
 }
 
@@ -156,29 +160,31 @@ export function AgentsView({
   onShowDesks: () => void;
 }) {
   return (
-    <Agents
-      agents={catchUp.agents}
-      api={desk.agents}
-      avatar={avatarUrl}
-      desks={desk.desks.list}
-      initialAgentId={desk.agentId}
-      onOpenDesk={(agentId, conversationId) => onOpenDesk(agentId, conversationId, { chat: true })}
-      onAskToUpdate={onAskToUpdate}
-      onUpdateAgent={catchUp.updateAgent}
-      write={{
-        createAgent: catchUp.createAgent,
-        deleteAgent: catchUp.deleteAgent,
-        writeMemory: desk.calls.memory.write,
-        removeMemory: desk.calls.memory.remove,
-        revertMemory: desk.calls.memory.revert,
-      }}
-      reflect={catchUp.reflection}
-      listModels={catchUp.listModels}
-      onShowDesks={onShowDesks}
-      mcp={desk.calls.mcp}
-      accounts={desk.calls.accounts}
-      macs={desk.macs.view ? [desk.macs.view.me, ...desk.macs.view.peers] : undefined}
-    />
+    <Suspense fallback={null}>
+      <Agents
+        agents={catchUp.agents}
+        api={desk.agents}
+        avatar={avatarUrl}
+        desks={desk.desks.list}
+        initialAgentId={desk.agentId}
+        onOpenDesk={(agentId, conversationId) => onOpenDesk(agentId, conversationId, { chat: true })}
+        onAskToUpdate={onAskToUpdate}
+        onUpdateAgent={catchUp.updateAgent}
+        write={{
+          createAgent: catchUp.createAgent,
+          deleteAgent: catchUp.deleteAgent,
+          writeMemory: desk.calls.memory.write,
+          removeMemory: desk.calls.memory.remove,
+          revertMemory: desk.calls.memory.revert,
+        }}
+        reflect={catchUp.reflection}
+        listModels={catchUp.listModels}
+        onShowDesks={onShowDesks}
+        mcp={desk.calls.mcp}
+        accounts={desk.calls.accounts}
+        macs={desk.macs.view ? [desk.macs.view.me, ...desk.macs.view.peers] : undefined}
+      />
+    </Suspense>
   );
 }
 

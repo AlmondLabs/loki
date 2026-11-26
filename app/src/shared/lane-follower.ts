@@ -12,7 +12,9 @@ export function useLaneFollower(device: LaneDevice, flow: Pick<FlowLane, "lanes"
   const held = useReplyHeld();
   const switchedAt = useSyncExternalStore(store.subscribeSwitched, store.switchedAt, store.switchedAt);
   const [now, setNow] = useState(() => Date.now());
+  const hasTimes = !!flow.lanes?.some((l) => (l.times?.length ?? 0) > 0);
   useEffect(() => {
+    if (!hasTimes) return;
     const check = () => setNow(Date.now());
     const timer = setInterval(check, CHECK_EVERY_MS);
     const stopWatching = pageActivity(check);
@@ -20,7 +22,7 @@ export function useLaneFollower(device: LaneDevice, flow: Pick<FlowLane, "lanes"
       clearInterval(timer);
       stopWatching();
     };
-  }, []);
+  }, [hasTimes]);
   const { lanes, laneId, setLaneId } = flow;
   useEffect(() => {
     const step = followStep(lanes, switchedAt, held, laneId, new Date(now));

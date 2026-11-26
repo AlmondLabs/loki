@@ -54,6 +54,15 @@ export default defineConfig({
   build: {
     outDir: here("dist"),
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (/\/node_modules\/(?:react|react-dom|scheduler)\//.test(id)) return "react";
+          if (/\/node_modules\/(?:react-markdown|remark-|micromark|mdast-|unist-|hast-|vfile)/.test(id)) return "markdown";
+          if (id.includes("/node_modules/lucide-react/")) return "icons";
+        },
+      },
+    },
   },
   plugins: [
     {
@@ -73,6 +82,11 @@ export default defineConfig({
     {
       name: "loki:widget-frame",
       configureServer(server) {
+        let cachedFrameHtml: Promise<string> | null = null;
+        server.watcher.on("change", (file) => {
+          const norm = file.replace(/\\/g, "/");
+          if (norm.includes("/src/frame/") || norm.includes("/src/kit/")) cachedFrameHtml = null;
+        });
         server.middlewares.use((req, res, next) => {
           const url = new URL(req.url ?? "/", "http://x");
           const send = (type: string, body: string) => {
@@ -82,7 +96,11 @@ export default defineConfig({
             res.end(body);
           };
           if (url.pathname === "/widget-frame.html") {
-            buildFrameHtml(false).then((html) => send("text/html; charset=utf-8", html), next);
+            cachedFrameHtml ??= buildFrameHtml(false).catch((err: unknown) => {
+              cachedFrameHtml = null;
+              throw err;
+            });
+            cachedFrameHtml.then((html) => send("text/html; charset=utf-8", html), next);
             return;
           }
           if (url.pathname.startsWith("/@loki-widget/")) {

@@ -1,5 +1,5 @@
 import type { TranscriptRow } from "../../../core/attention/transcript.ts";
-import { clockLabel, dayPills } from "../shared/thread";
+import { clockLabel, dayPills, timeOf } from "../shared/thread";
 import { isWorkRow, stepFailed, toolRuns, workDuration } from "../shared/tool-steps";
 import type { WidgetMark } from "../chat/transcript";
 
@@ -29,7 +29,12 @@ export function threadEntries({ rows, from, above, dividerAt, dividerDay, widget
   while (liveEnd > 0 && rows[liveEnd - 1].event === "command") liveEnd--;
   const first = Math.max(0, Math.min(from, rows.length));
   const marks = new Map<number, WidgetMark[]>();
-  for (const w of widgets) if (w.before >= first) marks.set(w.before, [...(marks.get(w.before) ?? []), w]);
+  for (const w of widgets) {
+    if (w.before < first) continue;
+    const list = marks.get(w.before);
+    if (list) list.push(w);
+    else marks.set(w.before, [w]);
+  }
   const latest = new Map<string, string>();
   for (const w of widgets) if (w.earlier === undefined) latest.set(w.widgetId, w.id);
 
@@ -38,7 +43,7 @@ export function threadEntries({ rows, from, above, dividerAt, dividerDay, widget
     for (const mark of marks.get(i) ?? []) order.push({ i, mark });
     if (i < rows.length) order.push({ i, row: rows[i] });
   }
-  const timed = order.some((o) => o.row?.at && Number.isFinite(Date.parse(o.row.at)));
+  const timed = order.some((o) => o.row !== undefined && Number.isFinite(timeOf(o.row)));
   const days = timed
     ? dayPills(
         order.map((o) => o.row ?? o.mark ?? {}),
@@ -55,7 +60,7 @@ export function threadEntries({ rows, from, above, dividerAt, dividerDay, widget
   if (gaps !== undefined && timed) {
     let before = Number.NaN;
     order.forEach((o) => {
-      const t = o.row?.at ? Date.parse(o.row.at) : Number.NaN;
+      const t = o.row ? timeOf(o.row) : Number.NaN;
       if (!Number.isFinite(t)) return;
       const clock = o.row?.role === "user" ? clockLabel(o.row.at) : null;
       if (clock && !(t - before < gaps)) timeAt.set(o.i, clock);
@@ -175,7 +180,9 @@ export function thoughtsIntoWork(turns: ReadonlyArray<readonly TurnPart[]>): { i
     parts.forEach((p, i) => {
       const before = i > 0 ? parts[i - 1] : null;
       if (p.kind !== "message" || !p.row.thought || before?.kind !== "steps") return;
-      into.set(before.key, [...(into.get(before.key) ?? []), p.row]);
+      const list = into.get(before.key);
+      if (list) list.push(p.row);
+      else into.set(before.key, [p.row]);
       folded.add(p.key);
     });
   return { into, folded };

@@ -2,7 +2,7 @@ import type { MailAddressing } from "../frame-types.ts";
 import type { AttentionItem, AttentionStatus } from "./model.ts";
 import { byScore } from "./priority.ts";
 
-const NEEDS_YOU: AttentionStatus[] = ["approval", "question", "failed", "done"];
+const NEEDS_YOU: ReadonlySet<AttentionStatus> = new Set(["approval", "question", "failed", "done"]);
 export const idOf = (i: AttentionItem) => `${i.agent_id}/${i.id}`;
 export const outsideStamp = (newestMessageId: string) => `outside|${newestMessageId}`;
 
@@ -12,7 +12,7 @@ export const stampOf = (i: AttentionItem) =>
     : `${i.lastAssistantText ?? ""}|${i.pendingApproval?.requestId ?? ""}|${i.pendingQuestion?.requestId ?? ""}|${i.error ?? ""}`;
 
 export function catchUpQueue(items: AttentionItem[]): AttentionItem[] {
-  return items.filter((i) => NEEDS_YOU.includes(i.status));
+  return items.filter((i) => NEEDS_YOU.has(i.status));
 }
 
 export function inboxQueue(items: AttentionItem[], resting = false): AttentionItem[] {

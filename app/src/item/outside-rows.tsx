@@ -31,8 +31,7 @@ export function itemSlackRow(provider: AccountProvider) {
 export function ItemMailThread({
   messages,
   own,
-  // oxlint-disable-next-line react/purity -- a fresh clock each render is the point: the relative times move on as the view re-renders.
-  now = new Date(),
+  now,
   newest = "",
   reacting = null,
 }: {
@@ -42,11 +41,13 @@ export function ItemMailThread({
   newest?: string;
   reacting?: ReactControls | null;
 }) {
+  // oxlint-disable-next-line react/purity -- a fresh clock each render is the point: the relative times move on as the view re-renders.
+  const clock = now ?? new Date();
   const reactingOn = useReacting(messages, newest, reacting, true);
   return (
     <div className="flex flex-col divide-y divide-border" data-mail-thread>
       {messages.map((m, i) => (
-        <ItemMail key={m.id} m={m} own={own} folded={i < messages.length - 1} now={now} reacting={reactingOn(m)} />
+        <ItemMail key={m.id} m={m} own={own} folded={i < messages.length - 1} now={clock} reacting={reactingOn(m)} />
       ))}
     </div>
   );

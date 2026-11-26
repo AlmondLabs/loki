@@ -94,9 +94,10 @@ export function useRecall(desk: Desk, segment: Segment, notice: (m: string) => v
     const tsv = await desk.recall.export();
     if (tsv === null) return notice("export did not answer");
     const n = snap?.cards.length ?? 0;
+    const copiedNotice = `${n} card${n === 1 ? "" : "s"} copied as Anki text — front, back, tags per line`;
     try {
       await navigator.clipboard.writeText(tsv);
-      notice(`${n} card${n === 1 ? "" : "s"} copied as Anki text — front, back, tags per line`);
+      notice(copiedNotice);
     } catch {
       notice("the clipboard refused");
     }

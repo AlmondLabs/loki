@@ -20,7 +20,8 @@ import type { TranscriptRow } from "../chat/transcript";
 import type { WholeRow } from "../../../core/attention/transcript.ts";
 
 import type { ReasoningEffort } from "../../../core/models.ts";
-import { requestResult, type InputOf, type Replies, type ReplyOf, type RequestName, type RequestResult } from "../../../core/frames.ts";
+import { requestResult } from "../../../core/frame-client.ts";
+import type { InputOf, Replies, ReplyOf, RequestName, RequestResult } from "../../../core/frames.ts";
 import type {
   DeskStatus,
   GlobalSkill,

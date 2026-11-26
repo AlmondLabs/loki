@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useEffect,
   useEffectEvent,
   useMemo,
@@ -1093,9 +1094,10 @@ export function CardConversation({
   const onPick = model?.onPick;
   const onStop = card.onStop;
   const message = useMessageActions({ user: "You", assistant: item.agent_name ?? "Agent" });
+  const openAdvisor = useCallback((advisorChat: string) => openConversation(item.agent_id, advisorChat), [item.agent_id]);
   return message.wrap(
     <OpenChat.Provider value={openConversation}>
-      <OpenAdvisor.Provider value={(advisorChat) => openConversation(item.agent_id, advisorChat)}>
+      <OpenAdvisor.Provider value={openAdvisor}>
         {message.sheet}
         <Conversation
           touch
@@ -1211,18 +1213,23 @@ function OutsideBody({
               onSending?.(true);
               const outboxId = facts.provider === "gmail" && unsend ? newId() : null;
               held.current = outboxId;
+              const threadTs = thread.kind === "read" ? (thread.opened ?? null) : null;
+              const extra = { mail, outbox_id: outboxId, ...(threadTs ? { thread_ts: threadTs } : {}) };
+              let r: Awaited<ReturnType<typeof outside.replyOutside>>;
               try {
-                const threadTs = thread.kind === "read" ? (thread.opened ?? null) : null;
-                const r = await outside.replyOutside(item, text, "stay", { mail, outbox_id: outboxId, ...(threadTs ? { thread_ts: threadTs } : {}) });
-                if (r.sent) {
-                  onTyped?.(false);
-                  fold.close();
-                }
-                return r;
-              } finally {
+                r = await outside.replyOutside(item, text, "stay", extra);
+              } catch (e) {
                 held.current = null;
                 onSending?.(false);
+                throw e;
               }
+              if (r.sent) {
+                onTyped?.(false);
+                fold.close();
+              }
+              held.current = null;
+              onSending?.(false);
+              return r;
             }}
           />
         </div>

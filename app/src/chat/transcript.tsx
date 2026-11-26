@@ -50,7 +50,12 @@ export const Transcript = memo(function Transcript({
 } & MessageLayout) {
   const first = Math.max(0, Math.min(from, rows.length));
   const marks = new Map<number, WidgetMark[]>();
-  for (const w of widgets ?? []) if (w.before >= first) marks.set(w.before, [...(marks.get(w.before) ?? []), w]);
+  for (const w of widgets ?? []) {
+    if (w.before < first) continue;
+    const list = marks.get(w.before);
+    if (list) list.push(w);
+    else marks.set(w.before, [w]);
+  }
   const latest = new Map<string, string>();
   for (const w of widgets ?? []) if (w.earlier === undefined) latest.set(w.widgetId, w.id);
   const shown = first ? rows.slice(first) : rows;

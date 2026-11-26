@@ -48,7 +48,19 @@ import { LIST_MAX, LIST_MIN } from "./columns";
 import { PlaceSlotsProvider } from "./place-columns";
 import { ChatListView } from "./desk-sidebar";
 import { leaveList, listStop, type ContentListHandle } from "./content-list";
-import { ALL_CHATS, ARCHIVED_CHATS, PINNED_CHATS, chatSources, openIn, sourceHolds, sourceRows, stateRows, type ChatState } from "./sidebar-model";
+import {
+  ALL_CHATS,
+  ARCHIVED_CHATS,
+  PINNED_CHATS,
+  chatSourcesFrom,
+  openIn,
+  sidebarModel,
+  sourceHolds,
+  sourceRows,
+  sourceRowsFrom,
+  stateRows,
+  type ChatState,
+} from "./sidebar-model";
 import { AgentFace } from "../desk/agent-chip";
 import type { FlowKind } from "../desk/flow-kinds";
 import { AgentsView, InboxView, SettingsView, WelcomeView, RecallView } from "./views";
@@ -273,46 +285,53 @@ export function Shell() {
       if (desk.scope !== "shared") recentPlaces.add(deskPlace(desk.scope));
     } else if (segment !== "settings") recentPlaces.add(sectionPlace(segment));
   }, [segment, desk.scope]);
-  const placeOwners: Partial<Record<Segment, ReactNode>> = {
-    inbox: (
-      <InboxView
-        desk={desk}
-        catchUp={catchUp}
-        notice={notice}
-        models={modelList}
-        onLoadModels={loadModels}
-        onPickModel={pickModel}
-        onPickMode={pickMode}
-        onOpenDesk={openDesk}
-        onOpenAdvisor={openAdvisor}
-        onClose={() => setSegment("desk")}
-        onPass={(pass) => capture("inbox_pass_completed", pass)}
-        kind={flowKind}
-        onKind={setFlowKind}
-      />
-    ),
-    agents: (
-      <AgentsView
-        desk={desk}
-        catchUp={catchUp}
-        onOpenDesk={openDesk}
-        onAskToUpdate={(agentId, text) => {
-          openDesk(agentId, MAIN_CHAT_ID, { chat: true });
-          setChatPrefill({ text, tick: Date.now() });
-        }}
-        onShowDesks={() => setSegment("desk")}
-      />
-    ),
-    learn: <RecallView recall={recall} active={!searchOpen} onOpenDesk={openDesk} onBegin={beginLesson} />,
-  };
-  const placeOwner = placeOwners[segment];
+  let placeOwner: ReactNode;
+  switch (segment) {
+    case "inbox":
+      placeOwner = (
+        <InboxView
+          desk={desk}
+          catchUp={catchUp}
+          notice={notice}
+          models={modelList}
+          onLoadModels={loadModels}
+          onPickModel={pickModel}
+          onPickMode={pickMode}
+          onOpenDesk={openDesk}
+          onOpenAdvisor={openAdvisor}
+          onClose={() => setSegment("desk")}
+          onPass={(pass) => capture("inbox_pass_completed", pass)}
+          kind={flowKind}
+          onKind={setFlowKind}
+        />
+      );
+      break;
+    case "agents":
+      placeOwner = (
+        <AgentsView
+          desk={desk}
+          catchUp={catchUp}
+          onOpenDesk={openDesk}
+          onAskToUpdate={(agentId, text) => {
+            openDesk(agentId, MAIN_CHAT_ID, { chat: true });
+            setChatPrefill({ text, tick: Date.now() });
+          }}
+          onShowDesks={() => setSegment("desk")}
+        />
+      );
+      break;
+    case "learn":
+      placeOwner = <RecallView recall={recall} active={!searchOpen} onOpenDesk={openDesk} onBegin={beginLesson} />;
+      break;
+  }
   const agentsState = useAgentsSelection();
   const hasList = segment === "desk" || (segment === "agents" ? agentsHasList(agentsState, agentList.length) : placeOwner !== undefined);
   const [listSlot, setListSlot] = useState<HTMLElement | null>(null);
   const [detailSlot, setDetailSlot] = useState<HTMLElement | null>(null);
   const column = useColumn(segment, hasList);
   const { layout } = column;
-  const sources = useMemo(() => chatSources(deskList, catchUp.items, agentList), [deskList, catchUp.items, agentList]);
+  const baseModel = useMemo(() => sidebarModel(deskList, catchUp.items, { agents: agentList }), [deskList, catchUp.items, agentList]);
+  const sources = useMemo(() => chatSourcesFrom(baseModel, agentList), [baseModel, agentList]);
   const allWaiting = sources.reduce((n, x) => (x.agentId ? n + x.waiting : n), 0);
   const source =
     chatSource === ALL_CHATS
@@ -321,8 +340,14 @@ export function Shell() {
   const filtering = chatSource !== ARCHIVED_CHATS;
   const shownState: ChatState = filtering ? chatState : "all";
   const chatRows = useMemo(
-    () => stateRows(sourceRows(deskList, catchUp.items, { source: source.id, query: sidebarQuery, agents: agentList }), shownState),
-    [deskList, catchUp.items, source.id, sidebarQuery, agentList, shownState],
+    () =>
+      stateRows(
+        sidebarQuery
+          ? sourceRows(deskList, catchUp.items, { source: source.id, query: sidebarQuery, agents: agentList })
+          : sourceRowsFrom(baseModel, source.id),
+        shownState,
+      ),
+    [baseModel, deskList, catchUp.items, source.id, sidebarQuery, agentList, shownState],
   );
   const chooseSource = (id: string) => {
     column.dismiss();
@@ -332,7 +357,9 @@ export function Shell() {
     const open = deskList.find((d) => d.scope === desk.scope);
     setUnselected(!open || !sourceHolds(id, open));
   };
-  const lanes = flowSources(catchUp.items, catchUp.flow.lane, catchUp.flow.lanes, (lane) => catchUp.flow.setLaneId(lane?.id ?? ""));
+  const { items: catchUpItems, flow } = catchUp;
+  const { lane, lanes: rawLanes, setLaneId } = flow;
+  const lanes = useMemo(() => flowSources(catchUpItems, lane, rawLanes, (l) => setLaneId(l?.id ?? "")), [catchUpItems, lane, rawLanes, setLaneId]);
   const chooseLane = (id: string) => {
     column.dismiss();
     setPrefsOpen(false);
@@ -472,6 +499,7 @@ export function Shell() {
     }
     setSegment(t.segment);
   };
+  const placeSlots = useMemo(() => ({ list: listSlot, detail: detailSlot }), [listSlot, detailSlot]);
 
   return (
     <div className="loki-shell" style={{ position: "relative", height: "100%", overflow: "hidden" }}>
@@ -588,7 +616,7 @@ export function Shell() {
           style={{ ...detailLead.style, position: "absolute", top: paneTop(), left: layout.detailLeft, right: 0, bottom: 0 }}
         >
           {(hasList || placeOwner !== undefined) && <div ref={setDetailSlot} style={{ position: "absolute", inset: 0 }} />}
-          <PlaceSlotsProvider slots={{ list: listSlot, detail: detailSlot }}>{placeOwner}</PlaceSlotsProvider>
+          <PlaceSlotsProvider slots={placeSlots}>{placeOwner}</PlaceSlotsProvider>
           <div style={{ position: "absolute", inset: 0, visibility: onChat && !noChat ? "visible" : "hidden" }} aria-hidden={!onChat || noChat}>
             <DeskPane
               desk={desk}

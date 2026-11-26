@@ -122,7 +122,10 @@ export function useCamera({
     let tries = 0;
     let timer: ReturnType<typeof setTimeout>;
     const tick = () => {
-      if (!frameTarget(ids) && tries++ < 20) timer = setTimeout(tick, 100);
+      if (!frameTarget(ids) && tries < 20) {
+        tries += 1;
+        timer = setTimeout(tick, 100);
+      }
     };
     timer = setTimeout(tick, 60);
     const clear = setTimeout(() => setHighlighted(new Set()), 4000);

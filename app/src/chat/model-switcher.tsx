@@ -153,9 +153,11 @@ export function useModelSwitch(src: SwitchSource, query: string) {
     if (active) document.getElementById(optionId(active.key))?.scrollIntoView({ block: "nearest" });
   }, [active]);
 
-  const pick = (row: SwitchRow, at: ReasoningEffort | null = row === active ? shownEffort : (row.effort ?? null)) => {
+  const pick = (row: SwitchRow, at?: ReasoningEffort | null) => {
     if (row.off) return;
-    const entry = (at ? row.group.entries.find((e) => e.reasoning_effort === at) : undefined) ?? preferredModelEntry(row.group, currentEffort);
+    const pickedEffort = at === undefined ? (row === active ? shownEffort : (row.effort ?? null)) : at;
+    const entry =
+      (pickedEffort ? row.group.entries.find((e) => e.reasoning_effort === pickedEffort) : undefined) ?? preferredModelEntry(row.group, currentEffort);
     src.pick(selectionOf(entry));
   };
   const onKey = (key: string): boolean => {

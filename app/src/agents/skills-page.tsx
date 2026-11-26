@@ -140,28 +140,27 @@ function SkillAdd({
     .replace(/^-+|-+$/g, "");
   const go = async () => {
     if (busy) return;
+    if (mode === "write" && (!slug || !text.trim())) return setError("A name and some text");
+    if (mode !== "write" && !source.trim()) return setError("A source");
     setBusy(true);
     setError(null);
+    const markdown =
+      mode === "write"
+        ? `---\nname: ${slug}\ndescription: ${text
+            .trim()
+            .split("\n")[0]
+            .replace(/^#+\s*/, "")
+            .slice(0, 120)}\n---\n\n${text.trim()}\n`
+        : "";
+    const run = mode === "write" ? () => onWrite(slug, markdown) : () => onInstall(source);
     let err: string | null;
     try {
-      err =
-        mode === "write"
-          ? slug && text.trim()
-            ? await onWrite(
-                slug,
-                `---\nname: ${slug}\ndescription: ${text
-                  .trim()
-                  .split("\n")[0]
-                  .replace(/^#+\s*/, "")
-                  .slice(0, 120)}\n---\n\n${text.trim()}\n`,
-              )
-            : "A name and some text"
-          : source.trim()
-            ? await onInstall(source)
-            : "A source";
-    } finally {
+      err = await run();
+    } catch (e) {
       setBusy(false);
+      throw e;
     }
+    setBusy(false);
     if (err) return setError(err);
     onClose();
   };
@@ -242,9 +241,11 @@ function SourceAsk({ name, onGo, onCancel }: { name: string; onGo: (source: stri
     try {
       const err = await onGo(source.trim());
       if (err) setError(err);
-    } finally {
+    } catch (e) {
       setBusy(false);
+      throw e;
     }
+    setBusy(false);
   };
   return (
     <div className="grid gap-2" style={{ padding: "8px 12px", border: "1px solid var(--loki-border)", borderRadius: "var(--radius-lg)" }}>

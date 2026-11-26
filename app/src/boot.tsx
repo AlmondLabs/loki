@@ -22,12 +22,13 @@ document.addEventListener(
 
 const root = document.getElementById("root");
 if (!root) throw new Error("loki: index.html has no #root element");
-if (!inLan && !settingsWindow && inDesktop && platform === "macos") await (await import("./shell/sidebar")).adoptTrafficLights();
+const trafficLights = !inLan && !settingsWindow && inDesktop && platform === "macos" ? import("./shell/sidebar").then((m) => m.adoptTrafficLights()) : null;
 const Surface = inLan
   ? (await import("./phone/phone")).Phone
   : settingsWindow
     ? (await import("./shell/settings-window")).SettingsWindow
     : (await import("./shell/shell")).Shell;
+await trafficLights;
 createRoot(root).render(
   <ThemeProvider>
     <Surface />

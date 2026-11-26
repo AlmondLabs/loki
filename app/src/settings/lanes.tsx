@@ -169,7 +169,9 @@ export function laneSummary(lane: Lane, agents: readonly AgentName[]): string {
   return `${chats}, ${mail}`;
 }
 
-export function Lanes({ lanes: api, accounts, agents, newId = newLaneId, now = () => new Date() }: LanesProps) {
+const defaultNow = () => new Date();
+
+export function Lanes({ lanes: api, accounts, agents, newId = newLaneId, now = defaultNow }: LanesProps) {
   const [draft, setDraft] = useState<LaneDraft | null>(null);
   const choices = useLaneAccounts(accounts, agents, draft !== null);
   const [error, setError] = useState<LaneRefusal | null>(null);
