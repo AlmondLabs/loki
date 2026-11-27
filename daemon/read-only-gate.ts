@@ -4,7 +4,7 @@ import { dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { CHANGES_TOOL } from "./changes.ts";
 import { AgentInfoDoc } from "./kernel/index.ts";
-import { memoryRoot, memorySection } from "./memory.ts";
+import { memoryRoot, memorySection, sharedMemoryRoot } from "./memory.ts";
 import { commandWords, isReadOnlyCommand } from "./read-only-command.ts";
 import { sections } from "./section-cache.ts";
 import { resultsDirOf } from "./tool-results.ts";
@@ -47,7 +47,8 @@ export function readOnlyExtension(backendDir: string): Extension {
       const agent = await input.read.snapshot(AgentInfoDoc, context);
       if (!agent?.id) return undefined;
       const root = memoryRoot(backendDir, agent.id);
-      return sections.get(`memory-read\u0000${root}`, () => memorySection(root, "read"));
+      const sharedRoot = sharedMemoryRoot(backendDir);
+      return sections.get(`memory-read\u0000${root}\u0000${sharedRoot}`, () => memorySection(root, "read", sharedRoot));
     },
   }));
   return defineExtension({
@@ -220,9 +221,11 @@ export async function readOnlyRefusal(call: ReadOnlyCall, folders: ReadOnlyFolde
   if (!folders || !call.cwd) return UNCHECKED;
   const data = await identity(folders.dataDir);
   if (!data) return null;
-  const readable = (await Promise.all([memoryRoot(folders.backendDir, call.agentId), resultsDirOf(folders.dataDir, call.chatId)].map(identity))).filter(
-    (id): id is string => id !== null,
-  );
+  const readable = (
+    await Promise.all(
+      [memoryRoot(folders.backendDir, call.agentId), sharedMemoryRoot(folders.backendDir), resultsDirOf(folders.dataDir, call.chatId)].map(identity),
+    )
+  ).filter((id): id is string => id !== null);
   const above = (await chainOf(folders.dataDir)).ids;
   for (const r of reach)
     for (const spelled of spellings(r.asked, folders.home)) {

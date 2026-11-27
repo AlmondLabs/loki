@@ -9,7 +9,7 @@ import type { TranscriptRow } from "../core/attention/transcript.ts";
 import type { ChatProjection } from "./chats.ts";
 import { unansweredWhy } from "./chat-events.ts";
 import type { StoreManager } from "./kernel/stores.ts";
-import { ACP_PASS_SUFFIX, isDoctorChat, isReflectionChat, memoryDump, memoryRoot, MEMORY_TOOLS, overBudget } from "./memory.ts";
+import { ACP_PASS_SUFFIX, isDoctorChat, isReflectionChat, memoryDump, memoryRoot, MEMORY_TOOLS, overBudget, sharedMemoryRoot } from "./memory.ts";
 import type { ChatEngine } from "./kernel/index.ts";
 import { DOCTOR_INSTRUCTIONS, DOCTOR_TOOLS, doctorChatId, doctorPrompt } from "./doctor.ts";
 import { modelRef } from "./loki-engine.ts";
@@ -43,6 +43,8 @@ export interface PassInput {
   agentId: string;
   agentName: string | null;
   memoryRoot?: string;
+  sharedMemoryRoot?: string;
+  signals?: string | null;
   parts: PassPart[];
   material: string;
   now: Date;
@@ -98,6 +100,7 @@ interface Deps {
   jobs: readonly PassJob[];
   busy(agentId: string, chatId: string): Promise<boolean>;
   canRun?(model: string): Promise<boolean>;
+  collectSignals?(agentId: string, since: string | null): string | null;
   acp?: {
     engineFor(agentId: string): Promise<ChatEngine | null>;
     ask(agentId: string, engine: ChatEngine, spec: PassSpec & { timeoutMs: number }): Promise<PassAnswer>;
@@ -346,13 +349,25 @@ export class PassRunner {
       const gathered = await this.gather(job, agentId, chatIds, agentName, force);
       parts = gathered.parts;
       if (!parts.length) return gathered.busy ? "skipped" : finish("nothing");
-      const input: PassInput = { agentId, agentName, memoryRoot: memoryRoot(this.deps.backendDir, agentId), parts, material: batchText(parts), now: started };
+      const sharedRoot = sharedMemoryRoot(this.deps.backendDir);
+      const signals = job.name === "reflection" && this.deps.collectSignals ? this.deps.collectSignals(agentId, state.signalsAt(agentId)) : null;
+      const input: PassInput = {
+        agentId,
+        agentName,
+        memoryRoot: memoryRoot(this.deps.backendDir, agentId),
+        sharedMemoryRoot: sharedRoot,
+        ...(signals ? { signals } : {}),
+        parts,
+        material: batchText(parts),
+        now: started,
+      };
       const advance = () => {
         state.setCursors(
           job.name,
           agentId,
           parts.map((p) => ({ chatId: p.chatId, at: p.lines })),
         );
+        if (job.name === "reflection" && signals) state.setSignalsAt(agentId, started.toISOString());
       };
       const prompt = await job.prompt(input);
       if (prompt === null) {
@@ -491,7 +506,8 @@ export class PassRunner {
             "the memory review runs on the agent's own model or, without one, on the agent's Claude Code or Cursor chats, and it has neither loki can reach; connect a provider in Preferences › Providers",
         });
       const root = memoryRoot(this.deps.backendDir, agentId);
-      const dump = memoryDump(root);
+      const sharedRoot = sharedMemoryRoot(this.deps.backendDir);
+      const dump = memoryDump(root, undefined, sharedRoot);
       if (!dump.files) return finish({ outcome: "nothing", changes: 0, report: "this agent has no memory to review yet" });
       const left = deadline - this.now().getTime();
       if (left <= 0)
@@ -505,7 +521,7 @@ export class PassRunner {
           title: "doctor",
           instructions: DOCTOR_INSTRUCTIONS,
           tools: DOCTOR_TOOLS,
-          prompt: doctorPrompt(dump, started, overBudget(root)),
+          prompt: doctorPrompt(dump, started, overBudget(root, sharedRoot)),
           requestId,
         },
         left,

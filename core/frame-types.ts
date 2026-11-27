@@ -687,6 +687,10 @@ export interface ReplyProposal {
   place: string | null;
   /** The text as the agent wrote it, or as the person last edited it on a Send. */
   text: string;
+  /** The text as the agent originally proposed it when the person edited `text` before sending. */
+  proposed_text?: string;
+  /** The ticket title as the agent originally proposed it when the person edited `subject` before sending. */
+  proposed_subject?: string;
   status: ReplyProposalStatus;
   /** Why an action was refused or a send did not go, shown on the card; null when nothing went wrong. */
   reason: string | null;

@@ -20,6 +20,7 @@ interface Cursors {
   cursors: Record<JobName, Record<string, number>>;
   learn_written: { day: string; count: number };
   learn_last?: { at: string; note: string };
+  signals_at?: Record<string, string>;
 }
 
 const key = (agentId: string, chatId: string) => `${agentId}/${chatId}`;
@@ -54,6 +55,7 @@ export class PassState {
       cursors: { reflection: { ...read?.cursors?.reflection }, learn: { ...read?.cursors?.learn } },
       learn_written: read?.learn_written ?? { day: "", count: 0 },
       ...(read?.learn_last ? { learn_last: read.learn_last } : {}),
+      signals_at: { ...read?.signals_at },
     };
   }
 
@@ -114,6 +116,16 @@ export class PassState {
 
   noteLearnRun(at: string, note: string): void {
     this.data.learn_last = { at, note };
+    this.save();
+  }
+
+  signalsAt(agentId: string): string | null {
+    return this.data.signals_at?.[agentId] ?? null;
+  }
+
+  setSignalsAt(agentId: string, at: string): void {
+    this.data.signals_at ??= {};
+    this.data.signals_at[agentId] = at;
     this.save();
   }
 

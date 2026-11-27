@@ -6,6 +6,7 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { promisify } from "node:util";
 import { AgentInfoDoc, ChatDoc } from "./kernel/index.ts";
 import { piTool, type ChatTool } from "./chat-tools.ts";
+import { isBinaryFile, searchMemory } from "./memory-search.ts";
 import { serial } from "./repo-queue.ts";
 import { sections } from "./section-cache.ts";
 import { briefDescription, skillDescription } from "../mod/skills.ts";
@@ -13,9 +14,12 @@ import { briefDescription, skillDescription } from "../mod/skills.ts";
 const run = promisify(execFile);
 
 const FILE_LIMIT = 64 * 1024;
+const READ_LIMIT = 40 * 1024;
 const LISTED = 200;
 
 export const MEMORY_TOOLS = ["memory_read", "memory_search", "memory_write", "memory_edit"];
+export const SHARED_PREFIX = "shared/";
+export const SHARED_BUDGET = 6 * 1024;
 
 export const isReflectionChat = (chatId: string): boolean => chatId.startsWith("reflection-");
 export const isDoctorChat = (chatId: string): boolean => chatId.startsWith("doctor-");
@@ -23,6 +27,10 @@ export const ACP_PASS_SUFFIX = "-acp";
 
 export function memoryRoot(backendDir: string, agentId: string): string {
   return join(backendDir, "memfs", agentId, "memory");
+}
+
+export function sharedMemoryRoot(backendDir: string): string {
+  return join(backendDir, "shared-memory");
 }
 
 function files(root: string, dir = root, out: string[] = []): string[] {
@@ -66,17 +74,39 @@ export function coreSize(root: string): { bytes: number; files: Array<{ path: st
   return { bytes: sized.reduce((n, f) => n + f.bytes, 0), files: sized };
 }
 
+export function sharedSize(sharedRoot: string): { bytes: number; files: Array<{ path: string; bytes: number }> } | undefined {
+  if (!existsSync(sharedRoot)) return undefined;
+  const sized = files(sharedRoot)
+    .filter((f) => f.endsWith(".md") && !isBinaryFile(join(sharedRoot, f)))
+    .map((f) => ({ path: `${SHARED_PREFIX}${f}`, bytes: statSync(join(sharedRoot, f)).size }))
+    .sort((a, b) => b.bytes - a.bytes);
+  if (!sized.length) return undefined;
+  return { bytes: sized.reduce((n, f) => n + f.bytes, 0), files: sized };
+}
+
 export const FAILURE_RULE = `A failed tool call ([failed …] in a conversation, with [then … worked] when the next try did) is worth a note when the same mistake comes back in more than one conversation, or when it shows a fact about this Mac and its tools that will still be true tomorrow: a command that does not exist and what to use instead, where a file lives, the right flag of a command. Write the lesson as what to do (use python3; that folder is at …), in a note outside system/ whose description says when it applies. A failure memory cannot prevent is no lesson: a provider's error, a slow service, a test that failed because the code was wrong; an expired sign-in is a lesson only as "ask the person to renew it, do not retry". Keep such a lesson until memory shows it is no longer true.`;
 
-export const CORE_RULE = `Your core notes (system/) are in every conversation in full, so keep them to who you are, who the person is and how they like to work, and rules that hold for any task; a project's or a tool's conventions and gotchas go in a note outside system/. Every note outside system/ starts with front matter whose description says in one line when the note is worth reading (---, description: …, ---): the conversation sees that line, not the note, so write it as when to read, not as a title, and add one to a note you write or edit that has none.`;
+export const CORE_RULE = `Your core notes (system/) are in every conversation in full, so keep them to who you are, agent-specific boundaries, and rules that hold for any task of this agent. Cross-agent preferences about how the person communicates, decides, approves work, or formats answers belong in shared/ (for example shared/preferences.md), which every agent reads in full; keep private personal, health, finance, or project-specific facts out of shared/. Write preferences as short, scannable "when X -> do Y" bullet rules rather than dense prose paragraphs. Every note outside system/ and shared/ starts with front matter whose description says in one line when the note is worth reading (---, description: …, ---): every conversation already sees that path and description list, so write it as when to read, not as a title, add one when missing, and never keep stub files inside system/ just to point to those notes.`;
 
 const kb = (bytes: number) => `${Math.round(bytes / 1024)} KB`;
 
-export function overBudget(root: string): string | null {
+export function overBudget(root: string, sharedRoot?: string): string | null {
+  const notes: string[] = [];
   const size = coreSize(root);
-  if (!size || size.bytes <= CORE_BUDGET) return null;
-  const biggest = size.files.slice(0, 5).map((f) => `- ${f.path} (${kb(f.bytes)})`);
-  return `Also: your core notes (system/) come to ${kb(size.bytes)}, over their budget of ${kb(CORE_BUDGET)}. Move what is not needed in every conversation into notes outside system/, each with a description, leaving at most a line in its place. The biggest:\n${biggest.join("\n")}`;
+  if (size && size.bytes > CORE_BUDGET) {
+    const biggest = size.files.slice(0, 5).map((f) => `- ${f.path} (${kb(f.bytes)})`);
+    notes.push(
+      `Also: your core notes (system/) come to ${kb(size.bytes)}, over their budget of ${kb(CORE_BUDGET)}. Move what is not needed in every conversation into notes outside system/, each with a description, and delete redundant routing stubs in system/ (notes outside system/ are already listed in every chat). Never drop durable user preferences to make room for project pointers. The biggest:\n${biggest.join("\n")}`,
+    );
+  }
+  const shared = sharedRoot ? sharedSize(sharedRoot) : undefined;
+  if (shared && shared.bytes > SHARED_BUDGET) {
+    const biggest = shared.files.slice(0, 5).map((f) => `- ${f.path} (${kb(f.bytes)})`);
+    notes.push(
+      `Also: your shared notes (shared/) come to ${kb(shared.bytes)}, over their budget of ${kb(SHARED_BUDGET)}. Keep only durable cross-agent user preferences there, as short scannable rules. The biggest:\n${biggest.join("\n")}`,
+    );
+  }
+  return notes.length ? notes.join("\n\n") : null;
 }
 
 const HEAD_BYTES = 8192;
@@ -119,20 +149,30 @@ const MEMORY_INTRO = {
   files: "This is your memory, kept as files by loki, which updates them from your conversations; read them, but do not edit them.",
 };
 
-export function memorySection(root: string, how: keyof typeof MEMORY_INTRO = "tools"): string | undefined {
-  if (!existsSync(root)) return undefined;
-  const all = files(root);
-  const core = coreOf(all);
-  const coreSet = new Set(core);
-  const parts = core.map((f) => `<file path="${f}">\n${readFileSync(join(root, f), "utf8").slice(0, FILE_LIMIT).trimEnd()}\n</file>`);
-  const rest = all.filter((f) => !coreSet.has(f) && !f.startsWith("skills/"));
-  if (rest.length)
-    parts.push(
-      `Other memory files (${how === "files" ? "read one at its path" : "read one with memory_read"} when its description fits what you are doing):\n${rest
-        .slice(0, LISTED)
-        .map((f) => listed(root, f, how === "files" ? join(root, f) : f))
-        .join("\n")}${rest.length > LISTED ? `\n- … and ${rest.length - LISTED} more` : ""}`,
-    );
+export function memorySection(root: string, how: keyof typeof MEMORY_INTRO = "tools", sharedRoot?: string): string | undefined {
+  const parts: string[] = [];
+  if (sharedRoot && existsSync(sharedRoot)) {
+    const sharedFiles = files(sharedRoot).filter((f) => f.endsWith(".md") && !isBinaryFile(join(sharedRoot, f)));
+    for (const f of sharedFiles) {
+      parts.push(`<file path="${SHARED_PREFIX}${f}">\n${readFileSync(join(sharedRoot, f), "utf8").slice(0, FILE_LIMIT).trimEnd()}\n</file>`);
+    }
+  }
+  if (existsSync(root)) {
+    const all = files(root);
+    const core = coreOf(all);
+    const coreSet = new Set(core);
+    for (const f of core) {
+      parts.push(`<file path="${f}">\n${readFileSync(join(root, f), "utf8").slice(0, FILE_LIMIT).trimEnd()}\n</file>`);
+    }
+    const rest = all.filter((f) => !coreSet.has(f) && !f.startsWith("skills/") && !isBinaryFile(join(root, f)));
+    if (rest.length)
+      parts.push(
+        `Other memory files (${how === "files" ? "read one at its path" : "read one with memory_read"} when its description fits what you are doing):\n${rest
+          .slice(0, LISTED)
+          .map((f) => listed(root, f, how === "files" ? join(root, f) : f))
+          .join("\n")}${rest.length > LISTED ? `\n- … and ${rest.length - LISTED} more` : ""}`,
+      );
+  }
   return parts.length ? `${MEMORY_INTRO[how]}\n\n${parts.join("\n\n")}` : undefined;
 }
 
@@ -150,6 +190,32 @@ function inside(root: string, path: unknown): string {
   // Outside (Windows): a path on another drive is relative to nothing: `relative` gives it back absolute, with no "..".
   if (!rel || rel.startsWith("..") || isAbsolute(rel) || rel.split(sep).some(gitOwned)) throw new Error(`${path} is not a memory file`);
   return full;
+}
+
+interface MemoryTarget {
+  root: string;
+  full: string;
+  displayPath: string;
+  shared: boolean;
+}
+
+function resolveMemoryTarget(backendDir: string, agentId: string, rawPath: unknown): MemoryTarget {
+  if (typeof rawPath !== "string" || !rawPath.trim()) throw new Error("path required");
+  const stripped = rawPath.trim().replace(/^[/\\]+/, "");
+  if (stripped === "shared" || stripped === "shared/" || stripped === "shared\\") {
+    throw new Error(`${rawPath} is not a memory file`);
+  }
+  if (stripped.startsWith("shared/") || stripped.startsWith("shared\\")) {
+    const inner = stripped.slice(SHARED_PREFIX.length);
+    const root = sharedMemoryRoot(backendDir);
+    const full = inside(root, inner);
+    const rel = relative(root, full).split(sep).join("/");
+    return { root, full, displayPath: `${SHARED_PREFIX}${rel}`, shared: true };
+  }
+  const root = memoryRoot(backendDir, agentId);
+  const full = inside(root, rawPath);
+  const rel = relative(root, full).split(sep).join("/");
+  return { root, full, displayPath: rel, shared: false };
 }
 
 /**
@@ -175,6 +241,12 @@ const git = (root: string, ...args: string[]) =>
 
 export { serial } from "./repo-queue.ts";
 
+async function ensureGitRepo(root: string): Promise<void> {
+  if (existsSync(join(root, ".git"))) return;
+  mkdirSync(root, { recursive: true });
+  await git(root, "init", "--quiet");
+}
+
 function hasStagedChanges(root: string, paths: readonly string[]): Promise<boolean> {
   return git(root, "diff", "--cached", "--quiet", "--", ...paths).then(
     () => false,
@@ -188,29 +260,58 @@ function commit(root: string, path: string, message: string, author: { name: str
 
 export function commitMemoryFiles(root: string, paths: readonly string[], message: string, author: { name: string; email: string }): Promise<void> {
   return serial(root, async () => {
+    await ensureGitRepo(root);
     await git(root, "add", "--", ...paths);
     if (!(await hasStagedChanges(root, paths))) return;
     await git(root, "-c", `user.name=${author.name}`, "-c", `user.email=${author.email}`, "commit", "--quiet", "-m", message, "--", ...paths);
   });
 }
 
-export function memoryDump(root: string, limit = 80_000): { text: string; files: number; chars: number } {
-  if (!existsSync(root)) return { text: "", files: 0, chars: 0 };
-  const all = files(root);
+function removeMemoryFile(root: string, full: string, message: string, author: { name: string; email: string }): Promise<void> {
+  return serial(root, async () => {
+    await ensureGitRepo(root);
+    await git(root, "rm", "--quiet", "--", full);
+    await git(root, "-c", `user.name=${author.name}`, "-c", `user.email=${author.email}`, "commit", "--quiet", "-m", message, "--", full);
+  });
+}
+
+export function memoryDump(root: string, limit = 80_000, sharedRoot?: string): { text: string; files: number; chars: number } {
+  const entries: Array<{ displayPath: string; fullPath: string; priority: number }> = [];
+  if (sharedRoot && existsSync(sharedRoot)) {
+    for (const f of files(sharedRoot)) {
+      const fullPath = join(sharedRoot, f);
+      if (isBinaryFile(fullPath)) continue;
+      entries.push({ displayPath: `${SHARED_PREFIX}${f}`, fullPath, priority: 0 });
+    }
+  }
+  if (existsSync(root)) {
+    const all = files(root).filter((f) => !f.startsWith("skills/") && !isBinaryFile(join(root, f)));
+    const coreSet = new Set(coreOf(all));
+    for (const f of all) {
+      const priority = coreSet.has(f) ? 1 : f.startsWith("reference/human/") ? 2 : 3;
+      entries.push({ displayPath: f, fullPath: join(root, f), priority });
+    }
+  }
+  if (!entries.length) return { text: "", files: 0, chars: 0 };
+
+  entries.sort((a, b) => a.priority - b.priority || a.displayPath.localeCompare(b.displayPath));
   const parts: string[] = [];
   const later: string[] = [];
   let room = limit;
   let chars = 0;
-  for (const f of all) {
-    const body = readFileSync(join(root, f), "utf8");
+  for (const entry of entries) {
+    const body = readFileSync(entry.fullPath, "utf8");
     chars += body.length;
     if (body.length <= room) {
-      parts.push(`<file path="${f}" chars="${body.length}">\n${body.trimEnd()}\n</file>`);
+      parts.push(`<file path="${entry.displayPath}" chars="${body.length}">\n${body.trimEnd()}\n</file>`);
       room -= body.length;
-    } else later.push(`- ${f} (${body.length} chars)`);
+    } else {
+      const desc = entry.displayPath.endsWith(".md") ? descriptionOf(entry.fullPath) : null;
+      later.push(`- ${entry.displayPath} (${body.length} chars)${desc ? ` — ${briefDescription(desc)}` : ""}`);
+    }
   }
   if (later.length) parts.push(`Not shown here, too long to fit (read each with memory_read):\n${later.join("\n")}`);
-  return { text: parts.join("\n\n"), files: all.length, chars };
+  return { text: parts.join("\n\n"), files: entries.length, chars };
 }
 
 export async function revertMemoryCommit(backendDir: string, agentId: string, sha: string): Promise<void> {
@@ -231,19 +332,48 @@ export async function revertMemoryCommit(backendDir: string, agentId: string, sh
 }
 
 export async function editMemoryFile(backendDir: string, agentId: string, path: string, content: string | null, message?: string): Promise<void> {
-  const root = memoryRoot(backendDir, agentId);
-  const full = inside(root, path);
+  const target = resolveMemoryTarget(backendDir, agentId, path);
   if (content === null) {
-    if (!existsSync(full)) return;
-    await serial(root, async () => {
-      await git(root, "rm", "--quiet", "--", full);
-      await git(root, "-c", "user.name=You", "-c", "user.email=you@loki.local", "commit", "--quiet", "-m", message?.trim() || `Remove ${path}`, "--", full);
-    });
+    if (!existsSync(target.full)) return;
+    await removeMemoryFile(target.root, target.full, message?.trim() || `Remove ${target.displayPath}`, { name: "You", email: "you@loki.local" });
     return;
   }
-  mkdirSync(dirname(full), { recursive: true });
-  writeFileSync(full, content);
-  await commit(root, full, message?.trim() || `Update ${path}`, { name: "You", email: "you@loki.local" });
+  mkdirSync(dirname(target.full), { recursive: true });
+  writeFileSync(target.full, content);
+  await commit(target.root, target.full, message?.trim() || `Update ${target.displayPath}`, { name: "You", email: "you@loki.local" });
+}
+
+function readMemoryText(full: string, displayPath: string, offset?: number, limit?: number): string {
+  const text = readFileSync(full, "utf8");
+  if (offset === undefined && limit === undefined && text.length <= READ_LIMIT) return text;
+  const lines = text.split("\n");
+  const total = lines.length;
+  const start = Math.min(total + 1, offset ?? 1);
+  if (start > total) return `[Line ${start} is past end of ${displayPath} (${total} lines).]`;
+  const maxLines = limit ?? total - start + 1;
+  const collected: string[] = [];
+  let usedChars = 0;
+  for (let i = start - 1; i < total && collected.length < maxLines; i++) {
+    const line = lines[i];
+    const nextCost = (collected.length > 0 ? 1 : 0) + line.length;
+    if (collected.length > 0 && usedChars + nextCost > READ_LIMIT) break;
+    if (collected.length === 0 && line.length > READ_LIMIT) {
+      collected.push(line.slice(0, READ_LIMIT));
+      usedChars = READ_LIMIT;
+      break;
+    }
+    collected.push(line);
+    usedChars += nextCost;
+  }
+  const end = start + collected.length - 1;
+  const body = collected.join("\n");
+  if (start === 1 && end === total && body.length === text.length) return text;
+  const more = end < total ? ` Pass offset=${end + 1} to read more.` : "";
+  return `${body}\n\n[Showing lines ${start}–${end} of ${total} (${displayPath}).${more}]`;
+}
+
+function parseLineArg(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? Math.max(1, Math.floor(value)) : undefined;
 }
 
 export function memoryTools(backendDir: string): ChatTool[] {
@@ -256,109 +386,95 @@ export function memoryTools(backendDir: string): ChatTool[] {
       : isDoctorChat(id)
         ? { name: "Doctor", email: `doctor+${agent.id}@loki.local` }
         : { name: agent.name || agent.id, email: `${agent.id}@loki.local` };
-    return { root: memoryRoot(backendDir, agent.id), author };
+    return { agentId: agent.id, root: memoryRoot(backendDir, agent.id), author };
   };
   return [
     {
       kind: "read",
       name: "memory_read",
-      description: "Read one of your memory files by its path.",
-      parameters: { type: "object", properties: { path: { type: "string" } }, required: ["path"] },
+      description: "Read a memory or shared/ file by path, with optional line offset and limit.",
+      parameters: {
+        type: "object",
+        properties: {
+          path: { type: "string" },
+          offset: { type: "integer", minimum: 1, description: "Start line (1-based)" },
+          limit: { type: "integer", minimum: 1, description: "Max lines" },
+        },
+        required: ["path"],
+      },
       run: async (args, call, context) => {
-        const { root } = await who(call.read, call.conversationId, context);
-        const full = inside(root, (args as { path?: string }).path);
-        if (!existsSync(full)) throw new Error(`no memory file ${(args as { path: string }).path}`);
-        return { output: [{ type: "text", text: readFileSync(full, "utf8") }] };
+        const a = args as { path?: unknown; offset?: unknown; limit?: unknown };
+        const { agentId } = await who(call.read, call.conversationId, context);
+        const target = resolveMemoryTarget(backendDir, agentId, a.path);
+        if (!existsSync(target.full)) throw new Error(`no memory file ${String(a.path)}`);
+        if (isBinaryFile(target.full)) throw new Error(`${String(a.path)} is not a text file`);
+        return { output: [{ type: "text", text: readMemoryText(target.full, target.displayPath, parseLineArg(a.offset), parseLineArg(a.limit)) }] };
       },
     },
     {
       kind: "read",
       name: "memory_search",
-      description: "Search across your memory files for lines matching `query` (case-insensitive), optionally restricted to a subfolder `path`.",
+      description: "Search memory and shared/ by keywords or phrase, optionally under path.",
       parameters: {
         type: "object",
         properties: {
-          query: { type: "string", description: "Words to find in memory files" },
-          path: { type: "string", description: "Optional folder prefix inside memory" },
+          query: { type: "string", description: "Words or phrase" },
+          path: { type: "string", description: "Folder prefix" },
         },
         required: ["query"],
       },
       run: async (args, call, context) => {
-        const a = args as { query?: string; path?: string };
-        const needle = typeof a.query === "string" ? a.query.trim().toLowerCase() : "";
-        if (!needle) throw new Error("memory_search needs query");
-        const { root } = await who(call.read, call.conversationId, context);
-        if (!existsSync(root)) return { output: [{ type: "text", text: `No memory files match "${a.query?.trim() ?? ""}".` }] };
-        const prefix = typeof a.path === "string" && a.path.trim() ? relative(root, inside(root, a.path.trim())).split(sep).join("/") : null;
-        const all = files(root).filter((f) => !f.startsWith("skills/") && (!prefix || f === prefix || f.startsWith(`${prefix}/`)));
-        const hits: string[] = [];
-        let found = 0;
-        const MAX_HITS = 20;
-        for (const f of all) {
-          const lines = readFileSync(join(root, f), "utf8").split("\n");
-          for (let i = 0; i < lines.length; i++) {
-            const line = lines[i];
-            if (!line.toLowerCase().includes(needle)) continue;
-            found++;
-            if (hits.length < MAX_HITS) {
-              const trimmed = line.trim();
-              hits.push(`${f}:${i + 1}: ${trimmed.length > 200 ? `${trimmed.slice(0, 200)}…` : trimmed}`);
-            }
-          }
+        const a = args as { query?: unknown; path?: unknown };
+        const { agentId, root } = await who(call.read, call.conversationId, context);
+        let prefix: string | null = null;
+        if (typeof a.path === "string" && a.path.trim()) {
+          const stripped = a.path.trim().replace(/^[/\\]+/, "");
+          if (stripped === "shared" || stripped === "shared/" || stripped === "shared\\") prefix = "shared";
+          else prefix = resolveMemoryTarget(backendDir, agentId, stripped).displayPath;
         }
-        if (!found) return { output: [{ type: "text", text: `No memory files match "${a.query?.trim() ?? ""}".` }] };
-        const more = found > hits.length ? ` (first ${hits.length} of ${found} shown)` : "";
-        return { output: [{ type: "text", text: `${found} ${found === 1 ? "match" : "matches"} for "${a.query?.trim() ?? ""}"${more}:\n${hits.join("\n")}` }] };
+        const text = searchMemory(
+          [
+            { root: sharedMemoryRoot(backendDir), prefix: SHARED_PREFIX },
+            { root, prefix: "", excludeSkills: true },
+          ],
+          typeof a.query === "string" ? a.query : "",
+          prefix,
+        );
+        return { output: [{ type: "text", text }] };
       },
     },
     {
       kind: "read",
       name: "memory_write",
-      description:
-        "Write a whole memory file (created if new), or pass content: null to delete a file that is no longer needed; the change is committed with your message and can be undone.",
+      description: "Write a memory or shared/ file (content: null deletes); committed with message.",
       parameters: {
         type: "object",
         properties: {
           path: { type: "string" },
-          content: { type: ["string", "null"], description: "New file contents, or null to delete the file." },
-          message: { type: "string", description: "Why, in a few words" },
+          content: { type: ["string", "null"], description: "File contents, or null to delete" },
+          message: { type: "string", description: "Short reason" },
         },
         required: ["path", "content"],
       },
       run: async (args, call, context) => {
         const a = args as { path: string; content: string | null; message?: string };
-        const { root, author } = await who(call.read, call.conversationId, context);
-        const full = inside(root, a.path);
+        const { agentId, author } = await who(call.read, call.conversationId, context);
+        const target = resolveMemoryTarget(backendDir, agentId, a.path);
         if (a.content === null) {
-          if (!existsSync(full)) throw new Error(`no memory file ${a.path}`);
-          await serial(root, async () => {
-            await git(root, "rm", "--quiet", "--", full);
-            await git(
-              root,
-              "-c",
-              `user.name=${author.name}`,
-              "-c",
-              `user.email=${author.email}`,
-              "commit",
-              "--quiet",
-              "-m",
-              a.message?.trim() || `Remove ${a.path}`,
-              "--",
-              full,
-            );
-          });
-          return { output: [{ type: "text", text: `deleted ${a.path}` }] };
+          if (!existsSync(target.full)) throw new Error(`no memory file ${a.path}`);
+          await removeMemoryFile(target.root, target.full, a.message?.trim() || `Remove ${target.displayPath}`, author);
+          return { output: [{ type: "text", text: `deleted ${target.displayPath}` }] };
         }
-        mkdirSync(dirname(full), { recursive: true });
-        writeFileSync(full, a.content);
-        await commit(root, full, a.message?.trim() || `Update ${a.path}`, author);
-        return { output: [{ type: "text", text: `wrote ${a.path}` }] };
+        mkdirSync(dirname(target.full), { recursive: true });
+        writeFileSync(target.full, a.content);
+        await commit(target.root, target.full, a.message?.trim() || `Update ${target.displayPath}`, author);
+        return { output: [{ type: "text", text: `wrote ${target.displayPath}` }] };
       },
     },
     {
       kind: "read",
       name: "memory_edit",
-      description: "Replace one exact passage of a memory file with another; the change is committed with your message.",
+      description: "Replace an exact passage in a memory or shared/ file; committed with message.",
       parameters: {
         type: "object",
         properties: { path: { type: "string" }, old_text: { type: "string" }, new_text: { type: "string" }, message: { type: "string" } },
@@ -366,22 +482,23 @@ export function memoryTools(backendDir: string): ChatTool[] {
       },
       run: async (args, call, context) => {
         const a = args as { path: string; old_text: string; new_text: string; message?: string };
-        const { root, author } = await who(call.read, call.conversationId, context);
-        const full = inside(root, a.path);
-        const text = existsSync(full) ? readFileSync(full, "utf8") : null;
+        const { agentId, author } = await who(call.read, call.conversationId, context);
+        const target = resolveMemoryTarget(backendDir, agentId, a.path);
+        const text = existsSync(target.full) ? readFileSync(target.full, "utf8") : null;
         if (text === null) throw new Error(`no memory file ${a.path}`);
         const at = text.indexOf(a.old_text);
         if (at < 0) throw new Error("that passage is not in the file");
         if (text.includes(a.old_text, at + 1)) throw new Error("that passage is in the file more than once; quote more of it");
-        writeFileSync(full, text.slice(0, at) + a.new_text + text.slice(at + a.old_text.length));
-        await commit(root, full, a.message?.trim() || `Edit ${a.path}`, author);
-        return { output: [{ type: "text", text: `edited ${a.path}` }] };
+        writeFileSync(target.full, text.slice(0, at) + a.new_text + text.slice(at + a.old_text.length));
+        await commit(target.root, target.full, a.message?.trim() || `Edit ${target.displayPath}`, author);
+        return { output: [{ type: "text", text: `edited ${target.displayPath}` }] };
       },
     },
   ];
 }
 
 export function memoryExtension(backendDir: string): Extension {
+  const sharedRoot = sharedMemoryRoot(backendDir);
   return defineExtension({
     name: "loki.memory",
     sections: [
@@ -389,7 +506,7 @@ export function memoryExtension(backendDir: string): Extension {
         const agent = await input.read.snapshot(AgentInfoDoc, context);
         if (!agent?.id) return undefined;
         const root = memoryRoot(backendDir, agent.id);
-        return sections.get(`memory\u0000${root}`, () => memorySection(root));
+        return sections.get(`memory\u0000${root}\u0000${sharedRoot}`, () => memorySection(root, "tools", sharedRoot));
       }),
     ],
     tools: memoryTools(backendDir).map(piTool),

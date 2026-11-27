@@ -502,8 +502,21 @@ export class ReplyProposals implements AgentReplyReports {
       const text = words ?? p.text;
       const title = p.kind === "ticket" && opts.title?.trim() ? opts.title.replace(/\s+/g, " ").trim() : null;
       const mentions = liveMentions(text, lastByName(uniqueMentions([...(p.mentions ?? []), ...(opts.mentions ?? [])])));
+      const proposedText = words !== null && words !== p.text ? (p.proposed_text ?? p.text) : p.proposed_text;
+      const proposedSubject = title !== null && title !== p.subject ? (p.proposed_subject ?? p.subject) : p.proposed_subject;
       const edits = withMentionList(
-        withoutPeopleMarks(withFiles({ ...p, ...(words !== null ? { text: words } : {}), ...(title ? { subject: title } : {}) }, kept)),
+        withoutPeopleMarks(
+          withFiles(
+            {
+              ...p,
+              ...(words !== null ? { text: words } : {}),
+              ...(title ? { subject: title } : {}),
+              ...(proposedText !== undefined ? { proposed_text: proposedText } : {}),
+              ...(proposedSubject !== undefined ? { proposed_subject: proposedSubject } : {}),
+            },
+            kept,
+          ),
+        ),
         mentions,
       );
       try {

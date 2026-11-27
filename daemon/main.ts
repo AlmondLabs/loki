@@ -24,6 +24,7 @@ import { builtinExtensions, builtinKinds } from "./extensions.ts";
 import { chatEnvs } from "./tool-results.ts";
 import { reflectionJob } from "./reflection.ts";
 import { learnJob } from "./learn.ts";
+import { collectPreferenceSignals } from "./preference-signals.ts";
 import { PassRunner } from "./passes.ts";
 import { PassState } from "./passes-state.ts";
 import { readLocalAgent } from "../mod/agents.ts";
@@ -91,6 +92,7 @@ const context = BACKGROUND_CONTEXT;
 const mods = new ModRegistry(report);
 
 const backend = join(args.dir, "backend");
+const stateDir = join(args.dir, "state");
 process.env.LOKI_BACKEND_DIR = backend;
 process.env.LOKI_PINS_FILE ??= join(args.dir, "state", "pins.json");
 const secrets =
@@ -175,6 +177,7 @@ const passes = new PassRunner({
   jobs: [reflectionJob, learnJob({ store: new LearnStore(), state: passState, chats })],
   busy,
   canRun,
+  collectSignals: (agentId, since) => collectPreferenceSignals({ stateDir, agentId, since }),
   acp: {
     engineFor: async (agentId) => {
       const infos = await (await stores.get(agentId)).chats(context);

@@ -135,7 +135,9 @@ function parseProposal(v: unknown): ReplyProposal | null {
   const id = s("id"),
     account = s("account_id"),
     thread = s("thread_id"),
-    text = s("text");
+    text = s("text"),
+    proposedText = s("proposed_text"),
+    proposedSubject = s("proposed_subject");
   const status = r.status === "drafting" ? "pending" : STATUSES.find((x) => x === r.status);
   const provider = r.provider === "gmail" || r.provider === "slack" || r.provider === "jira" ? r.provider : null;
   const starts = r.kind === "email" || r.kind === "dm" || r.kind === "ticket";
@@ -160,6 +162,8 @@ function parseProposal(v: unknown): ReplyProposal | null {
     cc: strings("cc"),
     place: s("place"),
     text,
+    ...(proposedText !== null ? { proposed_text: proposedText } : {}),
+    ...(proposedSubject !== null ? { proposed_subject: proposedSubject } : {}),
     status,
     reason: s("reason"),
     created_at: s("created_at") ?? "",

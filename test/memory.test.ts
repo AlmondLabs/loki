@@ -10,7 +10,7 @@ import { createRegistry, MemoryStorage } from "@earendil-works/pi-durable";
 import { createAgent } from "../daemon/store/agents.ts";
 import { AgentStore } from "../daemon/kernel/index.ts";
 import { must } from "./fixtures/must.ts";
-import { editMemoryFile, memoryDump, memoryExtension, memoryRoot, memorySection, revertMemoryCommit } from "../daemon/memory.ts";
+import { editMemoryFile, memoryDump, memoryExtension, memoryRoot, memorySection, revertMemoryCommit, sharedMemoryRoot } from "../daemon/memory.ts";
 
 const ctx = BACKGROUND_CONTEXT;
 const log = (root: string) => execFileSync("git", ["-C", root, "log", "--format=%an|%s"], { encoding: "utf8" }).trim().split("\n");
@@ -241,6 +241,94 @@ describe("an agent's memory", () => {
       const results = (await store.entries(mine, ctx)).filter((e) => e.kind === "pi.tool-result").map((e) => JSON.stringify(e.model));
       expect(results.at(-1)).toContain("kept.md");
       expect(results.at(-1)).toContain("deployment Fridays");
+      await store.close(ctx);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("memoryDump prioritizes shared and system files, skips skills and binaries, and shows descriptions on overflow", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "loki-memory-"));
+    try {
+      const agentId = await createAgent(dir, { name: "Ada" });
+      const root = memoryRoot(dir, agentId);
+      const sharedRoot = sharedMemoryRoot(dir);
+      await editMemoryFile(dir, agentId, "shared/preferences.md", "Keep lists numbered.\n", "Add shared prefs");
+      await editMemoryFile(dir, agentId, "reference/human/style.md", "---\ndescription: Read for tone rules\n---\nBe direct.\n", "Add human style");
+      await editMemoryFile(dir, agentId, "reference/aaa-huge.md", `---\ndescription: Read when checking large estate\n---\n${"z".repeat(1200)}`, "Add huge");
+      mkdirSync(join(root, "skills", "demo"), { recursive: true });
+      writeFileSync(join(root, "skills", "demo", "SKILL.md"), "---\ndescription: demo skill\n---\nSkill body\n");
+      writeFileSync(join(root, "profile.png"), Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x00, 0x01]));
+
+      const cut = memoryDump(root, 400, sharedRoot);
+      expect(cut.text).toContain('<file path="shared/preferences.md"');
+      expect(cut.text).toContain('<file path="system/persona.md"');
+      expect(cut.text).toContain('<file path="reference/human/style.md"');
+      expect(cut.text).toContain("- reference/aaa-huge.md (1253 chars) — Read when checking large estate");
+      expect(cut.text).not.toContain("skills/demo/SKILL.md");
+      expect(cut.text).not.toContain("profile.png");
+      expect(cut.files).toBe(4);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("memory_read paginates by line offset/limit, truncates past 40 KB, and refuses binary files; memory_search ranks multi-word queries across shared and agent notes", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "loki-memory-"));
+    try {
+      const agentId = await createAgent(dir, { name: "Ada" });
+      const secondId = await createAgent(dir, { name: "Grace" });
+      const root = memoryRoot(dir, agentId);
+      await editMemoryFile(dir, agentId, "reference/numbered.md", ["line 1", "line 2", "line 3", "line 4", "line 5"].join("\n"), "Add lines");
+      await editMemoryFile(dir, agentId, "reference/giant.md", `${"a".repeat(70_000)}\nsecond line\n`, "Add giant");
+      await editMemoryFile(
+        dir,
+        agentId,
+        "reference/workflow.md",
+        "Always check current state before dev deploy.\nApproval covers the whole previewed batch.\n",
+        "Add workflow",
+      );
+      writeFileSync(join(root, "profile.png"), Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x00]));
+
+      const faux = fauxProvider();
+      const models = createModels();
+      models.setProvider(faux.provider);
+      const registry = createRegistry();
+      registry.install(memoryExtension(dir));
+      const store = await AgentStore.open({ storage: new MemoryStorage() }, { models, registry }, ctx);
+      await store.setAgent({ id: agentId, name: "Ada" }, ctx);
+      const chat = await store.createChat("c", { agent: { model: { provider: faux.provider.id, modelId: faux.getModel().id } } }, ctx);
+      const model = { provider: faux.provider.id, modelId: faux.getModel().id };
+      await chat.configure({ model }, ctx);
+
+      faux.setResponses([
+        fauxAssistantMessage(fauxToolCall("memory_write", { path: "shared/prefs.md", content: "Never use em dashes.\n", message: "Shared rule" }), {
+          stopReason: "toolUse",
+        }),
+        fauxAssistantMessage(fauxToolCall("memory_edit", { path: "shared/prefs.md", old_text: "em dashes", new_text: "filler" }), { stopReason: "toolUse" }),
+        fauxAssistantMessage(fauxToolCall("memory_read", { path: "reference/numbered.md", offset: 2, limit: 2 }), { stopReason: "toolUse" }),
+        fauxAssistantMessage(fauxToolCall("memory_read", { path: "reference/giant.md" }), { stopReason: "toolUse" }),
+        fauxAssistantMessage(fauxToolCall("memory_read", { path: "profile.png" }), { stopReason: "toolUse" }),
+        fauxAssistantMessage(fauxToolCall("memory_search", { query: "approval dev deploy" }), { stopReason: "toolUse" }),
+        fauxAssistantMessage(fauxToolCall("memory_search", { query: "filler", path: "shared" }), { stopReason: "toolUse" }),
+        fauxAssistantMessage("done"),
+      ]);
+      await (await chat.submit({ type: "input", content: "test tools" }, ctx)).wait(ctx);
+
+      const results = (await store.entries(chat, ctx)).filter((e) => e.kind === "pi.tool-result").map((e) => JSON.stringify(e.model));
+      expect(results[2]).toContain("line 2\\nline 3");
+      expect(results[2]).toContain("Showing lines 2–3 of 5 (reference/numbered.md). Pass offset=4 to read more.");
+      expect(results[3]).toContain("Showing lines 1–1 of 3 (reference/giant.md). Pass offset=2 to read more.");
+      expect(results[4]).toContain("is not a text file");
+      expect(results[5]).toContain("reference/workflow.md");
+      expect(results[6]).toContain("shared/prefs.md:1: Never use filler.");
+
+      const secondSection = must(memorySection(memoryRoot(dir, secondId), "tools", sharedMemoryRoot(dir)), "second agent section");
+      expect(secondSection).toContain('<file path="shared/prefs.md">\nNever use filler.\n</file>');
+      expect(log(sharedMemoryRoot(dir))).toEqual(["Ada|Edit shared/prefs.md", "Ada|Shared rule"]);
+
+      await editMemoryFile(dir, agentId, "shared/prefs.md", null, "Drop shared rule");
+      expect(existsSync(join(sharedMemoryRoot(dir), "prefs.md"))).toBe(false);
       await store.close(ctx);
     } finally {
       rmSync(dir, { recursive: true, force: true });
