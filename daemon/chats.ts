@@ -1,5 +1,5 @@
 import { modeOf } from "../core/chat-links.ts";
-import type { Context } from "@earendil-works/chord";
+import type { Context } from "@earendil-works/chord/context";
 import type { CommitPublication, ConversationId, EntryRecord } from "@earendil-works/pi-durable";
 import { conversationDirName, isMainChat, scopeFor, type Scope } from "../core/canvas-core.ts";
 import { contentText, isScheduledPrompt, ownText, stripHarnessMarkup } from "../core/harness.ts";
@@ -214,10 +214,11 @@ export class ChatProjection implements ChatSource {
     }
     const pending: CommitPublication[] = [];
     let loading = true;
-    this.unsubscribe.set(
-      agentId,
-      store.harness.subscribeCommits((publication) => (loading ? pending.push(publication) : this.apply(agentId, publication))),
-    );
+    const observation = store.harness.observeCommits({
+      advance: (publication) => (loading ? pending.push(publication) : this.apply(agentId, publication)),
+      end: () => {},
+    });
+    this.unsubscribe.set(agentId, () => observation.detach());
     const index = await store.harness.snapshot(ChatIndex, this.context);
     const load = async ([chatId, conversationId]: [string, number]) => {
       const conversation = await store.harness.conversation(conversationId as ConversationId, this.context);
@@ -349,7 +350,7 @@ export class ChatProjection implements ChatSource {
     const isIndex = (change: CommitPublication["changes"][number]) => change.type === "document" && change.record.kind === ChatIndex.definition.kind;
     const indexBeforeSettings = [...publication.changes].sort((a, b) => Number(isIndex(b)) - Number(isIndex(a)));
     for (const change of indexBeforeSettings) {
-      if (change.type !== "document" || change.value === null) continue;
+      if (change.type !== "document" || change.kind !== "change") continue;
       if (change.record.kind === ChatIndex.definition.kind) {
         const index = (change.value as { chats?: Record<string, number> }).chats ?? {};
         for (const [chatId, conversationId] of Object.entries(index)) {

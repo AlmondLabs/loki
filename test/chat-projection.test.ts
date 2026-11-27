@@ -238,7 +238,7 @@ describe("a store whose chats fail to load", () => {
     chats.follow(stores as never, (m) => reports.push(m));
     const broken = {
       harness: {
-        subscribeCommits: () => () => (unsubscribed = true),
+        observeCommits: () => ({ detach: () => (unsubscribed = true) }),
         snapshot: () => Promise.reject(new Error("disk I/O error")),
       },
     };

@@ -14,13 +14,23 @@ const model = { provider: faux.provider.id, modelId: faux.getModel().id };
 if (phase === "tool") faux.setResponses([fauxAssistantMessage(fauxToolCall("slow", { ms: 5_000 }), { stopReason: "toolUse" })]);
 else faux.setResponses([fauxAssistantMessage("a long answer that streams slowly ".repeat(50))]);
 
-const store = await AgentStore.open({ file }, { models, registry: trialRegistry() }, ctx);
+const store = await AgentStore.open({ file }, { models, registry: trialRegistry(), settings: () => ({ progress: { persistWithinMs: 0 } }) }, ctx);
 const chat = await store.createChat("c", { agent: { model } }, ctx);
-await chat.submit({ type: "input", content: "go", requestId: "r1" }, ctx);
+let signaled = false;
 if (phase === "generation") {
-  const view = await chat.viewState(ctx);
-  view.subscribe((value) => {
-    const live = value.docs["pi.live"] as { generation?: { message?: { content?: Array<{ text?: string }> } } } | undefined;
-    if ((live?.generation?.message?.content?.[0]?.text ?? "").length > 40) process.stdout.write("under-way\n");
+  store.harness.observeCommits({
+    advance: (publication) => {
+      if (signaled) return;
+      for (const change of publication.changes) {
+        if (change.type !== "document" || change.kind !== "change" || change.record.kind !== "pi.live") continue;
+        const live = change.value as { generation?: { message?: { content?: Array<{ text?: string }> } } };
+        if ((live.generation?.message?.content?.[0]?.text ?? "").length > 40) {
+          signaled = true;
+          process.stdout.write("under-way\n");
+        }
+      }
+    },
+    end: () => {},
   });
 }
+await chat.submit({ type: "input", content: "go", requestId: "r1" }, ctx);

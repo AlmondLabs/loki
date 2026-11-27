@@ -1,4 +1,4 @@
-import type { Context } from "@earendil-works/chord";
+import type { Context } from "@earendil-works/chord/context";
 import type { Conversation, EntryRecord } from "@earendil-works/pi-durable";
 import { existsSync } from "node:fs";
 import { contentText, messageFiles, movedMark } from "../core/harness.ts";

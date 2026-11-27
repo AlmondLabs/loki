@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { AgentEvent } from "@earendil-works/pi-durable";
+import type { ConversationView } from "@earendil-works/pi-durable";
 import { messageSteps, type PiMessage } from "../core/attention/pi-steps.ts";
 import { foldSteps, MODEL_ERROR_TEXT, type Step } from "../core/attention/thread.ts";
 import { ChatEventConverter } from "../daemon/chat-events.ts";
@@ -44,8 +44,12 @@ describe("a model error stays in the chat (plan 037)", () => {
   });
 
   test("a live chat gets the same step from the written message as history does", () => {
-    const end = { type: "message_end", entry: { id: 1, conversationId: 1, kind: "pi.assistant", model: [failed()] } } as unknown as AgentEvent;
-    expect(new ChatEventConverter().convert(end, AT)).toEqual(messageSteps(failed(), AT).map((step) => ({ kind: "step", step })));
+    const view = {
+      conversation: { id: 1 },
+      entries: [{ id: 1, conversationId: 1, kind: "pi.assistant", model: [failed()] }],
+      docs: {},
+    } as unknown as ConversationView;
+    expect(new ChatEventConverter().convert(view, AT)).toEqual(messageSteps(failed(), AT).map((step) => ({ kind: "step", step })));
   });
 });
 

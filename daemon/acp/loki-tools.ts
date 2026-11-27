@@ -1,4 +1,4 @@
-import type { Context } from "@earendil-works/chord";
+import type { Context } from "@earendil-works/chord/context";
 import type * as acp from "@agentclientprotocol/sdk";
 import { createMcpHandler, fromJsonSchema, McpServer, type CallToolResult as ServedResult } from "@modelcontextprotocol/server";
 import { randomUUID } from "node:crypto";

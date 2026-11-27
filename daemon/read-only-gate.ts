@@ -36,10 +36,11 @@ const READ_ONLY_PROMPT = [
 
 export function readOnlyExtension(backendDir: string): Extension {
   const history = DIRECT_HISTORY.map((name): Wrap => ({
+    kind: "tool",
     tool: name,
     wrap: (tool: ToolRegistration): ToolRegistration => ({ ...tool, callers: ["model", "tools"] }),
   }));
-  const files = fileTools({ followLinks: false }).map((own): Wrap => ({ tool: own.name, wrap: (): ToolRegistration => own }));
+  const files = fileTools({ followLinks: false }).map((own): Wrap => ({ kind: "tool", tool: own.name, wrap: (): ToolRegistration => own }));
   const leftOut = LEFT_OUT_SECTIONS.map((key) => wrapSection(key, (s) => ({ ...s, render: () => undefined })));
   const memory = wrapSection("memory", (s) => ({
     ...s,

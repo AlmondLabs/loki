@@ -1,4 +1,4 @@
-import type { Context } from "@earendil-works/chord";
+import type { Context } from "@earendil-works/chord/context";
 import { withCancel } from "@earendil-works/chord/context";
 import type { EntryRecord, Registry } from "@earendil-works/pi-durable";
 import { readLocalAgent } from "../mod/agents.ts";

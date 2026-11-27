@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import type { AgentEvent } from "@earendil-works/pi-durable";
+import type { ConversationView } from "@earendil-works/pi-durable";
 import { ChatEventConverter, unansweredDetail, unansweredWhy } from "../daemon/chat-events.ts";
 import { DOCTOR_INSTRUCTIONS } from "../daemon/doctor.ts";
 import { FAILURE_RULE } from "../daemon/memory.ts";
@@ -99,9 +99,10 @@ describe("a turn that went unanswered says why", () => {
 
   const settled = (detail?: string) =>
     ({
-      type: "submission",
-      record: { id: 1, conversationId: 1, type: "input", status: "unanswered", reason: "model_error", ...(detail ? { detail } : {}) },
-    }) as unknown as AgentEvent;
+      conversation: { id: 1 },
+      entries: [],
+      docs: { "pi.live": { runFailure: { taskId: 1, inputs: [1], reason: "model_error", ...(detail ? { detail } : {}) } } },
+    }) as unknown as ConversationView;
 
   test("a chat's error line keeps its hint and adds what the provider said", () => {
     const [error] = new ChatEventConverter().convert(settled("429 rate limit"), "2026-10-26T10:00:00.000Z");

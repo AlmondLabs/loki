@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { createModels } from "@earendil-works/pi-ai/models";
 import { fauxProvider } from "@earendil-works/pi-ai/providers/faux";
-import { MemoryStorage, watchEvents } from "@earendil-works/pi-durable";
+import { MemoryStorage } from "@earendil-works/pi-durable";
 import { Approvals } from "../daemon/approvals.ts";
 import { AgentStore } from "../daemon/kernel/index.ts";
 import { LokiEngine } from "../daemon/loki-engine.ts";
@@ -27,10 +27,10 @@ describe("following a chat's events", () => {
       backendDir: "",
       context: ctx,
       push: () => {},
-      watch: (...args) => {
+      watch: (chatArg, ctxArg) => {
         watched++;
         if (fails-- > 0) return Promise.reject(new Error("the store is busy"));
-        return watchEvents(...args);
+        return chatArg.watch(ctxArg);
       },
     });
     const c = { agentId: "ada", conversationId: "c1", store, chat, engine: null };

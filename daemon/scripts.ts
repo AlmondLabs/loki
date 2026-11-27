@@ -7,9 +7,10 @@ import {
   type Extension,
   type ToolExecutionApi,
   type ToolExecutionResult,
+  type ToolNamespace,
   type ToolRegistration,
 } from "@earendil-works/pi-durable";
-import { CODEMODE_TOOL_NAME, createCodemodeExtension, type CodemodeNamespace } from "@earendil-works/pi-durable/codemode";
+import { CODEMODE_TOOL_NAME, createCodemodeExtension } from "@earendil-works/pi-durable/codemode";
 import { CODEMODE_OPTIONS_PREFIX, CodemodeSandbox, parseCodemodeSource, type CodemodeSandboxBase } from "@earendil-works/pi-codemode";
 import { isScriptDescriptionLine, SCRIPT_DESCRIPTION_PREFIX } from "../core/harness.ts";
 import { fenceScriptAnswer } from "../mod/account-ops/fence.ts";
@@ -27,7 +28,11 @@ export const SCRIPTS_AT_ONCE = 4;
 
 export const SCRIPT_LISTING_TOKENS = 300;
 
-export const SCRIPT_NAMESPACES: readonly CodemodeNamespace[] = [
+export interface ScriptNamespace extends ToolNamespace {
+  readonly prefix: string;
+}
+
+export const SCRIPT_NAMESPACES: readonly ScriptNamespace[] = [
   {
     name: "google",
     prefix: "google_",
@@ -134,8 +139,23 @@ export function fencedIfRead<Result extends ToolExecutionResult>(result: Result,
 
 const isScript = (args: unknown): args is { code: string } => typeof args === "object" && args !== null && "code" in args && typeof args.code === "string";
 
+function scriptNamespaceExtensions<Tool extends ToolRegistration>(
+  callable: readonly Tool[],
+  extensions: ReadonlyArray<Extension<Tool>>,
+): Array<Extension<Tool>> {
+  const synthetic: Array<Extension<Tool>> = [];
+  for (const ns of SCRIPT_NAMESPACES) {
+    const matching = callable.filter((t) => t.name.startsWith(ns.prefix));
+    if (matching.length > 0) {
+      synthetic.push({ name: `loki.namespace.${ns.name}`, namespace: { name: ns.name, description: ns.description }, tools: matching });
+    }
+  }
+  return [...synthetic, ...extensions];
+}
+
 function confined<Tool extends ToolRegistration>(agent: Agent<Tool>): Agent<Tool> {
-  return { ...agent, callable: agent.callable.filter(scriptMayCall) };
+  const callable = agent.callable.filter(scriptMayCall);
+  return { ...agent, callable, extensions: scriptNamespaceExtensions(callable, agent.extensions) };
 }
 
 /**
@@ -159,7 +179,7 @@ export function scriptExtensions(
   timeLimitMs = SCRIPT_TIMEOUT_MS,
   strangerText: (tool: string) => boolean = () => false,
 ): Extension[] {
-  const codemode = createCodemodeExtension({ sandbox, namespaces: SCRIPT_NAMESPACES, inlineBudget: SCRIPT_LISTING_TOKENS, models: false });
+  const codemode = createCodemodeExtension({ sandbox, inlineBudget: SCRIPT_LISTING_TOKENS, models: false });
   const tool = codemode.tools?.find((t) => t.name === SCRIPT_TOOL);
   if (!tool) throw new Error("pi-durable's code mode extension has no code mode tool");
   withKind("read", tool);
@@ -170,11 +190,14 @@ export function scriptExtensions(
         ...t,
         description: SCRIPT_DESCRIPTION,
         executionMode: "sequential",
-        execute: async (args, api, context) =>
-          fencedIfRead(
-            await t.execute(isScript(args) ? { ...args, code: withTimeLimit(withOptionsFirst(args.code), timeLimitMs) } : args, confinedApi(api), context),
-            strangerText,
-          ),
+        execute: async (args, api, context) => {
+          const result = await t.execute(
+            isScript(args) ? { ...args, code: withTimeLimit(withOptionsFirst(args.code), timeLimitMs) } : args,
+            confinedApi(api),
+            context,
+          );
+          return result.kind === undefined ? fencedIfRead(result, strangerText) : result;
+        },
       })),
       wrapSection(SCRIPT_TOOL, (s) => ({
         ...s,

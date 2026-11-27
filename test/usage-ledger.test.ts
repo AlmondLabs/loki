@@ -36,9 +36,9 @@ function fakeStore(
   let listener: ((p: CommitPublication) => void) | null = null;
   const store = {
     harness: {
-      subscribeCommits: (l: (p: CommitPublication) => void) => {
-        listener = l;
-        return () => (listener = null);
+      observeCommits: (observer: { advance: (p: CommitPublication) => void; end: () => void }) => {
+        listener = (p) => observer.advance(p);
+        return { detach: () => (listener = null) };
       },
     },
     chatConversations: () => Promise.resolve(Object.keys(chats).map(Number)),
@@ -54,6 +54,7 @@ function fakeStore(
       changes: [
         {
           type: "document",
+          kind: "change",
           record: { kind: "pi.usage" },
           conversationId: id,
           version: 1,

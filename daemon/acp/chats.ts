@@ -1,4 +1,4 @@
-import type { Context } from "@earendil-works/chord";
+import type { Context } from "@earendil-works/chord/context";
 import type { Conversation } from "@earendil-works/pi-durable";
 import type * as acp from "@agentclientprotocol/sdk";
 import { randomUUID } from "node:crypto";

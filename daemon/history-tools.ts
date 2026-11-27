@@ -1,4 +1,4 @@
-import type { Context } from "@earendil-works/chord";
+import type { Context } from "@earendil-works/chord/context";
 import { defineExtension, section, type ConversationId, type DocumentReader, type Extension } from "@earendil-works/pi-durable";
 import type { TranscriptRow } from "../core/attention/transcript.ts";
 import { piTool, type ChatTool } from "./chat-tools.ts";

@@ -1,4 +1,4 @@
-import type { Context } from "@earendil-works/chord";
+import type { Context } from "@earendil-works/chord/context";
 import { defineExtension, type Extension } from "@earendil-works/pi-durable";
 import { randomBytes } from "node:crypto";
 import { readFileSync, statSync } from "node:fs";

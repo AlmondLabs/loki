@@ -1,4 +1,4 @@
-import type { Context } from "@earendil-works/chord";
+import type { Context } from "@earendil-works/chord/context";
 import { getSupportedThinkingLevels, type Models } from "@earendil-works/pi-ai/models";
 import type { Conversation } from "@earendil-works/pi-durable";
 import { randomUUID } from "node:crypto";

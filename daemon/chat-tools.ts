@@ -1,4 +1,5 @@
-import type { Context, JsonValue } from "@earendil-works/chord";
+import type { Context } from "@earendil-works/chord/context";
+import type { JsonValue } from "@earendil-works/chord/json";
 import { defineTool, type ConversationId, type DocumentReader } from "@earendil-works/pi-durable";
 import { withKind, type KindedTool, type ToolKind } from "./tool-kinds.ts";
 
