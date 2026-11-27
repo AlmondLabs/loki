@@ -35,7 +35,6 @@ import { StepsLoad } from "../chat/tool-steps";
 import { CommandRow, useArrivedFrom } from "../chat/transcript";
 import { findStart, keepStart, openStart, threadId } from "../chat/transcript-window";
 import { threadEntries, threadTurns, thoughtsIntoWork, type TurnPart } from "./entries";
-import { WidgetArtifact } from "./content-parts";
 import { ChangeEntry, DayMarker, EventEntry, NewMarker } from "./event-entry";
 import { chatEntries, type ItemEntry } from "./item-view";
 import { ChatMessage } from "./message-entry";
@@ -89,8 +88,7 @@ function ThreadBody({
   const drawn = drawnRows(list);
   const arrivedFrom = useArrivedFrom(rows);
   const dividerAt = layout?.dividerAt ?? null;
-  const widgets = layout?.widgets ?? [];
-  const { start, above, nearTop, reveal, fold } = useThreadWindow(list, dividerAt, widgets, older);
+  const { start, above, nearTop, reveal, fold } = useThreadWindow(list, dividerAt, older);
   const atRest = useRef(() => {});
   const rest = useRest(atRest, start, list.length);
   const { viewportRef, contentRef, onScroll: holdOnScroll, beforeReveal } = useKeepPlace(start, rest.moving);
@@ -131,7 +129,6 @@ function ThreadBody({
             above,
             dividerAt,
             dividerDay: layout?.dividerDay ?? null,
-            widgets,
             busy: status !== "idle",
             arrivedFrom,
             gaps: TIME_GAP,
@@ -172,8 +169,6 @@ function ThreadBody({
         return <DayMarker label={p.label} />;
       case "new":
         return <NewMarker day={p.day} />;
-      case "widget":
-        return <WidgetArtifact mark={p.mark} live={p.live} inline={layout?.inline} onFrame={layout?.onFrameWidget} onShowDesk={layout?.onShowDesk} />;
       case "steps":
         return (
           <Work
@@ -293,12 +288,7 @@ function ThreadBody({
   );
 }
 
-function useThreadWindow(
-  list: TranscriptRow[],
-  dividerAt: number | null,
-  marks: ReadonlyArray<{ before: number; who: string; change: string; title: string }>,
-  older: (() => void) | null,
-) {
+function useThreadWindow(list: TranscriptRow[], dividerAt: number | null, older: (() => void) | null) {
   const id = threadId(list);
   const [win, setWin] = useState(() => ({ id, start: openStart(list.length, dividerAt), first: list.length ? list[0] : null, above: 0 }));
   const shift = win.id !== id && win.first ? Math.max(0, list.indexOf(win.first)) : 0;
@@ -319,10 +309,10 @@ function useThreadWindow(
   };
   const reveal = useCallback(
     (query: string) => {
-      const at = findStart(list, start, query, marks);
+      const at = findStart(list, start, query);
       if (at < start) flushSync(() => setWin((w) => (w.start <= at ? w : { ...w, start: at })));
     },
-    [list, start, marks],
+    [list, start],
   );
   const fold = () => {
     const at = openStart(list.length, dividerAt);

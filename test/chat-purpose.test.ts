@@ -6,7 +6,7 @@ import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { createModels } from "@earendil-works/pi-ai/models";
 import { fauxAssistantMessage, fauxProvider } from "@earendil-works/pi-ai/providers/faux";
 import { MemoryStorage } from "@earendil-works/pi-durable";
-import { SHARED_SCOPE } from "../core/canvas-core.ts";
+import { SHARED_SCOPE } from "../core/chat-scope.ts";
 import { FRAMES, type PayloadOf } from "../core/frames.ts";
 import type { ChatEvent } from "../core/attention/model.ts";
 import type { SavedDraft, Suggestion } from "../core/frame-types.ts";
@@ -66,8 +66,6 @@ async function setup() {
   const listing = new ChatListing({
     chats: projection,
     desks,
-    layouts: () => [],
-    widgets: { entries: () => [] },
     pins: () => new Set(),
     passChats: () => () => false,
     activeScope: () => SHARED_SCOPE,

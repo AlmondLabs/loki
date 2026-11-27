@@ -43,7 +43,7 @@ describe("homebrew cask", () => {
     // Outside (Homebrew): Homebrew 7 deprecates the ">= :ventura" string form.
     expect(rb).toContain("depends_on macos: :ventura");
     expect(rb).not.toContain("depends_on formula");
-    for (const p of ["~/.loki", "~/.agents/skills/loki"]) expect(rb).toContain(`"${p}"`);
+    expect(rb).toContain('"~/.loki"');
     expect(rb).not.toContain(".letta");
     expect(rb).toContain("xattr -dr com.apple.quarantine /Applications/loki.app");
     // Outside (Homebrew): Homebrew 7 answers --no-quarantine with "invalid option".

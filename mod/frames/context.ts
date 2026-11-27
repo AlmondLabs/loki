@@ -1,4 +1,4 @@
-import type { Scope } from "../../core/canvas-core.ts";
+import type { Scope } from "../../core/chat-scope.ts";
 import type { PayloadOf, PushFrame, ReplyOf, RequestName, SendName } from "../../core/frames.ts";
 import type { Client } from "../server.ts";
 import { messageOf } from "../../core/errors.ts";

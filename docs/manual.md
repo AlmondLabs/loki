@@ -102,8 +102,8 @@ your own Mac never carries the flag.
 
 Whichever way, loki needs Node and git (Requirements), and helps with whichever is missing. Then:
 
-1. Open loki. On every launch it puts its daemon, its mod and the phone's canvas under `~/.loki`, and the agent's
-   skill at `~/.agents/skills/loki/`, writing only what changed; Preferences › About shows what happened, under "What launch installed".
+1. Open loki. On every launch it puts its daemon, its mod and the phone web app under `~/.loki`, writing only what
+   changed; Preferences › About shows what happened, under "What launch installed".
    Then it makes sure git is there, finds Node, and starts the daemon on it, which hosts the mod.
 2. When something is missing, loki opens on **Getting loki ready**. On Windows without git or Git Bash it downloads
    PortableGit: what it is fetching, a bar and how far along it is; a download that fails says what failed, with
@@ -121,7 +121,6 @@ Whichever way, loki needs Node and git (Requirements), and helps with whichever 
    the provider, then kept in your system's keychain; every turn is billed by that provider), then name your first
    agent, with a description, a persona and a model. You land on its main chat, on Messages, with the message box
    focused.
-4. Ask your agent to put something on the canvas.
 
 ### Updates
 
@@ -172,18 +171,15 @@ longer read and can be deleted.
 
 ### Uninstall
 
-Quit loki first, then remove the app. Removing the app leaves your agents, chats and settings in `~/.loki` and loki's
-skill in `~/.agents/skills/loki`, so a later install picks up where you left off; delete those two as well to remove
+Quit loki first, then remove the app. Removing the app leaves your agents, chats and settings in `~/.loki`, so a later install picks up where you left off; delete that folder as well to remove
 everything loki wrote.
 
-- **Mac:** move `loki.app` from `/Applications` (or `~/Applications`) to the Bin, then, if you want, delete `~/.loki`
-  and `~/.agents/skills/loki`. Installed with Homebrew, `brew uninstall --cask loki` removes the app, and
-  `brew uninstall --zap --cask loki` removes those two folders too.
+- **Mac:** move `loki.app` from `/Applications` (or `~/Applications`) to the Bin, then, if you want, delete `~/.loki`. Installed with Homebrew, `brew uninstall --cask loki` removes the app, and
+  `brew uninstall --zap --cask loki` removes `~/.loki` too.
 - **Windows:** Settings › Apps › Installed apps, then loki's **Uninstall**, or `Uninstall loki.exe` in
-  `%LOCALAPPDATA%\Programs\loki`. Then, if you want, delete `%USERPROFILE%\.loki` and
-  `%USERPROFILE%\.agents\skills\loki`.
+  `%LOCALAPPDATA%\Programs\loki`. Then, if you want, delete `%USERPROFILE%\.loki`.
 - **Linux:** delete `~/.local/share/loki` (the AppImage and its icon) and `~/.local/share/applications/loki.desktop`,
-  or, for the `.deb`, `sudo apt remove loki`. Then, if you want, delete `~/.loki` and `~/.agents/skills/loki`.
+  or, for the `.deb`, `sudo apt remove loki`. Then, if you want, delete `~/.loki`.
 
 A Node that **Install Node** put on your computer stays when loki goes; it is an ordinary install of Node, removed the
 way your system removes any program.
@@ -209,7 +205,7 @@ anything else gives way. With the sidebar folded on the Mac the list starts at t
 moves aside for the traffic lights and the sidebar button; elsewhere the list starts past the button. A chat's messages
 and its message box keep a readable width, centred in the space beside the list, as do an email's or a Slack thread's.
 **View › Show / Hide List** (⌃⌘L; Ctrl Shift L on Windows and Linux, where Ctrl L is Focus Message Box) hides the list
-in every place, so the detail (a chat's Canvas, say) takes its room; showing it again brings it back at the width it
+in every place, so the detail takes its room; showing it again brings it back at the width it
 had. Both folds are kept for the window across restarts. ⌘⇧W hides loki. On Windows and
 Linux the strip is loki's own, with ☰ and the window buttons (see [Windows and Linux](#windows-and-linux)).
 
@@ -260,19 +256,11 @@ are on is read.
   The agent is told a chat's labels with your next message (and again when they change), so it knows what you
   file the chat under; only you set them.
   Opening a chat — from the list, ⌘K, Flow, Agents or Learn — shows it with a Mac toolbar: its name over a grey
-  line of its agent, what the agent is doing, its folder and labels, then **Messages** and **Canvas** as a segmented
-  control in the middle of the toolbar, with **Workers** between them once the chat has [workers](#workers-subagents) and its moves as symbols at its right edge (see [The chat pane and Flow's cards](#the-chat-pane-and-flows-cards); on the
-  Canvas tab, a ⋯ menu to arrange, fit and toggle the chat; find is ⌘F). **Messages** is the conversation, the message
+  line of its agent, what the agent is doing, its folder and labels, then **Messages** and **Workers** as a segmented
+  control in the middle of the toolbar once the chat has [workers](#workers-subagents) and its moves as symbols at its right edge (see [The chat pane and Flow's cards](#the-chat-pane-and-flows-cards); find is ⌘F). **Messages** is the conversation, the message
   box focused: your messages as bubbles and the agent's turns as prose, the time told at gaps, a **New** line before
-  what came since you last looked (it stays put while the chat is open and moves on the next open), a copy button on
-  hover, and a line each time the agent
-  adds, changes or removes a widget ("friday added Revenue chart"). Click that line and the **Canvas** tab opens
-  framed on the widget. The Canvas tab is the sheet beside the sidebar with the chat over it (⌃⌘S folds the sidebar for more room): the chat on the left, centred and wider, or on the right (⌘← and ⌘→ move it, ⌥⌘ from inside a text
-  box, ⌘/ toggles it, ⌘W closes it; ⌘0 fits all widgets, ⌘⇧0 is 1:1, ⌘= ⌘- zoom, ⌘⇧A arranges, ⌘Z undoes a widget
-  move). A side chat is a viewport inset: fit-all, focus and camera glides frame widgets in the uncovered part,
-  and opening or closing a left chat slides the sheet so nothing ends up under it. Esc (outside a text box) or
-  the Messages tab goes back to the conversation where you left it. Both tabs are the same conversation with the
-  same draft. ⌘L focuses the message box and ⌘F finds in the transcript, on whichever tab shows. A long thread
+  what came since you last looked (it stays put while the chat is open and moves on the next open), and a copy button on
+  hover. ⌘W closes it, ⌘L focuses the message box and ⌘F finds in the transcript. A long thread
   opens on its newest 60 rows (back to the New line when that is older) and loads older ones 20 at a time
   while the thread is still, until a few screens are loaded above you, keeping your place; find reaches the older ones too, and ↓ Latest folds it back. A conversation has
   a **permission mode** (strict, standard, accept edits, unrestricted;
@@ -346,8 +334,7 @@ are on is read.
   for what removes something. The groups and their pages:
   1. **General**
      1. **Appearance**: System, Light or Dark (System follows macOS as it changes); kept per device.
-     2. **Chat**: where the panel sits on the Canvas tab (left, centre, right), its width at the side (narrow,
-        wide), and the tools that are **always allowed**, each with take back.
+     2. **Chat**: the tools that are **always allowed**, each with take back.
      3. **Keyboard shortcuts**: the switch for ⌥Space — the one system-wide key, off if Raycast, Alfred or the
         input-source switcher wants it (Mac only) — and every key loki has, with a search by what a key does, its keys
         or where it works.
@@ -416,16 +403,13 @@ Backspace in the empty field, or the chip's ×, steps back out.
 that work everywhere (less any the view takes for itself; Preferences › Keyboard shortcuts says so); `?` or
 Esc closes it. ⌘[ and ⌘] step through whatever the section showing is made of: the chats the list shows in Chats, cards in Flow
 (where ⌘] reads the card and ⌘[ puts it off for later), views in Learn, the page's items in Agents, pages in Preferences — the
-same two keys everywhere, never a jump back to Chats. Esc peels one layer: a sheet, menu or popover, then the Canvas or Workers tab
+same two keys everywhere, never a jump back to Chats. Esc peels one layer: a sheet, menu or popover, then the Workers tab
 back to Messages, then focus from the detail back to the list; it never changes the place. A popover (a chat's folded
 links, New Chat's folder) opens beside the button that shows it, on whichever side has room, and closes on Esc, a click
-outside or the button again, leaving the focus on the button. Outside the Mac app, where loki draws a menu itself (More
-Chat Actions, New Chat's agent, a chat's right click in the list), it does the same: ↑↓ Home End and the first letters
+outside or the button again, leaving the focus on the button. Outside the Mac app, where loki draws a menu itself (New Chat's agent, a chat's right click in the list), it does the same: ↑↓ Home End and the first letters
 move through it, Return picks, and Esc or Tab closes it. Every shortcut lives in one table
 (`app/src/shell/keymap.ts`) that drives the key handler, Preferences › Keyboard shortcuts, and the native menu bar (the ☰ menu
-on Windows and Linux: **Go** holds Search, New Chat…, Previous and Next Chat and Mark as Read; **View** holds Arrange
-Widgets and Undo Widget Move among the rest), so the menus double as the cheat sheet. Rule of the table: plain letters work where nothing has focus (the
-sheet); where a text box has focus (Flow, the chat) the same actions are ⌘ chords, and chords the text
+on Windows and Linux: **Go** holds Search, New Chat…, Previous and Next Chat and Mark as Read), so the menus double as the cheat sheet. Rule of the table: plain letters work where nothing has focus; where a text box has focus (Flow, the chat) the same actions are ⌘ chords, and chords the text
 itself uses (⌘Z, ⌘⌫, ⌘←, ⌘→) are never taken.
 
 ## Windows and Linux
@@ -589,8 +573,8 @@ turning this one away.
    come within half a minute, it says "could not load this chat from Mac mini" with **try again**, rather than
    showing an empty chat.
 3. **The first pairing hands chats over.** When a Mac first pairs, it takes over the chats of the agents that live
-   on it from the other Mac: pair the mini, and Ira's chats move to it, with their history, folder, labels,
-   schedules and canvas. A chat with a turn running moves once it is idle; a chat on Claude Code or another ACP
+   on it from the other Mac: pair the mini, and Ira's chats move to it, with their history, folder, labels and
+   schedules. A chat with a turn running moves once it is idle; a chat on Claude Code or another ACP
    agent stays where its session is. Files attached to a moved chat stay on the Mac they were attached on. Setting
    an agent's home later moves its chats the same way.
 4. **Move one chat by hand.** Right-click a chat in the sidebar and pick **Move to Mac mini** (or the MacBook): it
@@ -619,11 +603,8 @@ phone waits for it.
 
 ## What the mod does
 
-loki's mod runs inside the daemon and owns the canvas and the sockets the app connects to:
+loki's mod runs inside the daemon and owns the shared state and the sockets the app connects to:
 
-- owns geometry and gesture state per chat (`~/.loki/state/<desk>.json`, `<desk>` being the chat's id); places new widgets in the first free spot using sizes the tab reports back, and can tidy a canvas into a grid (the `arrange` button or ⌘⇧A)
-- watches `~/.loki/widgets/`, syntax-checks `.tsx` with esbuild, tells the tab what changed
-- appends what the user did on the canvas to their next turn (`turn_start`)
 - carries each chat between the app and the daemon over its socket (`/ws` on 127.0.0.1:41414): the chat's
   conversation and Flow cards are one model (`core/attention`), streaming token by token
 - lists every open conversation for Flow (`flow_get`): main chats included, however old, with who spoke
@@ -633,10 +614,7 @@ loki's mod runs inside the daemon and owns the canvas and the sockets the app co
   cap; the deleted pile goes back into every prompt as what not to write
 - serves each conversation's full transcript (`history_get`), which survives compaction, and keeps the read
   (`seen_mark`), viewed (`viewed_mark`) and focus marks Flow and the sidebar need
-- keeps each chat's widget change log (`~/.loki/state/widget-log/<desk>.json`, the last 200 rows), sent live
-  to every tab and with each chat's history, so the conversation can show who added, changed or removed a widget; your own gestures on the canvas show as one line before the message they went with ("You moved 2 widgets", or "You changed…" when they were not all moves), which opens to the list
 - keeps pins in `~/.loki/state/pins.json`
-- tools, for scripts: `canvas_read`, `canvas_focus` (one widget, or several framed together). Rendering and authoring are file writes, which every chat's prompt explains.
 - keeps each chat's suggestions on its record and carries out what you do with them; tools: `chat_list` (for scripts)
   and `suggestion_create` (see [Suggestions](#suggestions))
 
@@ -680,8 +658,7 @@ anything.
 Or run Vite alone, for a browser tab: `bun run dev:vite`. A `bun run dev` started while it runs uses it.
 
 A development window installs nothing from its bundle (`LOKI_INSTALL=1` makes it), and its daemon runs the
-checkout's code either way (`LOKI_NO_INSTALL=1` runs the installed bundles instead). It links the agent's skill, `~/.agents/skills/loki`, to the checkout's `skills/loki` when nothing is there
-yet; whatever is already there stays, and Preferences › About says which, under "What launch installed". The data is the same `~/.loki` the
+checkout's code either way (`LOKI_NO_INSTALL=1` runs the installed bundles instead). Preferences › About says what happened, under "What launch installed". The data is the same `~/.loki` the
 app uses, and only one daemon serves it (`~/.loki/daemon.lock`): with the installed app running, a development
 window leaves that app's daemon serving and tries again every 30 seconds, so quit the app to run your checkout's.
 
@@ -697,15 +674,15 @@ When something does not come up:
 
 ## Install as an app (Chrome)
 
-The canvas ships a web app manifest, so Chrome can install it: open the canvas
-tab, then menu → Save and share → Install page as app. It opens in its own
+loki ships a web app manifest, so Chrome can install it: open loki in
+Chrome, then menu → Save and share → Install page as app. It opens in its own
 window with the loki icon. The tab remembers its token and last chat in
 localStorage, so the installed app resumes where you left off even though its
 launch URL carries no parameters. It still needs loki running: the mod in its daemon serves the app; the page
 comes from Vite in a browser tab, or from the loki app itself.
 
 Vim-key extensions (Vimium, Surfingkeys) run inside installed apps too and bind
-plain `r` to reload, which also swallows loki's own shortcuts. Exclude the canvas
+plain `r` to reload, which also swallows loki's own shortcuts. Exclude loki
 in the extension's options, e.g. Vimium → Excluded URLs: `http://127.0.0.1:5173*`.
 
 ## The chat pane and Flow's cards
@@ -803,7 +780,7 @@ fetches it the first time), so it needs a `claude` that is signed in (`claude /l
   wait until a provider is set up;
 - the agent has loki's own tools, as the **loki** MCP server: its memory (read, search, write, edit and delete via `null` content, each change
   committed as in loki's chats), questions in loki's card, the suggestion tools, any your mods add, and loki's
-  `script` tool, through which it reaches its schedules, the canvas, `chat_list` and its history (see
+  `script` tool, through which it reaches its schedules, `chat_list` and its history (see
   [Scripts](#scripts)). Claude Code's own tools cover files, commands, web search/fetch and subagents;
 - Claude Code compacts its context by its own rules, and `/compact` is Claude Code's. Every turn stays in loki's
   history all the same, and the agent can search the whole chat (`history_search`) and read any part of it back
@@ -1021,9 +998,8 @@ conversations are never turned into the agent's memory.
 properly: a concept they asked about, an explanation they took on trust, an acronym that went by. Each is a
 lead — a title, one line quoting the moment, a depth (a primer in one sitting, or a course) — listed in the
 **Leads** view, newest first, at most twelve open. Choosing a lead shows it beside the list; **Start the Lesson** creates a `[Learn] · <title>` conversation
-with the agent that was there, puts an info card with the lead on its canvas, opens the chat on Messages and sends
-the brief as your first message: open with why this matters to you, furnish the canvas with the outline as a list you
-can tick, ask before telling, one idea at a time, a cold quiz at the end. A lesson whose brief never arrived (the
+with the agent that was there, opens the chat on Messages and sends
+the brief as your first message: open with why this matters to you, give the outline, ask before telling, one idea at a time, a cold quiz at the end. A lesson whose brief never arrived (the
 conversation is still empty) is listed under **Lessons Under Way** with **Send the Brief**.
 **Not This** moves the lead to a dismissed pile the writer reads before proposing again. **Deleted** lists the deleted
 cards and the dismissed leads in two sections, each with **Restore** (and **Forget** for a card, which drops it from the
@@ -1588,7 +1564,7 @@ and the next says in a few words what it does (`// @description: Count open PRs`
 scripts may call are:
 
 - every agent's: its chat's history (`history_search`, `history_read`), its scheduled tasks (`schedule_create`,
-  `schedule_list`, `schedule_delete`), the canvas (`canvas_read`, `canvas_focus`) and the list of your agents and
+  `schedule_list`, `schedule_delete`) and the list of your agents and
   chats (`chat_list`);
 - an account owner's: the Google tools for the Google accounts it owns on this Mac, and the Slack, Jira and Flow reads
   for any account it owns.
@@ -1601,7 +1577,7 @@ with the same limits, asking and fencing, and runs it without Claude Code asking
 and a value one script stores is not kept for the next.
 
 1. **Asking.** A script asks by what it does, in the chat's permission mode. One that only reads (mail, Slack, Jira,
-   files, history, the canvas, schedules) runs without a card in standard mode; one that creates or cancels a
+   files, history, schedules) runs without a card in standard mode; one that creates or cancels a
    scheduled task asks. One that changes or sends something asks once, at its first such call:
    the card shows the script and that call, and your answer stands for the rest of the run, so moving forty files is
    one card. Declining refuses every change the script tries after. Strict mode asks for the script and for each call.
@@ -1770,7 +1746,7 @@ An agent on loki's own engine can delegate focused tasks to worker subagents usi
 - **Hybrid model selection.** Each `subagent` call accepts `model` (`"inherit"` by default, `"fast"`, `"strong"`, or an explicit `"provider/modelId"` handle) and `reasoning_effort`, so the parent can offload quick searches to a faster model or ask a stronger model for a fresh review.
 - **Read-only mode.** Passing `read_only: true` restricts a worker to read/search tools, read-only shell commands, web fetch/search, and `changes_read` (to inspect uncommitted git diffs or unpushed commits safely). It cannot combine with `workspace: "worktree"`.
 - **Background and worktree execution.** Workers can run in the background (`async: true`, checked via `subagent_status` / stopped via `subagent_stop`), work in an isolated git worktree (`workspace: "worktree"`), or continue a previous worker (`subagent_id`).
-- **Workers tab.** Once a chat starts a worker, the chat pane gains a **Workers** tab between **Messages** and **Canvas** (and a status strip in floating/phone headers). Selecting a worker pill opens its live transcript and message box so you can inspect or steer it directly; clicking a subagent completion event in the parent chat jumps straight to that worker. Reflection, Learn and the memory review leave worker chats alone; their usage counts under **Helpers**.
+- **Workers tab.** Once a chat starts a worker, the chat pane gains a **Workers** tab beside **Messages** (and a status strip in floating/phone headers). Selecting a worker pill opens its live transcript and message box so you can inspect or steer it directly; clicking a subagent completion event in the parent chat jumps straight to that worker. Reflection, Learn and the memory review leave worker chats alone; their usage counts under **Helpers**.
 
 ## MCP servers
 
@@ -1835,18 +1811,12 @@ lines; the agent sees its last part and the file's path.
 A server that cannot start, or stops, shows as down (with its last error output) in the list the agent sees, and is
 tried again.
 
-## Widget frame controls
-
-Each frame has three buttons: **focus** (front, centre, zoomed in), **minimise** (to the tray at the bottom-left; the file stays), and **trash** (deletes the file after a confirm). The agent hears about all three on your next turn.
-
 ## Environment variables
 
 `LOKI_DIR` (everything loki keeps, default `~/.loki`: for tests and a second loki), `LOKI_PORT` (the mod's socket,
-default 41414), `LOKI_LAN_PORT` (the phone listener, default 41415),
-`LOKI_WIDGETS_DIR` (default `~/.loki/widgets`), `LOKI_SKILLS_DIR` (the global skills, default `~/.agents/skills`),
-`LOKI_NODE_BIN` / `LOKI_TAILSCALE_BIN` (binaries), `LOKI_INSTALL=1` (make a dev build install its bundles and skill into `~/.loki` as a release does, instead of
-linking the checkout's skill; its daemon still runs the checkout), `LOKI_NO_INSTALL=1` (stop a release build from
-installing, and make a dev build link nothing and run the bundles already installed), `LOKI_KEYCHAIN=0` (secrets kept in memory for the daemon's life,
+default 41414), `LOKI_LAN_PORT` (the phone listener, default 41415), `LOKI_SKILLS_DIR` (the global skills, default `~/.agents/skills`),
+`LOKI_NODE_BIN` / `LOKI_TAILSCALE_BIN` (binaries), `LOKI_INSTALL=1` (make a dev build install its bundles into `~/.loki` as a release does; its daemon still runs the checkout), `LOKI_NO_INSTALL=1` (stop a release build from
+installing, and make a dev build run the bundles already installed), `LOKI_KEYCHAIN=0` (secrets kept in memory for the daemon's life,
 never the system keychain: for tests and scratch runs). A few move one folder or file on its own, mostly for tests:
 `LOKI_UPLOADS_DIR`, `LOKI_RECALL_DIR` and `LOKI_STATE_DIR`.
 `LOKI_UPDATE_URL` points the update check at another `desktop.json`, for trying an update by hand. On Linux the
@@ -1860,5 +1830,3 @@ Logs: `~/.loki/logs/daemon.log` (the daemon's output) and `~/.loki/mod.log`. Eac
 
 - No real money amounts of yours on screen, in the repo, or in recordings. Ever. The one exception is what your
   agents spent, on the usage page, and only when you open it; fixtures and screenshots of it use made-up numbers.
-- Widget code runs with the page's full trust. This is your machine and your agent; it is not a sandbox
-  (see [SECURITY.md](SECURITY.md)).

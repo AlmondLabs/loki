@@ -43,10 +43,7 @@ describe("the Settings window", () => {
     expect(read(APP, "shell", "views.tsx")).toContain("working: chatWorking(catchUp.items),");
   });
 
-  test("the chat layout, the system-wide key and the models follow the other window's storage", () => {
-    const layout = read(APP, "shell", "use-chat-layout.ts");
-    expect(layout).toContain("useStorageKey(CHAT_WIDTH_KEY,");
-    expect(layout).toContain("useStorageKey(CHAT_PLACEMENT_KEY,");
+  test("the system-wide key and the models follow the other window's storage", () => {
     expect(read(APP, "shell", "use-global-shortcut.ts")).toContain("useStorageKey(KEY,");
     expect(read(APP, "shell", "shell.tsx")).toContain("useStorageKey(MODELS_CHANGED_KEY, () => forgetModels());");
   });

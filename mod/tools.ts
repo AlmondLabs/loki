@@ -1,23 +1,12 @@
-import type { Scope } from "../core/canvas-core.ts";
-import { KIT, SHARED_SCOPE, mergeData, scopeFor } from "../core/canvas-core.ts";
 import type { ModApi, ModTool, ToolContext } from "../daemon/mods/api.ts";
-import type { CanvasStore } from "./canvas-store.ts";
-import type { WidgetsWatcher } from "./widgets-fs.ts";
-import { scopeOfId } from "../core/canvas-core.ts";
-import { log, withTimeout } from "./log.ts";
 import type { ChatSummary } from "../core/frame-types.ts";
 import { parseSuggestionTarget } from "../core/frames.ts";
 import type { Suggestions } from "./suggestions.ts";
 import { linkLines, type ChatMessages } from "./chat-links.ts";
 import { messageOf } from "../core/errors.ts";
+import { log } from "./log.ts";
 
 export interface ToolDeps {
-  store: CanvasStore;
-  widgets: WidgetsWatcher;
-  widgetsDir: string;
-  activeScope: () => Scope;
-  remember?: (conversationId: string, agentId?: string | null) => Scope;
-  broadcast(msg: object, scope?: Scope): void;
   chats?: ChatToolDeps;
 }
 
@@ -36,130 +25,13 @@ export interface ChatToolDeps {
   messages?: Pick<ChatMessages, "send" | "linksOf">;
 }
 
-export function scopeForCall(deps: ToolDeps, args?: Record<string, unknown>, ctx?: Pick<ToolContext, "chatId" | "agentId">): Scope {
-  const desk = args?.desk;
-  if (typeof desk === "string" && desk) return scopeFor(desk);
-  const conv = ctx?.chatId;
-  const agentId = ctx?.agentId || null;
-  if (conv) return deps.remember ? deps.remember(conv, agentId) : scopeFor(conv, agentId);
-  return deps.activeScope();
-}
-
-export function deskSnapshot(deps: ToolDeps, scope: Scope) {
-  const state = deps.store.get(scope);
-  return deps.widgets.entries(scope).map((w) => {
-    const l = Object.hasOwn(state.layout, w.id) ? state.layout[w.id] : undefined;
-    return {
-      id: w.id,
-      file: `${deps.widgetsDir}/${w.file}`,
-      kind: w.kind,
-      ...(w.type ? { type: w.type } : {}),
-      title: w.title,
-      data: mergeData(w.data, state.overlay[w.id]),
-      ...(l ? { position: l.position, ...(l.size ? { size: l.size } : {}), z: l.z, ...(l.hidden ? { minimised_by_user: true } : {}) } : {}),
-      ...(w.error ? { error: w.error } : {}),
-    };
-  });
-}
-
 const SCRIPTS_ONLY = ["tools"] as const;
 
 /** A tool argument as text: the model sends strings, and now and then a number; anything else is no text. */
 export const argText = (v: unknown): string => (typeof v === "string" ? v : typeof v === "number" || typeof v === "boolean" ? String(v) : "");
 
 export function registerTools(api: ModApi, deps: ToolDeps): Array<() => void> {
-  const kitLine = Object.entries(KIT)
-    .map(([t, k]) => `${t}: ${k.data_shape}`)
-    .join("; ");
-
-  const disposers: Array<() => void> = [];
-
-  disposers.push(
-    api.prompt.section(
-      "canvas",
-      () =>
-        "The canvas beside this chat shows widgets you make by writing files, never through a tool: " +
-        `${deps.widgetsDir}/<desk>/<name>.json for a kit widget ({ "type", "title", "data" }; kit types: ${kitLine}) ` +
-        `or <name>.tsx for a custom React component (export default function Widget({ data, onSet }); import kit pieces from "@loki/kit"). ` +
-        'The desk is this chat\'s canvas id, or "shared" for every chat. A file appears at once; read the canvas with canvas_read in a script to find your desk and confirm a widget mounted without error.',
-    ),
-  );
-
-  disposers.push(
-    api.tools.register({
-      name: "canvas_read",
-      annotations: { readOnly: true },
-      callers: SCRIPTS_ONLY,
-      outputSchema: { type: "object" },
-      description:
-        "Read the loki canvas (the user's widgets beside this chat). Returns the widgets on this conversation's canvas " +
-        "and on the shared canvas: file, type, title, data (with the user's gesture edits applied), position, and any " +
-        "build/runtime error, and each canvas's folder. The result is for the conversation you are in (pass `desk` to look at another).",
-      parameters: {
-        type: "object",
-        properties: {
-          desk: { type: "string", description: 'Canvas id (a conversation id); omit for the active conversation. "shared" for the shared canvas only.' },
-        },
-        additionalProperties: false,
-      },
-      async execute(args, ctx) {
-        log("tool:canvas_read:start", args);
-        await withTimeout(deps.widgets.rescan(), 2000, "canvas_read rescan", undefined);
-        const scope = scopeForCall(deps, args, ctx);
-        const out: Record<string, unknown> = {
-          desk: scope,
-          widgets_dir: `${deps.widgetsDir}/${scope}`,
-          widgets: deskSnapshot(deps, scope),
-        };
-        if (scope !== SHARED_SCOPE) {
-          out.shared_widgets_dir = `${deps.widgetsDir}/${SHARED_SCOPE}`;
-          out.shared = deskSnapshot(deps, SHARED_SCOPE);
-        }
-        log("tool:canvas_read:done", { desk: scope, widgets: (out.widgets as unknown[]).length });
-        return JSON.stringify(out, null, 2);
-      },
-    }),
-  );
-
-  disposers.push(
-    api.tools.register({
-      name: "canvas_focus",
-      annotations: { readOnly: true },
-      callers: SCRIPTS_ONLY,
-      description:
-        "Glide the user's canvas camera to one widget, or frame several together (eased zoom-to; the targets are " +
-        "highlighted for a few seconds). Use it to direct attention after writing a widget or when referring to " +
-        "widgets while you talk. Ignored while the user is mid-interaction.",
-      parameters: {
-        type: "object",
-        properties: {
-          widget_id: { type: "string", description: 'One widget id as returned by canvas_read, e.g. "shared/sleep"' },
-          widget_ids: { type: "array", items: { type: "string" }, description: "Several widget ids to fit in view together" },
-        },
-        additionalProperties: false,
-      },
-      execute(args) {
-        const ids = Array.isArray(args.widget_ids)
-          ? (args.widget_ids as unknown[]).filter((x): x is string => typeof x === "string")
-          : typeof args.widget_id === "string" && args.widget_id
-            ? [args.widget_id]
-            : [];
-        log("tool:canvas_focus", { ids });
-        if (ids.length === 0) throw new Error("give widget_id or widget_ids");
-        const missing = ids.filter((id) => !deps.widgets.get(id));
-        if (missing.length) throw new Error(`no widget ${missing.map((m) => `"${m}"`).join(", ")} — check canvas_read`);
-        const scopes = new Set(ids.map(scopeOfId));
-        const scope = scopes.size === 1 ? [...scopes][0] : SHARED_SCOPE;
-        deps.broadcast({ type: "camera", widget_id: ids[0], widget_ids: ids }, scope === SHARED_SCOPE ? undefined : scope);
-        return ids.length === 1 ? `camera gliding to "${ids[0]}" (suppressed if the user is mid-interaction)` : `camera framing ${ids.length} widgets`;
-      },
-    }),
-  );
-
-  const chats = deps.chats;
-  if (chats) disposers.push(...registerChatTools(api, chats));
-
-  return disposers;
+  return deps.chats ? registerChatTools(api, deps.chats) : [];
 }
 
 type OpenChat = ChatSummary & { conversation_id: string; agent_id: string };

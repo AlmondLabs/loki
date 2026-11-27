@@ -2,7 +2,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { readFileSync } from "node:fs";
 import { hostname, networkInterfaces } from "node:os";
 import { execFile, execFileSync } from "node:child_process";
-import type { Scope } from "../core/canvas-core.ts";
+import type { Scope } from "../core/chat-scope.ts";
 import type { DeviceStore } from "./devices.ts";
 import { TOO_MANY_WRONG_CODES, type CodeCheck, type PairingCodes } from "./pairing.ts";
 import { DEFAULT_LAN_PORT } from "./paths.ts";

@@ -89,7 +89,6 @@ describe("the chat row's menu", () => {
     model: null,
     reasoning_effort: null,
     pinned: false,
-    widgets: 0,
     active: false,
     last_active: "2026-11-13T10:00:00Z",
     ...over,

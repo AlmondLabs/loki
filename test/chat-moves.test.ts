@@ -1,11 +1,10 @@
 import { describe, expect, test } from "vitest";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { scopeFor } from "../core/canvas-core.ts";
 import { MOVE_OUT_OF_REACH } from "../core/frames.ts";
 import type { MovedChat } from "../daemon/chat-move.ts";
-import { ChatMoves, writeWidgets } from "../mod/chat-moves.ts";
+import { ChatMoves } from "../mod/chat-moves.ts";
 
 const BOOK = "aaaaaaaa-1111-4111-8111-111111111111";
 const MINI = "bbbbbbbb-2222-4222-8222-222222222222";
@@ -22,8 +21,6 @@ const moved = (id: string): MovedChat => ({
 
 function macs(busy = new Set<string>(), miniUp = true) {
   const dir = mkdtempSync(join(tmpdir(), "loki-chat-moves-"));
-  const bookWidgets = join(dir, "book-widgets");
-  const miniWidgets = join(dir, "mini-widgets");
   const onBook = new Set(["conv-1", "conv-2"]);
   const finished: string[] = [];
   const onMini = new Set<string>();
@@ -50,13 +47,12 @@ function macs(busy = new Set<string>(), miniUp = true) {
   });
   const names: Record<string, string> = { [BOOK]: "MacBook", [MINI]: "Mac mini" };
   const reach = { mini: miniUp };
-  const mac = (here: string, chats: Set<string>, widgetsDir: string, other: () => ChatMoves, otherChats: Set<string>, up: () => boolean, file?: string) =>
+  const mac = (here: string, chats: Set<string>, other: () => ChatMoves, otherChats: Set<string>, up: () => boolean, file?: string) =>
     new ChatMoves({
       here,
       chat: store(chats),
       link: (id) => (names[id] && up() ? (link(here, other, otherChats) as never) : null),
       ...(file ? { file } : {}),
-      widgetsDir,
       name: (id) => (id === null ? names[here] : (names[id] ?? null)),
       done: (id) => here === MINI && done.has(id),
       markDone: (id) => void done.add(id),
@@ -67,7 +63,6 @@ function macs(busy = new Set<string>(), miniUp = true) {
   let book: ChatMoves = mac(
     BOOK,
     onBook,
-    bookWidgets,
     () => mini,
     onMini,
     () => reach.mini,
@@ -76,15 +71,12 @@ function macs(busy = new Set<string>(), miniUp = true) {
   const mini: ChatMoves = mac(
     MINI,
     onMini,
-    miniWidgets,
     () => book,
     onBook,
     () => true,
   );
   return {
     dir,
-    bookWidgets,
-    miniWidgets,
     onBook,
     onMini,
     imported,
@@ -100,7 +92,6 @@ function macs(busy = new Set<string>(), miniUp = true) {
       (book = mac(
         BOOK,
         onBook,
-        bookWidgets,
         () => mini,
         onMini,
         () => reach.mini,
@@ -110,33 +101,13 @@ function macs(busy = new Set<string>(), miniUp = true) {
   };
 }
 
-describe("a moved canvas's files", () => {
-  test("one that would land outside its folder is skipped, a Windows path with backslashes too", () => {
-    const dir = mkdtempSync(join(tmpdir(), "loki-widgets-"));
-    try {
-      const canvas = join(dir, "canvas");
-      const data = Buffer.from("x").toString("base64");
-      writeWidgets(canvas, { "../out.tsx": data, "..\\out.tsx": data, "/abs.tsx": data, "ok/chart.tsx": data });
-      expect(readdirSync(canvas)).toEqual(["ok"]);
-      expect(readdirSync(dir)).toEqual(["canvas"]);
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  });
-});
-
 describe("taking an agent's chats over on first pairing", () => {
-  test("every idle chat moves once, with its canvas, and the old Mac lets each go only after it arrived", async () => {
+  test("every idle chat moves once, and the old Mac lets each go only after it arrived", async () => {
     const m = macs();
     try {
-      const scope = scopeFor("conv-1", "agent-ira");
-      mkdirSync(join(m.bookWidgets, scope), { recursive: true });
-      writeFileSync(join(m.bookWidgets, scope, "chart.tsx"), "export default 1");
       await m.mini.takeOver(BOOK);
       expect([...m.onMini]).toEqual(["conv-1", "conv-2"]);
       expect(m.finished).toEqual(["conv-1", "conv-2"]);
-      expect(readFileSync(join(m.miniWidgets, scope, "chart.tsx"), "utf8")).toBe("export default 1");
-      expect(existsSync(join(m.bookWidgets, scope))).toBe(false);
       expect(m.done.has(BOOK)).toBe(true);
       m.onBook.add("conv-3");
       await m.mini.takeOver(BOOK);

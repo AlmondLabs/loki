@@ -137,16 +137,13 @@ describe("the live thread", () => {
     expect(rowsOf(l.thread).at(-1)).toMatchObject({ role: "user", text: "from desktop" });
   });
 
-  test("the desk block and a loaded skill become event rows; the user's own words stay a user row", () => {
+  test("a loaded skill becomes an event row and harness desk markup is stripped; the user's own words stay a user row", () => {
     const l = emptyLive();
     push(l, user('build it\n\n<loki-desk desk="c">\n- moved "x" to (1, 2)\n</loki-desk>'));
-    expect(l.thread.rows()).toMatchObject([
-      { role: "event", text: "You moved 1 widget", summary: null, detail: 'moved "x" to (1, 2)', event: "canvas" },
-      { role: "user", text: "build it" },
-    ]);
+    expect(l.thread.rows()).toMatchObject([{ role: "user", text: "build it" }]);
     const r = push(l, user('<skill_content name="unslop">\n# Unslop\n</skill_content>'));
     expect(r).toEqual({ changed: true, userSpoke: false });
-    expect(rowsOf(l.thread)[2]).toMatchObject({ role: "event", text: "skill loaded", summary: "unslop", detail: "# Unslop" });
+    expect(rowsOf(l.thread)[1]).toMatchObject({ role: "event", text: "skill loaded", summary: "unslop", detail: "# Unslop" });
   });
 
   test("user, tool, event and settled assistant rows carry the time they arrived; the reply keeps the time it started", () => {
@@ -516,41 +513,40 @@ describe("a subagent completion row", () => {
 
 describe("rows from one message, placed by who they are for (plan 2026-11-24-1736, KTD2)", () => {
   const workerDone = `<task-notification>\n<kind>subagent</kind>\n<task-id>kestrel</task-id>\n<chat-id>c~subagent~kestrel</chat-id>\n<status>completed</status>\n<summary>Looks right.</summary>\n<result>Looks right.</result>\n</task-notification>`;
-  const gestures = '<loki-desk desk="c">\n- moved "A" (c/a) to (1, 2)\n</loki-desk>';
   const order = (rows: TranscriptRow[] | undefined) => (rows ?? []).map((r) => r.event ?? r.role);
 
-  test("your canvas gestures, then your words, then what the agent was told", () => {
+  test("your words, then what the agent was told", () => {
     const l = emptyLive();
-    push(l, user(`${workerDone}\n\nship it\n\n${gestures}`));
-    expect(order(l.thread.rows())).toEqual(["canvas", "user", "subagent"]);
+    push(l, user(`${workerDone}\n\nship it`));
+    expect(order(l.thread.rows())).toEqual(["user", "subagent"]);
   });
 
-  test("the echo of your own send puts the gestures before the words already shown, and the rest after", () => {
+  test("the echo of your own send keeps your words before what the agent was told", () => {
     const l = emptyLive();
     l.thread.own({ role: "user", text: "ship it" }, ownSendKey("ship it"));
-    push(l, user(`${workerDone}\n\nship it\n\n${gestures}`));
-    expect(order(l.thread.rows())).toEqual(["canvas", "user", "subagent"]);
+    push(l, user(`${workerDone}\n\nship it`));
+    expect(order(l.thread.rows())).toEqual(["user", "subagent"]);
     expect(rowsOf(l.thread).filter((r) => r.role === "user")).toHaveLength(1);
   });
 
-  test("an event-only message keeps gestures first, and a suggestion's chip comes before the words it was sent with", () => {
+  test("a suggestion's chip comes before the words it was sent with", () => {
     const l = emptyLive();
-    push(l, user(`${workerDone}\n\n${gestures}`));
-    expect(order(l.thread.rows())).toEqual(["canvas", "subagent"]);
+    push(l, user(workerDone));
+    expect(order(l.thread.rows())).toEqual(["subagent"]);
     const s = emptyLive();
     push(s, user(`${suggestedMark({ from_agent: "f", from_chat: "d", title: "T" })}\n\nship it\n\n${workerDone}`));
     expect(rowsOf(s.thread).map((r) => r.event ?? r.text)).toEqual(["suggested in another chat", "ship it", "subagent"]);
   });
 
-  test("an echo with no row shown for it (a queued send) places its rows around the words it adds", () => {
+  test("an echo with no row shown for it (a queued send) keeps the agent notification", () => {
     const l = emptyLive();
     l.thread.expectEcho(ownSendKey("ship it"));
-    push(l, user(`${workerDone}\n\nship it\n\n${gestures}`));
-    expect(order(l.thread.rows())).toEqual(["canvas", "subagent"]);
+    push(l, user(`${workerDone}\n\nship it`));
+    expect(order(l.thread.rows())).toEqual(["subagent"]);
   });
 
   test("history folds the same message to the same order", () => {
-    expect(order(foldSteps([user(`${workerDone}\n\nship it\n\n${gestures}`, at0)]))).toEqual(["canvas", "user", "subagent"]);
+    expect(order(foldSteps([user(`${workerDone}\n\nship it`, at0)]))).toEqual(["user", "subagent"]);
   });
 
   test("a command's row says it is one", () => {

@@ -16,41 +16,38 @@ import {
 } from "react";
 import { useHeightVar } from "../shared/use-height-var";
 import { lastInput, prefersReducedMotion } from "../kit/motion";
-import { IconButton, PaneHeader, type Tab } from "../components";
+import { PaneHeader, type Tab } from "../components";
 import { Icon } from "../shared/icons";
 import { draftKey, useDraft } from "../shared/drafts";
 import { dayLabel, unreadBoundary } from "../shared/thread";
 import { Conversation } from "../chat/conversation";
 import { OpenWorker, OpenChat, type MessageLayout, type TranscriptRow } from "../chat/transcript";
-import type { ChatPlacement, ChatWidth } from "../chat/chat-window";
 import type { ModelEntry } from "../chat/model-picker";
-import { keyFor, registerActions, runAction, specFor } from "../shell/keymap";
-import { popUpMenu, under, NATIVE_MENUS, type MenuEntry } from "../shell/native-menu";
-import { DrawnMenu } from "../shell/menu-items";
+import { keyFor, registerActions } from "../shell/keymap";
 import { useThreadRows, type useAttention } from "../../../core/attention/use-attention.ts";
 import { AgentFace } from "./agent-chip";
 import { avatarUrl } from "./env";
-import { Surface } from "./surface";
 import type { useWorkspace } from "./use-workspace";
 import { useWorkspaceChat } from "./use-workspace-chat";
 import { readCachedThread, writeCachedThread } from "./boot-cache";
 import { deskConversation, saveLabels, type DeskConversationHandlers } from "./workspace-conversation";
 import { LabelChips, LabelsDialog } from "../chat/labels";
-import { useInlineWidgets } from "../chat/use-inline-widgets";
 import { doneAction } from "../shell/sidebar-model";
 import { useViewed } from "../shared/use-viewed";
 import { keyOf, type AttentionItem } from "../../../core/attention/model.ts";
 import { ToolbarGroup, ToolbarTitle } from "../item/toolbar";
-import { ArchiveIcon, LayoutGridIcon, MailOpenIcon, Maximize2Icon, PanelRightIcon, TagIcon, type LucideIcon } from "lucide-react";
+import { ArchiveIcon, MailOpenIcon, TagIcon } from "lucide-react";
 import { chatItem } from "../item/item-view";
-import { EMPTY_ROUTE, agentState, paneView, routeTick, tickFor, type CanvasTab, type FrameRequest, type PaneView, type TickRoute } from "./pane";
-import { isMainChat } from "../../../core/canvas-core.ts";
+import { EMPTY_ROUTE, agentState, paneView, routeTick, tickFor, type CanvasTab, type PaneView, type TickRoute } from "./pane";
+import { isMainChat } from "../../../core/chat-scope.ts";
 
-export const paneTabs = (subagents: readonly SubagentView[] | null | undefined): ReadonlyArray<Tab<CanvasTab>> => [
-  { id: "messages", label: "Messages" },
-  ...(subagents && subagents.length > 0 ? [{ id: "workers" as const, label: "Workers", count: subagents.length, status: workersTabStatus(subagents) }] : []),
-  { id: "canvas", label: "Canvas" },
-];
+export const paneTabs = (subagents: readonly SubagentView[] | null | undefined): ReadonlyArray<Tab<CanvasTab>> =>
+  subagents && subagents.length > 0
+    ? [
+        { id: "messages", label: "Messages" },
+        { id: "workers", label: "Workers", count: subagents.length, status: workersTabStatus(subagents) },
+      ]
+    : [];
 const panelId = (t: CanvasTab) => `loki-desk-panel-${t}`;
 const NO_ROWS: TranscriptRow[] = [];
 const NO_SUBAGENTS: SubagentView[] = [];
@@ -63,11 +60,6 @@ export interface DeskPaneProps extends DeskConversationHandlers {
   onTab: (t: CanvasTab) => void;
   selectedWorker?: string | null;
   onSelectWorker?: (chatId: string) => void;
-  chatOpen: boolean;
-  onChatOpen: (open: boolean) => void;
-  chatWidth: ChatWidth;
-  onChatWidth: (w: ChatWidth) => void;
-  chatPlacement: ChatPlacement;
   focusChat: number;
   findChat: number;
   decideChat: { n: number; behavior: "allow" | "deny" };
@@ -76,8 +68,6 @@ export interface DeskPaneProps extends DeskConversationHandlers {
   suggestionsTick: number;
   chatPrefill: { text: string; tick: number } | null;
   models: ModelEntry[] | null;
-  frameRequest: FrameRequest | null;
-  onFrameWidget?: (widgetId: string) => void;
   onShowLabel?: (name: string) => void;
   onOpenChat: (agentId: string, conversationId: string) => void;
 }
@@ -90,12 +80,12 @@ function useRouted(value: number, visible: PaneView | null, chat: string): TickR
 }
 
 export function CanvasPane(props: DeskPaneProps) {
-  const { desk, catchUp, active, tab, onTab, chatOpen, models, onSelectWorker } = props;
+  const { desk, catchUp, active, tab, onTab, models, onSelectWorker } = props;
   const { scope, title, agentName, agentId, conversationId, attention } = desk;
   const visible = paneView(active, tab);
   const onMessages = visible === "messages";
 
-  const chat = useWorkspaceChat({ agentId, conversationId, showing: active || chatOpen, catchUp });
+  const chat = useWorkspaceChat({ agentId, conversationId, showing: active, catchUp });
   const key = agentId && conversationId ? draftKey(agentId, conversationId) : null;
   const [draftValue, setDraft] = useDraft(key);
   const draft = useMemo(() => (key ? { value: draftValue, onChange: setDraft } : undefined), [key, draftValue, setDraft]);
@@ -109,8 +99,6 @@ export function CanvasPane(props: DeskPaneProps) {
   const prefillFor = (v: PaneView) => (props.chatPrefill && tickFor(prefill, v) ? props.chatPrefill : null);
 
   const [labeling, setLabeling] = useState(false);
-  const [deskMounted, setDeskMounted] = useState(tab === "canvas");
-  if (tab === "canvas" && !deskMounted) setDeskMounted(true);
   const openWorker = useCallback(
     (workerChat?: string) => {
       if (workerChat) onSelectWorker?.(workerChat);
@@ -137,16 +125,9 @@ export function CanvasPane(props: DeskPaneProps) {
     () => ({ assistant: { name: agentName ?? "agent", avatar: agentId ? avatarUrl(agentId) : null }, user: { name: "You" } }),
     [agentName, agentId],
   );
-  const looking = visible === "messages" || (visible === "inset" && chatOpen);
+  const looking = visible === "messages";
   const heldLook = useViewed(agentId && conversationId ? keyOf(agentId, conversationId) : null, item, looking, attention.markViewed);
   useDoneKey(active, item, catchUp);
-  const { onFrameWidget } = props;
-  const frameWidget = onFrameWidget
-    ? (widgetId: string) => {
-        if (desk.closed.some((w) => w.id === widgetId)) desk.gesture({ kind: "open", id: widgetId });
-        onFrameWidget(widgetId);
-      }
-    : undefined;
 
   const paneRef = useRef<HTMLDivElement>(null);
   const header = useCallback(() => paneRef.current?.querySelector<HTMLElement>(":scope > .loki-pane-header") ?? null, []);
@@ -165,25 +146,22 @@ export function CanvasPane(props: DeskPaneProps) {
   const toolbar = itemView && item;
   const itemLine = toolbar ? <ToolbarTitle title={itemView.header.title} facts={itemView.header.properties} extra={links} titleAs="h1" /> : undefined;
   const toolbarItems = toolbar ? (
-    <>
-      {tab === "canvas" && <DeskActions />}
-      <ToolbarGroup
-        label="Chat actions"
-        moves={[
-          ...(runtime ? [{ label: "Label", icon: <TagIcon aria-hidden />, title: "Label (/label)", run: () => setLabeling(true) }] : []),
-          ...(item.unread
-            ? [{ label: "Mark as Read", icon: <MailOpenIcon aria-hidden />, title: `Mark as Read (${keyFor(DONE)})`, run: () => markDone(catchUp, item) }]
-            : []),
-          {
-            label: "Archive",
-            icon: <ArchiveIcon aria-hidden />,
-            title: isMainChat(item.id) ? "A main chat cannot be archived" : "Archive",
-            disabled: isMainChat(item.id),
-            run: () => void catchUp.archive(item, "click"),
-          },
-        ]}
-      />
-    </>
+    <ToolbarGroup
+      label="Chat actions"
+      moves={[
+        ...(runtime ? [{ label: "Label", icon: <TagIcon aria-hidden />, title: "Label (/label)", run: () => setLabeling(true) }] : []),
+        ...(item.unread
+          ? [{ label: "Mark as Read", icon: <MailOpenIcon aria-hidden />, title: `Mark as Read (${keyFor(DONE)})`, run: () => markDone(catchUp, item) }]
+          : []),
+        {
+          label: "Archive",
+          icon: <ArchiveIcon aria-hidden />,
+          title: isMainChat(item.id) ? "A main chat cannot be archived" : "Archive",
+          disabled: isMainChat(item.id),
+          run: () => void catchUp.archive(item, "click"),
+        },
+      ]}
+    />
   ) : undefined;
 
   const subagents = view.subagents ?? NO_SUBAGENTS;
@@ -215,7 +193,6 @@ export function CanvasPane(props: DeskPaneProps) {
               {links}
             </span>
           }
-          actions={tab === "canvas" ? <DeskActions /> : undefined}
           line={itemLine}
           trailing={toolbarItems}
           tabs={paneTabs(subagents)}
@@ -242,8 +219,6 @@ export function CanvasPane(props: DeskPaneProps) {
                 item={item}
                 heldLook={heldLook}
                 people={people}
-                onFrameWidget={frameWidget}
-                onShowCanvas={() => onTab("canvas")}
                 view={view}
                 actions={actions}
                 models={models}
@@ -289,29 +264,6 @@ export function CanvasPane(props: DeskPaneProps) {
                 )}
               </div>
             )}
-            <div
-              id={panelId("canvas")}
-              role="tabpanel"
-              aria-label="Canvas"
-              className="loki-canvas-pane-panel"
-              style={{ visibility: tab === "canvas" ? "inherit" : "hidden" }}
-              aria-hidden={tab !== "canvas"}
-            >
-              {deskMounted && (
-                <Surface
-                  {...props}
-                  chat={chat}
-                  active={visible === "inset"}
-                  draft={draft}
-                  focusChat={tickFor(focus, "inset")}
-                  findChat={tickFor(find, "inset")}
-                  modelPickerTick={tickFor(model, "inset")}
-                  modeMenuTick={tickFor(mode, "inset")}
-                  suggestionsTick={tickFor(suggest, "inset")}
-                  chatPrefill={prefillFor("inset")}
-                />
-              )}
-            </div>
           </div>
         </OpenChat.Provider>
         {labeling && runtime && (
@@ -334,8 +286,6 @@ function DeskMessages({
   item,
   heldLook,
   people,
-  onFrameWidget,
-  onShowCanvas,
   view,
   ...conversation
 }: Omit<ComponentProps<typeof Conversation>, "layout" | "agentName"> & {
@@ -344,8 +294,6 @@ function DeskMessages({
   item: AttentionItem | null;
   heldLook: string | null;
   people: MessageLayout["people"];
-  onFrameWidget: ((widgetId: string) => void) | undefined;
-  onShowCanvas: () => void;
 }) {
   const { agentId, conversationId, agentName } = desk;
   const liveRows = useThreadRows(catchUp, agentId, conversationId);
@@ -359,8 +307,7 @@ function DeskMessages({
   }, [liveRows, agentId, conversationId]);
   const list = rows ?? NO_ROWS;
   const dividerAt = unreadBoundary(list, item?.unread ?? false, item?.seenAt, heldLook);
-  const { widgets, inline } = useInlineWidgets(desk, desk.scope, list, agentName, { onOpen: onFrameWidget });
-  const layout = { people, dividerAt, dividerDay: dayLabel(item?.last_message_at), widgets, inline, onFrameWidget, onShowCanvas };
+  const layout = { people, dividerAt, dividerDay: dayLabel(item?.last_message_at) };
   return (
     <Conversation
       {...conversation}
@@ -372,7 +319,7 @@ function DeskMessages({
   );
 }
 
-const TAB_OF: Record<PaneView, CanvasTab> = { messages: "messages", workers: "workers", inset: "canvas" };
+const TAB_OF: Record<PaneView, CanvasTab> = { messages: "messages", workers: "workers" };
 
 function useTabFocus(visible: PaneView | null, root: RefObject<HTMLDivElement | null>, last: RefObject<HTMLElement | null>) {
   const prev = useRef(visible);
@@ -410,46 +357,6 @@ function useDoneKey(active: boolean, item: AttentionItem | null, catchUp: Return
     if (!active) return;
     return registerActions({ [DONE]: () => markDone(ref.current.catchUp, ref.current.item) });
   }, [active]);
-}
-
-function DeskActions() {
-  const [menuOpen, setMenuOpen] = useState(false);
-  const native = NATIVE_MENUS;
-  const action = (id: string, label: string, icon: LucideIcon): MenuEntry => ({ type: "item", id, label, icon, keys: specFor(id), run: () => runAction(id) });
-  const entries: MenuEntry[] = [
-    action("canvas.arrange", "Arrange Widgets", LayoutGridIcon),
-    action("view.fit", "Fit All Widgets", Maximize2Icon),
-    { type: "separator" },
-    action("chat.toggle", "Show / Hide Chat", PanelRightIcon),
-  ];
-  if (native)
-    return (
-      <span className="loki-canvas-pane-menu-anchor">
-        <IconButton
-          size={28}
-          label="More Chat Actions"
-          aria-haspopup="menu"
-          onClick={(e) => void popUpMenu(entries, under(e.currentTarget)).catch((err: unknown) => console.warn("loki: pane menu", err))}
-        >
-          <Icon name="more" size={16} />
-        </IconButton>
-      </span>
-    );
-  return (
-    <span className="loki-canvas-pane-menu-anchor">
-      <DrawnMenu
-        label="Chat actions"
-        entries={entries}
-        open={menuOpen}
-        onOpenChange={setMenuOpen}
-        trigger={
-          <IconButton size={28} label="More Chat Actions">
-            <Icon name="more" size={16} />
-          </IconButton>
-        }
-      />
-    </span>
-  );
 }
 
 function useSwitchFade(paneRef: RefObject<HTMLDivElement | null>, scope: string) {

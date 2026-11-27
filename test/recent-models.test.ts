@@ -5,8 +5,6 @@ import { join } from "node:path";
 import { addRecentModel, readRecentModels, RECENT_MODELS_MAX } from "../mod/models.ts";
 import { bridgeOf } from "./fixtures/frames.ts";
 import { PHONE_FRAMES } from "../core/frames.ts";
-import { CanvasStore } from "../mod/canvas-store.ts";
-import type { WidgetsWatcher } from "../mod/widgets-fs.ts";
 import type { Client } from "../mod/server.ts";
 
 const file = () => join(mkdtempSync(join(tmpdir(), "loki-models-")), "state", "recent-models.json");
@@ -31,7 +29,6 @@ describe("recent models (mod/models.ts)", () => {
 });
 
 describe("recent models over the bridge", () => {
-  const widgets = { entries: () => [], list: () => [], onChange: () => () => {} } as unknown as WidgetsWatcher;
   const client = (deviceId?: string): Client & { sent: Array<Record<string, unknown>> } => {
     const sent: Array<Record<string, unknown>> = [];
     return { scope: "shared", sent, send: (m) => sent.push(m as Record<string, unknown>), ...(deviceId ? { deviceId } : {}) };
@@ -41,8 +38,6 @@ describe("recent models over the bridge", () => {
     let recent = ["anthropic/opus"];
     const broadcasts: Array<Record<string, unknown>> = [];
     const bridge = bridgeOf({
-      store: new CanvasStore(),
-      widgets,
       broadcast: (m) => broadcasts.push(m as Record<string, unknown>),
       listChats: () => [],
       recentModels: { read: () => recent, add: (h) => (recent = [h, ...recent.filter((x) => x !== h)]) },

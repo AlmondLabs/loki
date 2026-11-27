@@ -1,4 +1,3 @@
-import { HeroCanvas } from "./hero-canvas";
 import { FlowDemo } from "./flow-demo";
 import { LearnDemo } from "./learn-demo";
 import { PhoneDemo } from "./phone-demo";
@@ -24,7 +23,7 @@ const FACTS = [
   },
   {
     title: "On your own computer",
-    text: "loki runs your agents in its own daemon on your machine. Chats, canvases and cards are files in your home folder.",
+    text: "loki runs your agents in its own daemon on your machine. Chats, memory and cards are files in your home folder.",
   },
   {
     title: "Open source",
@@ -41,7 +40,6 @@ export function Site() {
           loki
         </a>
         <nav aria-label="sections">
-          <a href="#canvas">canvas</a>
           <a href="#flow">flow</a>
           <a href="#suggestions">suggestions</a>
           <a href="#phone">phone</a>
@@ -54,14 +52,13 @@ export function Site() {
       </header>
 
       <main id="top">
-        <section className="site-hero" id="canvas">
+        <section className="site-hero">
           <div className="site-hero-text">
             <p className="site-eyebrow">for the AI agents you run on your own Mac</p>
             <h1>A memory palace your agent builds.</h1>
             <p className="site-lede">
-              Agents talk in text. loki gives yours a canvas: ask for a plan, a checklist, a chart or a slider, and the agent writes a small file that a second
-              later is a live widget you can drag, tick and slide. What you did rides along on your next message, so the agent sees the canvas the way you left
-              it.
+              Run multiple AI agents at once on your own machine: one flow for everything waiting on you, cross-chat suggestions, git-backed memory, your phone
+              as a remote, and recall cards built from your chats.
             </p>
             <Install />
             <div className="site-actions">
@@ -71,7 +68,6 @@ export function Site() {
             </div>
             <p className="site-fine">Free and open source under Apache-2.0. Windows and Linux in preview.</p>
           </div>
-          <HeroCanvas />
         </section>
 
         <section className="site-section" id="flow">
@@ -172,7 +168,7 @@ export function Site() {
         </section>
 
         <section className="site-cta">
-          <h2>Give your agents a canvas</h2>
+          <h2>Run your agents on your own Mac</h2>
           <p className="site-lede">Free, open source, and running on your own Mac in a few minutes.</p>
           <Install />
           <div className="site-actions">

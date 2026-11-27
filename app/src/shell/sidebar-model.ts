@@ -1,7 +1,7 @@
 import { unviewed, type AttentionItem } from "../../../core/attention/model.ts";
 import type { ChatSummary, MacIdentity } from "../../../core/frame-types.ts";
 import { labelQuery } from "../../../core/labels.ts";
-import { isMainChat } from "../../../core/canvas-core.ts";
+import { isMainChat } from "../../../core/chat-scope.ts";
 
 export type MarkKind = "waits" | "failed" | "finished" | "running" | "archived" | "deleted" | "none";
 

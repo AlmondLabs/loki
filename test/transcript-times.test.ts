@@ -145,36 +145,6 @@ describe("Transcript draws the times in the message layout only", () => {
     expect(html).toContain("loki-msg-divider-new");
   });
 
-  test("a widget row sits under its own day's pill, and a day with only widget rows gets one", () => {
-    const late = new Date(today);
-    late.setDate(late.getDate() - 1);
-    late.setHours(23, 50, 0, 0);
-    const early = new Date(today);
-    early.setHours(0, 10, 0, 0);
-    const mark = (id: string, at: Date, before: number) => ({
-      id,
-      before,
-      at: at.toISOString(),
-      who: "ira",
-      change: "added" as const,
-      title: `w-${id}`,
-      widgetId: `d/${id}`,
-      gone: false,
-    });
-    const timed: TranscriptRow[] = [
-      { role: "user", text: "old", at: yesterday.toISOString() },
-      { role: "assistant", text: "morning", at: early.toISOString() },
-    ];
-    const html = renderToStaticMarkup(createElement(Transcript, { rows: timed, people, widgets: [mark("late", late, 1)] }));
-    const at = (s: string) => html.indexOf(s);
-    expect(at(">Yesterday</span>")).toBeLessThan(at("w-late"));
-    expect(at("w-late")).toBeLessThan(at(">Today</span>"));
-    expect(at(">Today</span>")).toBeLessThan(at("morning"));
-    const only = renderToStaticMarkup(createElement(Transcript, { rows: timed.slice(0, 1), people, widgets: [mark("now", today, 1)] }));
-    expect(only.match(/class="loki-msg-day-pill"/g)?.length).toBe(2);
-    expect(only.indexOf(">Today</span>")).toBeLessThan(only.indexOf("w-now"));
-  });
-
   test("untimed rows keep today's look: no pills, no times, the New line's own day", () => {
     const bare = rows.map(({ at: _at, ...r }) => r);
     const html = renderToStaticMarkup(createElement(Transcript, { rows: bare, people, dividerAt: 2, dividerDay: "Today" }));

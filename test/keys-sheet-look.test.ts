@@ -20,7 +20,7 @@ describe("the keys sheet", () => {
 
   test("starts every row with a capital, and puts no key or closing hint on its faces", () => {
     const out = html(sheet());
-    expect(out).toContain("Back to Messages from the Canvas or Workers tab");
+    expect(out).toContain("Back to Messages from the Workers tab");
     expect(out).toContain("Not while typing");
     expect(out).not.toContain("? or esc closes");
     expect(out).toMatch(/<button[^>]*title="Open Keys \([^)]+\)"[^>]*>Open<\/button>/);

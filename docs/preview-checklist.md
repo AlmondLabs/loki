@@ -28,7 +28,7 @@ install line ([the manual's Install section](manual.md#install)); the files on t
 
 ## First run
 
-1. **A first launch.** loki puts its daemon, its mod and the phone's canvas under `~/.loki`, and Welcome shows
+1. **A first launch.** loki puts its daemon, its mod and the web app build under `~/.loki`, and Welcome shows
    "Getting loki ready" while it checks for Node 22.19 or newer (offering **Install Node** when there is none) and,
    on Windows when git or Git Bash is missing, downloads PortableGit with a progress bar. Then it asks for a model provider (a key, or a
    sign-in in the browser), then for a first agent, and you land on its main chat. Preferences › About shows what

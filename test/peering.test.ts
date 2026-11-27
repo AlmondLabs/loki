@@ -36,7 +36,7 @@ function mac(opts: { tailnet?: TailnetDevice[]; desks?: ChatSummary[]; inbox?: F
     tailscale: { devices: () => opts.tailnet ?? [] },
     broadcast: (msg) => pushed.push({ ...msg, to: "everyone" }),
     local: { chats: () => opts.desks ?? [], flow: () => opts.inbox ?? [] },
-    dirs: { peers: join(dir, "peers.json"), state: dir, data: dir, widgets: join(dir, "widgets"), uploads: join(dir, "uploads") },
+    dirs: { peers: join(dir, "peers.json"), state: dir, data: dir, uploads: join(dir, "uploads") },
   });
   return { peering, pushed, needed, done: () => (peering.stop(), rmSync(dir, { recursive: true, force: true })) };
 }

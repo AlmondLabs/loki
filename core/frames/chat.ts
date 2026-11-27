@@ -90,7 +90,7 @@ const suggestionRef = (m: Raw): { agent_id: string; conversation_id: string; sug
 export const chatFrames = {
   history_get: request(
     "history",
-    "up to `limit` rows of a chat's log before position `before` (its newest without), where they start, whether older ones remain, and its desk's widget log",
+    "up to `limit` rows of a chat's log before position `before` (its newest without), where they start, and whether older ones remain",
     (m: Raw) =>
       str(m.conversation_id)
         ? {

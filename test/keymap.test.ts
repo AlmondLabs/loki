@@ -179,7 +179,7 @@ describe("keymap: resolution", () => {
     expect(resolve(ev("d", { meta: true, shift: true }, true), "flow")?.id).toBe("flow.deny");
     expect(resolve(ev("Backspace", { meta: true }, true), "flow")).toBeNull();
     expect(resolve(ev("ArrowLeft", { meta: true }, true), "chats")).toBeNull();
-    expect(resolve(ev("ArrowLeft", { meta: true, alt: true }, true), "chats")?.id).toBe("chat.left");
+    expect(resolve(ev("[", { meta: true }, true), "chats")?.id).toBe("chat.prev");
   });
   test("? opens the cheat sheet anywhere, never from inside a text box", () => {
     expect(resolve(ev("?", { shift: true }), "agents")?.id).toBe("keys.sheet");
@@ -429,48 +429,6 @@ describe("keymap: each system's keys (plan 014 U2)", () => {
       expect(used.filter(({ k }) => RESERVED[os].includes(k))).toEqual([]);
       expect(used.filter(({ k }) => k.split("+").includes("alt") && k.split("+").includes("cmd"))).toEqual([]);
     }
-  });
-  test("Move Chat Left / Right: ⌥⌘← → on the Mac, Ctrl Shift [ ] on Windows and Linux, each matching only on its own system", () => {
-    const left = bindingOf("chat.left");
-    const right = bindingOf("chat.right");
-    expect(keysOf(left, "macos")).toEqual(["cmd+left", "alt+cmd+left"]);
-    for (const os of PC) {
-      expect(keysOf(left, os)).toEqual(["cmd+left", "cmd+shift+["]);
-      expect(keysOf(right, os)).toEqual(["cmd+right", "cmd+shift+]"]);
-    }
-    expect(resolve(ev("{", { ctrl: true, shift: true }, true), "chats", "windows")?.id).toBe("chat.left");
-    expect(resolve(ev("}", { ctrl: true, shift: true }, true), "chats", "linux")?.id).toBe("chat.right");
-    expect(resolve(ev("[", { ctrl: true, shift: true }, true), "chats", "linux")?.id).toBe("chat.left");
-    expect(resolve(ev("ArrowLeft", { ctrl: true, alt: true }, true), "chats", "windows")).toBeNull();
-    expect(resolve(ev("ArrowLeft", { ctrl: true, alt: true }, true), "chats", "linux")).toBeNull();
-    expect(resolve(ev("ArrowLeft", { ctrl: true }, true), "chats", "windows")).toBeNull();
-    expect(resolve(ev("ArrowLeft", { ctrl: true }), "chats", "windows")?.id).toBe("chat.left");
-    expect(resolve(ev("ArrowLeft", { meta: true, alt: true }, true), "chats", "macos")?.id).toBe("chat.left");
-    expect(resolve(ev("{", { meta: true, shift: true }, true), "chats", "macos")).toBeNull();
-    expect(chordIds(ev("{", { ctrl: true, shift: true }), KEYMAP, "windows")).toEqual(["chat.left"]);
-    expect(resolve(ev("[", { ctrl: true }), "chats", "windows")?.id).toBe("chat.prev");
-    const rows = must(
-      keysFor("chats", KEYMAP, "windows").find((g) => g.where === "chats"),
-      "the desk group",
-    ).rows;
-    expect(
-      must(
-        rows.find((b) => b.id === "chat.left"),
-        "the chat.left row",
-      ).keys.map((k) => formatKeys(k, "windows")),
-    ).toEqual(["Ctrl ←", "Ctrl Shift ["]);
-    expect(
-      must(
-        keyRows("linux").find((b) => b.id === "chat.right"),
-        "the chat.right row",
-      ).keys,
-    ).toEqual(["cmd+right", "cmd+shift+]"]);
-    expect(
-      must(
-        keyRows("macos").find((b) => b.id === "chat.right"),
-        "the chat.right row",
-      ).keys,
-    ).toEqual(["cmd+right", "alt+cmd+right"]);
   });
   test("the system-wide key is the Mac's alone: none on Windows or Linux, and Preferences › keys leaves it out there", () => {
     const g = bindingOf("global.inbox");

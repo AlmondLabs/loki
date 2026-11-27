@@ -10,7 +10,7 @@ People who run personal AI agents on their own computer, mostly a Mac, and want 
 
 ## Product Purpose
 
-Loki gives each agent conversation a chat with a persistent canvas of live widgets, gathers work that needs the user into an inbox, and keeps the agent aware of changes made on the canvas. Success means the user can understand and act on their agents' work without reconstructing it from terminal transcripts.
+Loki gives each agent conversation a clean chat with messages and workers, gathers work that needs the user into an inbox, and keeps agent memory in plain git-backed files. Success means the user can understand and act on their agents' work without reconstructing it from terminal transcripts.
 
 ## Brand Personality
 
@@ -18,7 +18,7 @@ Quiet, precise, and personal. loki is designed to Apple's Human Interface Guidel
 
 ## Anti-references
 
-Avoid borrowing another product's identity (loki wore Slack's look until 2026-11-14), generic dark SaaS dashboards, decorative control-room chrome, glass on content (glass is only for what floats and steers: the sidebar, toolbars, menus, sheets, decisions and the composer), ornamental accent colour, and visual structure that does not carry information. Do not make the canvas look like a metrics dashboard or turn agent activity into spectacle.
+Avoid borrowing another product's identity (loki wore Slack's look until 2026-11-14), generic dark SaaS dashboards, decorative control-room chrome, glass on content (glass is only for what floats and steers: the sidebar, toolbars, menus, sheets, decisions and the composer), ornamental accent colour, and visual structure that does not carry information. Do not turn agent activity into spectacle.
 
 ## Design Principles
 

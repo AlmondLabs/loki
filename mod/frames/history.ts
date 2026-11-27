@@ -1,4 +1,3 @@
-import type { WidgetLogEntry } from "../../core/canvas-core.ts";
 import { leanPage, type TranscriptRow } from "../../core/attention/transcript.ts";
 import type { FlowRow } from "../../core/frame-types.ts";
 import { HISTORY_MAX, HISTORY_PAGE } from "../chats.ts";
@@ -13,7 +12,6 @@ export interface HistoryDeps {
     before: number | null,
   ) => { rows: TranscriptRow[]; more: boolean; start: number };
   row?: (agentId: string | null, conversationId: string, row: number) => TranscriptRow | null;
-  widgetLog?: (agentId: string | null, conversationId: string) => WidgetLogEntry[];
   listFlow?: () => FlowRow[];
 }
 
@@ -29,7 +27,6 @@ export function historyFrames(deps: HistoryDeps): FrameHandlers {
           messages: leanPage(page.rows, page.start),
           more: page.more,
           start: page.start,
-          widget_log: deps.widgetLog?.(agentId, conversationId) ?? [],
         });
       };
       const wait = deps.ensureTranscript?.(agentId, conversationId);

@@ -1,5 +1,5 @@
-import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { messageOf } from "../core/errors.ts";
 
 export const MANAGED_MARKER = ".managed-by-loki";
@@ -11,17 +11,13 @@ export type InstallState = "installed" | "updated" | "current" | "custom" | "ski
 export interface InstallReport {
   mod: InstallState;
   mod_path: string;
-  skill: InstallState;
-  skill_path: string;
   app: InstallState;
   app_path: string;
   error: string | null;
 }
 
-export const skillDir = (home: string): string => join(home, ".agents", "skills", "loki");
-
-export function skippedReport(home: string): InstallReport {
-  return { mod: "skipped", mod_path: "", skill: "skipped", skill_path: skillDir(home), app: "skipped", app_path: "", error: null };
+export function skippedReport(): InstallReport {
+  return { mod: "skipped", mod_path: "", app: "skipped", app_path: "", error: null };
 }
 
 const isFile = (path: string) => {
@@ -54,8 +50,8 @@ export function linkDir(target: string, dst: string): void {
   symlinkSync(target, dst, "junction");
 }
 
-export function linkCheckout(checkout: string, home: string): InstallReport {
-  const report = skippedReport(home);
+export function linkCheckout(checkout: string): InstallReport {
+  const report = skippedReport();
   const entry = join(checkout, "daemon", "main.ts");
   report.mod_path = entry;
   if (!isFile(entry)) {
@@ -64,27 +60,6 @@ export function linkCheckout(checkout: string, home: string): InstallReport {
     return report;
   }
   report.mod = "linked";
-  const skills = join(checkout, "skills", "loki");
-  const dst = skillDir(home);
-  const stat = linkStat(dst);
-  if (stat?.isSymbolicLink()) {
-    let target = "";
-    try {
-      target = resolve(dirname(dst), readlinkSync(dst));
-    } catch {}
-    report.skill = target === skills || sameDir(dst, skills) ? "linked" : "custom";
-  } else if (stat) {
-    report.skill = existsSync(join(dst, MANAGED_MARKER)) ? "skipped" : "custom";
-  } else {
-    try {
-      mkdirSync(dirname(dst), { recursive: true });
-      linkDir(skills, dst);
-      report.skill = "linked";
-    } catch (error) {
-      report.error = joinErrors(report.error, `could not link ${dst}: ${messageOf(error)}`);
-      report.skill = "error";
-    }
-  }
   return report;
 }
 
@@ -134,35 +109,6 @@ function installDaemon(resources: string, dataDir: string): { state: InstallStat
     }
   }
   return { state, path: join(dataDir, "daemon", "daemon.mjs") };
-}
-
-function installSkill(resources: string, home: string): { state: InstallState; path: string } {
-  const src = join(resources, "skills", "loki");
-  const dst = skillDir(home);
-  const stat = linkStat(dst);
-  if (stat && (stat.isSymbolicLink() || !existsSync(join(dst, MANAGED_MARKER)))) return { state: "custom", path: dst };
-  const fresh = stat === null;
-  let state: InstallState = fresh ? "installed" : "current";
-  let entries;
-  try {
-    entries = readdirSync(src, { withFileTypes: true });
-  } catch (error) {
-    throw new Error(`bundled skill unreadable: ${messageOf(error)}`, { cause: error });
-  }
-  for (const entry of entries) {
-    if (!entry.isFile()) continue;
-    const bytes = readFileSync(join(src, entry.name));
-    let written;
-    try {
-      written = writeIfChanged(join(dst, entry.name), bytes);
-    } catch (error) {
-      throw new Error(`could not write skill: ${messageOf(error)}`, { cause: error });
-    }
-    if (!fresh && written === "updated") state = "updated";
-  }
-  mkdirSync(dst, { recursive: true });
-  writeFileSync(join(dst, MANAGED_MARKER), MARKER_TEXT);
-  return { state, path: dst };
 }
 
 function installApp(resources: string, dataDir: string): { state: InstallState; path: string } {
@@ -221,8 +167,8 @@ function bundlesCurrent(resources: string, dataDir: string, stamp: string): bool
   return true;
 }
 
-export function installBundles(resources: string, dataDir: string, home: string): InstallReport {
-  const report = skippedReport(home);
+export function installBundles(resources: string, dataDir: string): InstallReport {
+  const report = skippedReport();
   const stamp = readStamp(resources);
   if (stamp !== null && bundlesCurrent(resources, dataDir, stamp)) {
     const hasApp = isFile(join(resources, "app", "index.html"));
@@ -256,14 +202,6 @@ export function installBundles(resources: string, dataDir: string, home: string)
       }
     }
   }
-  try {
-    const skill = installSkill(resources, home);
-    report.skill = skill.state;
-    report.skill_path = skill.path;
-  } catch (error) {
-    report.skill = "error";
-    report.error = joinErrors(report.error, messageOf(error));
-  }
   return report;
 }
 
@@ -282,14 +220,12 @@ export function launchInstall(opts: {
   resourceDir: string;
   checkout: string;
   dataDir: string;
-  home: string;
+  home?: string;
 }): InstallReport {
   if (installWanted(opts.packaged, opts.env)) {
     const resources = findResources(opts.resourceDir);
-    return resources
-      ? installBundles(resources, opts.dataDir, opts.home)
-      : { ...skippedReport(opts.home), mod: "error", error: "bundled daemon not found in the app's resources" };
+    return resources ? installBundles(resources, opts.dataDir) : { ...skippedReport(), mod: "error", error: "bundled daemon not found in the app's resources" };
   }
   const checkout = devCheckout(opts.packaged, opts.env, opts.checkout);
-  return checkout ? linkCheckout(checkout, opts.home) : skippedReport(opts.home);
+  return checkout ? linkCheckout(checkout) : skippedReport();
 }

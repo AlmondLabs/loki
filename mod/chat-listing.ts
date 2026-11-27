@@ -1,4 +1,4 @@
-import { SHARED_SCOPE, type Scope } from "../core/canvas-core.ts";
+import { SHARED_SCOPE, type Scope } from "../core/chat-scope.ts";
 import type { ChatMeta, ChatSummary, FlowRow, LocalAgent, ReplyProposal } from "../core/frame-types.ts";
 import { DEFAULT_MODE } from "../core/chat-links.ts";
 import { reasoningEffortFromSettings } from "../core/models.ts";
@@ -6,7 +6,7 @@ import { isLearnTitle } from "../core/learn/model.ts";
 import { backendDir, readLocalAgent } from "./agents.ts";
 import type { ChatSource } from "./chat-source.ts";
 import { agentHasMemory, hiddenScopes, type ChatRegistry, type LocalConversationRow } from "./chats.ts";
-import { sortChats } from "./frames/canvas.ts";
+import { sortChats } from "./frames/chats.ts";
 import { log } from "./log.ts";
 
 export type ChatFacts = ChatMeta & { last_active: string | null };
@@ -24,6 +24,7 @@ export interface ChatMetaFrame {
   title: string;
   status: ChatMeta["status"];
   agent_name: string | null;
+  agent_id: string | null;
   model: string | null;
   reasoning_effort: ChatMeta["reasoning_effort"];
   mode: string | null;
@@ -33,8 +34,6 @@ export class ChatListing {
   private readonly opts: {
     chats: ChatSource;
     desks: ChatRegistry;
-    layouts: () => Iterable<Scope>;
-    widgets: { entries: (scope?: Scope) => ReadonlyArray<{ scope: Scope }> };
     pins: () => Set<string>;
     passChats: () => (conversationId: string) => boolean;
     activeScope: () => Scope;
@@ -49,16 +48,11 @@ export class ChatListing {
   }
 
   summaries(): ChatSummary[] {
-    const { chats, desks, widgets } = this.opts;
+    const { chats, desks } = this.opts;
     const agents = this.agents();
     const passChat = this.opts.passChats();
     this.tidy(passChat);
-    const scopes = new Set<Scope>([SHARED_SCOPE, ...this.opts.layouts(), ...desks.all().map((d) => d.scope)]);
-    const widgetCounts = new Map<Scope, number>();
-    for (const e of widgets.entries()) {
-      scopes.add(e.scope);
-      widgetCounts.set(e.scope, (widgetCounts.get(e.scope) ?? 0) + 1);
-    }
+    const scopes = new Set<Scope>([SHARED_SCOPE, ...desks.all().map((d) => d.scope)]);
     const rows = chats.list();
     for (const c of this.shown(rows, agents, passChat)) scopes.add(desks.remember(c.conversationId, c.agentId));
     const hidden = hiddenScopes(rows);
@@ -85,7 +79,6 @@ export class ChatListing {
             purpose: info.purpose ?? null,
             has_draft: info.has_draft ?? false,
             cwd: info.cwd ?? null,
-            widgets: widgetCounts.get(scope) ?? 0,
             active: scope === active,
             last_active: info.last_active,
           };
@@ -156,6 +149,7 @@ export class ChatListing {
       title: info.title,
       status: info.status,
       agent_name: info.agent_name,
+      agent_id: info.agent_id,
       model: info.model,
       reasoning_effort: info.reasoning_effort,
       mode: info.mode ?? null,

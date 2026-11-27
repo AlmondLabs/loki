@@ -1,5 +1,5 @@
-export type CanvasTab = "messages" | "workers" | "canvas";
-export type PaneView = "messages" | "workers" | "inset";
+export type CanvasTab = "messages" | "workers";
+export type PaneView = "messages" | "workers";
 
 export interface PaneState {
   readonly tabs: Readonly<Record<string, CanvasTab>>;
@@ -22,7 +22,7 @@ export function escapeTab(s: PaneState, scope: string, shown: CanvasTab, { typin
   return chooseTab(s, scope, "messages");
 }
 
-const VIEW: Record<CanvasTab, PaneView> = { messages: "messages", workers: "workers", canvas: "inset" };
+const VIEW: Record<CanvasTab, PaneView> = { messages: "messages", workers: "workers" };
 
 export const paneView = (active: boolean, tab: CanvasTab): PaneView | null => (active ? VIEW[tab] : null);
 
@@ -30,7 +30,6 @@ const WORKER_KEYS = new Set(["chat.focus", "chat.find", "chat.model"]);
 const MESSAGES_KEYS = new Set([...WORKER_KEYS, "chat.mode", "chat.suggestions"]);
 
 export function chatKeyTarget(id: string, tab: CanvasTab): PaneView | null {
-  if (tab === "canvas") return "inset";
   if (tab === "workers") return WORKER_KEYS.has(id) ? "workers" : null;
   return MESSAGES_KEYS.has(id) ? "messages" : null;
 }
@@ -48,12 +47,6 @@ export function routeTick(r: TickRoute, value: number, visible: PaneView | null,
   return r;
 }
 export const tickFor = (r: TickRoute, view: PaneView): number => (r.to === view ? r.value : 0);
-
-export interface FrameRequest {
-  readonly widgetId: string;
-  readonly nonce: number;
-}
-export const nextFrame = (prev: FrameRequest | null, widgetId: string): FrameRequest => ({ widgetId, nonce: (prev?.nonce ?? 0) + 1 });
 
 export function agentState({ status, approval, question }: { status: "idle" | "thinking" | "streaming"; approval: unknown; question: unknown }): string | null {
   return approval ? "needs approval" : question ? "asked you" : status === "streaming" ? "writing" : status === "thinking" ? "working" : null;

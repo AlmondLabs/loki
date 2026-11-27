@@ -1,5 +1,5 @@
 import { parentChatOfSubagent } from "../core/subagents.ts";
-import { scopeFor, type Scope } from "../core/canvas-core.ts";
+import { scopeFor, type Scope } from "../core/chat-scope.ts";
 
 export interface ChatRef {
   agent_id?: string | null;

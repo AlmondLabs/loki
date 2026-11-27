@@ -1,6 +1,5 @@
 import { Type, type Static, type TObject, type TSchema } from "typebox";
 import { Compile } from "typebox/compile";
-import type { Gesture } from "../canvas-core.ts";
 import type { LanVia, OutsideChange, OutsideMessageChange, ReplyMention, SuggestionTarget } from "../frame-types.ts";
 import { isPermissionMode, type PermissionMode } from "../chat-links.ts";
 import type { NoPayload, Parse, Raw } from "./types.ts";
@@ -30,23 +29,6 @@ export function isAgentId(id: unknown): id is string {
 
 const checkLanVia = Compile(LanViaSchema);
 export const isLanVia = (v: unknown): v is LanVia => checkLanVia.Check(v);
-
-const PointSchema = Type.Object({ x: Type.Number(), y: Type.Number() });
-const SizeSchema = Type.Object({ w: Type.Number(), h: Type.Number() });
-export const GestureSchema = Type.Union([
-  Type.Object({ id: NonEmptyStr, kind: Type.Literal("move"), position: PointSchema }),
-  Type.Object({ id: NonEmptyStr, kind: Type.Literal("resize"), size: SizeSchema }),
-  Type.Object({ id: NonEmptyStr, kind: Type.Literal("focus") }),
-  Type.Object({ id: NonEmptyStr, kind: Type.Literal("close") }),
-  Type.Object({ id: NonEmptyStr, kind: Type.Literal("open") }),
-  Type.Object({ id: NonEmptyStr, kind: Type.Literal("set"), path: NonEmptyStr }),
-]);
-const checkGesture = Compile(GestureSchema);
-
-/** Whether a value is a well-formed gesture from the canvas, the only state change a tab may ask for; anything else is refused before it reaches a desk. */
-export function isGesture(v: unknown): v is Gesture {
-  return checkGesture.Check(v);
-}
 
 export const SuggestionTargetExistingSchema = Type.Object({ agent_id: AgentIdSchema, conversation_id: NonEmptyStr });
 export const SuggestionTargetNewSchema = Type.Object({ agent_id: AgentIdSchema, folder: NonEmptyStr });

@@ -1,4 +1,4 @@
-import type { Scope } from "../core/canvas-core.ts";
+import type { Scope } from "../core/chat-scope.ts";
 import { debounce, type Burst } from "../core/timers.ts";
 
 export class ScopeDebouncer {

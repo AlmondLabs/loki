@@ -19,7 +19,7 @@ import { Avatar, PhoneRow, RowIcon, RowSection } from "./rows";
 import { Button } from "../components";
 import { BackButton, Scroll, TopBar } from "./ui";
 import type { ChatSummary, MemoryCommit } from "../../../core/frame-types.ts";
-import { isMainChat, MAIN_CHAT_ID } from "../../../core/canvas-core.ts";
+import { isMainChat, MAIN_CHAT_ID } from "../../../core/chat-scope.ts";
 
 function useMemoryLog(api: PhoneAgentsApi, agentId: string) {
   const [commits, setCommits] = useState<MemoryCommit[] | null>(null);

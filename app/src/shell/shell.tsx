@@ -2,7 +2,7 @@ import { startTransition, useCallback, useEffect, useEffectEvent, useMemo, useRe
 import { Button, EmptyPane, Notices, notify } from "../components";
 import { RestartNotice } from "./restart-notice";
 import { UpdateNotice, chatWorking, runUpdateItem } from "./update-notice";
-import { conversationDirName, isMainChat, MAIN_CHAT_ID, scopeFor, SHARED_SCOPE } from "../../../core/canvas-core.ts";
+import { conversationDirName, isMainChat, MAIN_CHAT_ID, scopeFor, SHARED_SCOPE } from "../../../core/chat-scope.ts";
 import { landing, landingKey } from "./landing";
 import { catchUpQueue } from "../../../core/attention/queue.ts";
 import { CanvasPane } from "../workspace/canvas-pane";
@@ -34,7 +34,6 @@ import {
 import { commandsFor, runAction, type Segment } from "./keymap";
 import { useModelList } from "./use-model-list";
 import { hideCurrentWindow, useTray, useWindowTitle } from "./use-window-chrome";
-import { useChatLayout } from "./use-chat-layout";
 import { useLearn } from "./use-learn";
 import { TitleMenu } from "./title-menu";
 import { updateItemLabel, useLokiUpdate } from "./use-loki-update";
@@ -113,10 +112,8 @@ export function Shell() {
   const [unselected, setUnselected] = useState(false);
   const [prefsOpen, setPrefsOpen] = useState(false);
   const [newChat, setNewChat] = useState<{ agentId: string | null; n: number } | null>(null);
-  const chat = useChatLayout(desk);
   const hasWorkers = !!(desk.agentId && desk.conversationId && (catchUp.conversation(desk.agentId, desk.conversationId).subagents?.length ?? 0) > 0);
   const pane = useCanvasPane(desk.scope, hasWorkers);
-  const { chatOpen, setChatOpen } = chat;
   const [focusChat, setFocusChat] = useState(0);
   const [findChat, setFindChat] = useState(0);
   const [decideChat, setDecideChat] = useState<{ n: number; behavior: "allow" | "deny" }>({ n: 0, behavior: "allow" });
@@ -408,9 +405,8 @@ export function Shell() {
   const sidebarLayer = layout.sidebarOver ? 1 : undefined;
   const working = chatWorking(catchUp.items);
   const updateLabel = updateItemLabel(update.status);
-  const chatKey = (id: string, run: (inset: boolean) => void) => {
-    const to = chatKeyTarget(id, pane.tab);
-    if (to) run(to === "inset");
+  const chatKey = (id: string, run: () => void) => {
+    if (chatKeyTarget(id, pane.tab)) run();
   };
 
   const selectChat = (scope: string) => {
@@ -481,17 +477,13 @@ export function Shell() {
       "window.hide": () => {
         if (inDesktop) hideCurrentWindow();
       },
-      "chat.toggle": () => chatKey("chat.toggle", () => setChatOpen((v) => !v)),
-      "chat.close": () => chatKey("chat.close", () => setChatOpen(false)),
-      "chat.focus": () => chatKey("chat.focus", (inset) => (inset && setChatOpen(true), setFocusChat((n) => n + 1))),
-      "chat.find": () => chatKey("chat.find", (inset) => (inset && setChatOpen(true), setFindChat((n) => n + 1))),
+      "chat.focus": () => chatKey("chat.focus", () => setFocusChat((n) => n + 1)),
+      "chat.find": () => chatKey("chat.find", () => setFindChat((n) => n + 1)),
       "chat.allow": () => setDecideChat((d) => ({ n: d.n + 1, behavior: "allow" })),
       "chat.deny": () => setDecideChat((d) => ({ n: d.n + 1, behavior: "deny" })),
-      "chat.model": () => chatKey("chat.model", (inset) => (inset && setChatOpen(true), setModelPickerTick((n) => n + 1))),
-      "chat.mode": () => chatKey("chat.mode", (inset) => (inset && setChatOpen(true), setModeMenuTick((n) => n + 1))),
-      "chat.suggestions": () => chatKey("chat.suggestions", (inset) => (inset && setChatOpen(true), setSuggestionsTick((n) => n + 1))),
-      "chat.left": () => chatKey("chat.left", () => chat.moveChat(-1)),
-      "chat.right": () => chatKey("chat.right", () => chat.moveChat(1)),
+      "chat.model": () => chatKey("chat.model", () => setModelPickerTick((n) => n + 1)),
+      "chat.mode": () => chatKey("chat.mode", () => setModeMenuTick((n) => n + 1)),
+      "chat.suggestions": () => chatKey("chat.suggestions", () => setSuggestionsTick((n) => n + 1)),
       "app.update": () => runUpdateItem(update, working, () => showPreferences("loki")),
     },
     { toList, toMessages: pane.escape, closePreferences: () => setPrefsOpen(false) },
@@ -643,13 +635,6 @@ export function Shell() {
               onTab={pane.setTab}
               selectedWorker={pane.selectedWorker}
               onSelectWorker={pane.selectWorker}
-              frameRequest={pane.frameRequest}
-              onFrameWidget={pane.frame}
-              chatOpen={chatOpen}
-              onChatOpen={setChatOpen}
-              chatWidth={chat.chatWidth}
-              onChatWidth={chat.setChatWidth}
-              chatPlacement={chat.effectivePlacement}
               focusChat={focusChat}
               findChat={findChat}
               decideChat={decideChat}
@@ -736,10 +721,6 @@ export function Shell() {
           desk={desk}
           catchUp={catchUp}
           daemon={daemon.status}
-          chatWidth={chat.chatWidth}
-          onChatWidth={chat.setChatWidth}
-          chatPlacement={chat.chatPlacement}
-          onChatPlacement={chat.setChatPlacement}
           onModelsChanged={forgetModels}
         />
       )}

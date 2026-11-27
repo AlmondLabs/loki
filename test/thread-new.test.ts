@@ -7,9 +7,7 @@ import { AgentTurn } from "../app/src/item/agent-turn.tsx";
 import { Work } from "../app/src/item/work.tsx";
 import { ChatMessage } from "../app/src/item/message-entry.tsx";
 import { NewMarker } from "../app/src/item/event-entry.tsx";
-import { WidgetArtifact } from "../app/src/item/content-parts.tsx";
 import { Thread } from "../app/src/chat/conversation.tsx";
-import type { WidgetMark } from "../app/src/chat/transcript.tsx";
 import { clockLabel } from "../app/src/shared/thread.ts";
 
 const NOW = Date.parse("2026-11-11T15:00:00Z");
@@ -21,24 +19,12 @@ const bash = (failed = false, output = "ok"): TranscriptRow => ({
   tool: { name: "Bash", output, ...(failed ? { failed: true } : {}) },
 });
 const read = (): TranscriptRow => ({ role: "tool", text: "Read · a.ts", tool: { name: "Read", output: "…" } });
-const mark = (id: string, before: number, at: string, extra: Partial<WidgetMark> = {}): WidgetMark => ({
-  id,
-  before,
-  at,
-  who: "friday",
-  change: "added",
-  title: "Signups chart",
-  widgetId: "chart",
-  gone: false,
-  ...extra,
-});
 const input = (rows: TranscriptRow[], extra: Partial<EntryInput> = {}): EntryInput => ({
   rows,
   from: 0,
   above: 0,
   dividerAt: null,
   dividerDay: null,
-  widgets: [],
   busy: false,
   arrivedFrom: Infinity,
   now: NOW,
@@ -72,18 +58,6 @@ describe("the new thread's reading order", () => {
     const entries = threadEntries(input([user("a"), agent("b")], { dividerAt: 1, dividerDay: "Today" }));
     const nl = entries.find((e) => e.kind === "new");
     expect(nl?.kind === "new" && nl.day).toBe("Today");
-  });
-
-  test("a widget change sits before its row and only the latest of a widget is drawn live", () => {
-    const rows = [user("make a chart", "2026-11-11T09:00:00Z"), agent("added", "2026-11-11T09:02:00Z"), agent("changed it", "2026-11-11T09:05:00Z")];
-    const widgets = [mark("one", 1, "2026-11-11T09:01:00Z"), mark("two", 2, "2026-11-11T09:04:00Z", { change: "changed" })];
-    const entries = threadEntries(input(rows, { widgets }));
-    const marks = entries.flatMap((e) => (e.kind === "widget" ? [[e.mark.id, e.live]] : []));
-    expect(marks).toEqual([
-      ["one", false],
-      ["two", true],
-    ]);
-    expect(kinds(entries)).toEqual(["day", "user*", "widget", "assistant*", "widget", "assistant*"]);
   });
 
   test("the window: rows before `from` are not drawn, and keys count past the rows loaded above", () => {
@@ -205,12 +179,8 @@ describe("the new thread's pieces", () => {
     ).toContain("Needs you");
   });
 
-  test("the New line and a widget row read as today's", () => {
+  test("the New line reads as today's", () => {
     expect(renderToStaticMarkup(createElement(NewMarker, { day: null }))).toContain("New since you last looked");
-    const html = renderToStaticMarkup(createElement(WidgetArtifact, { mark: mark("one", 0, "2026-11-11T09:01:00Z"), live: false, onFrame: () => {} }));
-    expect(html).toContain("friday");
-    expect(html).toContain("Signups chart");
-    expect(html).toContain("<button");
   });
 });
 

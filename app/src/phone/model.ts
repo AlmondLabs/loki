@@ -9,7 +9,7 @@ import type { ThemePreference } from "../theme";
 import type { IconName } from "./icons";
 import type { Route } from "./router";
 import type { ChatSummary } from "../../../core/frame-types.ts";
-import { isMainChat } from "../../../core/canvas-core.ts";
+import { isMainChat } from "../../../core/chat-scope.ts";
 import { isSubagentChat, subagentDisplayName, subagentIdOfChat } from "../../../core/subagents.ts";
 import { lastSeen } from "../shared/lan-model";
 import { liveDesksLabel, type AgentRowModel } from "../shared/agent-model";

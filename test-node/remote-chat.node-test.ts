@@ -55,7 +55,6 @@ const IRA_DESK: ChatSummary = {
   model: null,
   reasoning_effort: null,
   conversation_id: CONV,
-  widgets: 0,
   active: false,
   last_active: null,
 };

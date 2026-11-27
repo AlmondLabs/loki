@@ -18,7 +18,6 @@ const desk = (title: string | null, over: Partial<ChatSummary> = {}): ChatSummar
   conversation_id: `c-${title}`,
   model: null,
   reasoning_effort: null,
-  widgets: 0,
   active: false,
   last_active: "2026-09-20T10:00:00Z",
   ...over,

@@ -22,7 +22,7 @@ export function agentPrompt(backendDir: string, agentId: string, name: string | 
       )
     : null;
   const tools = withTools
-    ? `loki's tools reach you as the "${LOKI_TOOLS_SERVER}" MCP server (mcp__${LOKI_TOOLS_SERVER}__memory_read and the rest). Change your memory only with its memory tools, never by editing the files, so each change is committed as yours. When a piece of work would be done better in another chat, suggest it there with mcp__${LOKI_TOOLS_SERVER}__suggestion_create; its description says when. Every turn of this chat is kept, including what your own compaction or a lost session dropped: find earlier turns with a script (mcp__${LOKI_TOOLS_SERVER}__script calling history_search, then history_read) before you guess. Scripts also read the canvas, list and change your schedules, and list the person's chats.`
+    ? `loki's tools reach you as the "${LOKI_TOOLS_SERVER}" MCP server (mcp__${LOKI_TOOLS_SERVER}__memory_read and the rest). Change your memory only with its memory tools, never by editing the files, so each change is committed as yours. When a piece of work would be done better in another chat, suggest it there with mcp__${LOKI_TOOLS_SERVER}__suggestion_create; its description says when. Every turn of this chat is kept, including what your own compaction or a lost session dropped: find earlier turns with a script (mcp__${LOKI_TOOLS_SERVER}__script calling history_search, then history_read) before you guess. Scripts also list and change your schedules, and list the person's chats.`
     : null;
   return [who, tools, REPLIES_PROMPT, memory ? `<memory>\n${memory}\n</memory>` : null, skillText ? `<skills>\n${skillText}\n</skills>` : null]
     .filter(Boolean)

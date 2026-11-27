@@ -1,7 +1,7 @@
 import type { ChatEvent } from "../attention/model.ts";
 import type { ChatEngineView, ModelEntry, ReasoningEffort } from "../models.ts";
 import type { ChatLink, LinkDuration } from "../chat-links.ts";
-import type { Scope, CanvasState, WidgetLogEntry, WidgetManifestEntry } from "../canvas-core.ts";
+import type { Scope } from "../chat-scope.ts";
 import type { SubagentView } from "../subagents.ts";
 import type { FocusEntry } from "../attention/focus.ts";
 import type { Lane } from "../attention/lanes.ts";
@@ -142,7 +142,7 @@ export interface Replies {
   memory_diff: { agent_id: string; sha: string; diff: string };
   flow: { conversations: FlowRow[] };
   /** `start` is the position of the first of `messages` in the chat's whole thread. */
-  history: { agent_id: string | null; conversation_id: string; messages: TranscriptRow[]; more: boolean; start: number; widget_log: WidgetLogEntry[] };
+  history: { agent_id: string | null; conversation_id: string; messages: TranscriptRow[]; more: boolean; start: number };
   /**
    * One lean row made whole: a tool row's step (plan 041), or an event's detail (plan 043); each null when the row is
    * not that. A Mac on a loki from before plan 043 leaves `detail` out, and sends no event lean.
@@ -187,8 +187,8 @@ export interface Replies {
   peer_state: { marks: object; pins: object; labels: object; learn?: object; mcp: object; mods?: object };
   /** The chats here of agents that live on the asking Mac, for it to take over on first pairing (plan 023, U9). */
   peer_moves: { chats: Array<{ agent_id: string; conversation_id: string }> };
-  /** One chat copied out for the Mac it moves to (daemon/chat-move.ts MovedChat), its canvas files, or `busy` to wait. */
-  peer_chat: { chat: object | null; busy: boolean; widgets: Record<string, string> };
+  /** One chat copied out for the Mac it moves to (daemon/chat-move.ts MovedChat), or `busy` to wait. */
+  peer_chat: { chat: object | null; busy: boolean };
   /** The Macs this one is paired with, for another to join those it lacks (plan 023, addendum D1). */
   peer_group: { macs: Array<MacIdentity & { host: string }> };
   /** An invite to pair with a Mac, bound to the asking Mac, and where to redeem it (addendum D4). */
@@ -271,7 +271,7 @@ export type ReplyName = keyof Replies;
 
 /** What the mod tells the app unasked, by push name: the payload beside `type`. */
 export interface Pushes {
-  canvas: {
+  chat_meta: {
     scope: Scope;
     title: string | null;
     status: ChatStatus;
@@ -279,23 +279,8 @@ export interface Pushes {
     agent_id: string | null;
     model: string | null;
     reasoning_effort: ReasoningEffort | null;
-    mode: string | null;
-    state: CanvasState;
-    widgets: WidgetManifestEntry[];
-  };
-  chat_meta: {
-    scope: Scope;
-    title: string | null;
-    status: ChatStatus;
-    agent_name: string | null;
-    model: string | null;
-    reasoning_effort: ReasoningEffort | null;
     mode?: string | null;
   };
-  state: { scope: Scope; state: CanvasState };
-  widgets: { scope: Scope; widgets: WidgetManifestEntry[] };
-  camera: { widget_id: string; widget_ids?: string[] };
-  widget_change: { entry: WidgetLogEntry };
   switch_chat: { scope: Scope };
   chats: { chats: ChatSummary[] };
   /**
@@ -367,10 +352,10 @@ export type PushName = keyof Pushes;
 /** How a request or send crosses to another paired Mac (plan 023, addendum C). */
 export interface PeerMeaning {
   /**
-   * How a frame from this Mac's clients finds the Mac it is about: the chat it names, the desk it names, the Mac its
+   * How a frame from this Mac's clients finds the Mac it is about: the chat it names, the Mac its
    * `home` names, or the Mac a new chat will live on. Absent: a frame only paired Macs send each other.
    */
-  route?: "chat" | "scope" | "home" | "new-chat";
+  route?: "chat" | "home" | "new-chat";
   /** Once it succeeds on another Mac, that Mac's chats are read again: it changes how a chat is listed there. */
   relists?: true;
   /** How long it may take on the other Mac; absent, the router's usual wait. */
@@ -379,8 +364,8 @@ export interface PeerMeaning {
 
 /** How a push from a paired Mac is taken here (addendum C). */
 export interface PushPeerMeaning {
-  /** Passed on to this Mac's clients when it comes from the Mac holding the chat or the desk it names. */
-  relay?: "chat" | "scope";
+  /** Passed on to this Mac's clients when it comes from the Mac holding the chat it names. */
+  relay?: "chat";
   /** It may change that Mac's chats, so they are read again: always, or only for these chat event kinds. */
   lists?: true | ReadonlyArray<ChatEvent["kind"]>;
 }
@@ -442,7 +427,6 @@ export const push = (doc: string, peer?: PushPeerMeaning): PushEntry => ({ kind:
 export const PHONE = true;
 export const BY_CHAT: PeerMeaning = { route: "chat" };
 export const BY_CHAT_RELISTED: PeerMeaning = { route: "chat", relists: true };
-export const BY_SCOPE: PeerMeaning = { route: "scope" };
 export const BY_HOME: PeerMeaning = { route: "home" };
 export const SENDS_REPLY: PeerMeaning = { route: "home", relists: true, timeout_ms: REPLY_WAIT_MS };
 export const BETWEEN_MACS: PeerMeaning = {};

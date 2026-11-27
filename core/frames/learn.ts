@@ -38,12 +38,7 @@ export const learnFrames = {
   learn_export: request("learn_export", "every card as Anki TSV", nothing, PHONE),
   learn_lead_dismiss: request("learn", "set a lead aside", (m: Raw) => learnId(m), PHONE),
   learn_lead_restore: request("learn", "bring a set-aside lead back", (m: Raw) => learnId(m), PHONE),
-  learn_lead_start: request(
-    "learn_lesson",
-    "a lead becomes a [Learn] conversation with an info card on its desk; the app then sends the brief",
-    (m: Raw) => learnId(m),
-    PHONE,
-  ),
+  learn_lead_start: request("learn_lesson", "a lead becomes a [Learn] conversation; the app then sends the brief", (m: Raw) => learnId(m), PHONE),
 
   learn_changed: push("Learn changed: other tabs and phones refetch"),
 } as const;

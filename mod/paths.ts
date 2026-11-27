@@ -18,7 +18,6 @@ const stateDir = process.env.LOKI_STATE_DIR ?? join(lokiDir(), "state");
 export const paths = {
   root: projectRoot,
   app: join(projectRoot, "app"),
-  widgets: process.env.LOKI_WIDGETS_DIR ?? join(lokiDir(), "widgets"),
   data: lokiDir(),
   uploads: process.env.LOKI_UPLOADS_DIR ?? join(lokiDir(), "uploads"),
   chatImages: join(lokiDir(), "chat-images"),

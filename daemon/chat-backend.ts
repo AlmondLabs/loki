@@ -9,7 +9,7 @@ import type { ChatEvent } from "../core/attention/model.ts";
 import { daemonTimeReminder } from "../core/attention/content.ts";
 import { shownStep, type ImageNamer } from "../core/attention/pi-steps.ts";
 import { isSubagentChat, type SubagentView } from "../core/subagents.ts";
-import { backendName, MAIN_CHAT_ID } from "../core/canvas-core.ts";
+import { backendName, MAIN_CHAT_ID } from "../core/chat-scope.ts";
 import { DRAFT_HELD, type ChatState, type PayloadOf, type Replies } from "../core/frames.ts";
 import type { EnginesView, McpView } from "../core/frame-types.ts";
 import { isReasoningEffort, type ModelEntry, type ReasoningEffort } from "../core/models.ts";

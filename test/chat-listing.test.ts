@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { SHARED_SCOPE, backendName, type Scope } from "../core/canvas-core.ts";
+import { SHARED_SCOPE, backendName } from "../core/chat-scope.ts";
 import type { ChatSource } from "../mod/chat-source.ts";
 import type { FlowRow, LocalAgent } from "../core/frame-types.ts";
 import { readLocalAgent } from "../mod/agents.ts";
@@ -18,8 +18,6 @@ type Chat = LocalConversationRow & { title: string | null };
 let dir: string;
 let rows: Chat[];
 let desks: ChatRegistry;
-let layouts: Scope[];
-let canvases: Scope[];
 let passChats: Set<string>;
 let modes: Map<string, string>;
 
@@ -68,8 +66,6 @@ const listing = (readAgent?: (agentId: string) => LocalAgent | null, outside?: (
   new ChatListing({
     chats: source,
     desks,
-    layouts: () => layouts,
-    widgets: { entries: (scope) => canvases.filter((s) => scope === undefined || s === scope).map((s) => ({ scope: s })) },
     pins: () => new Set([`${IRA}/conv-pinned`]),
     passChats: () => (id) => passChats.has(id),
     activeScope: () => SHARED_SCOPE,
@@ -83,8 +79,6 @@ beforeEach(() => {
   mkdirSync(join(dir, "agents"), { recursive: true });
   desks = new ChatRegistry(join(dir, "chats.json"), (id) => source.agentOf(id));
   rows = [];
-  layouts = [];
-  canvases = [];
   passChats = new Set();
   modes = new Map();
   agent(IRA);
@@ -126,17 +120,6 @@ describe("which chats show", () => {
       ["conv-archived", "archived"],
     ]);
     expect(l.flow().map((r) => r.id)).toEqual(["conv-new", "conv-old"]);
-  });
-
-  test("a canvas left here by a chat that moved to another Mac stays out; a canvas of no chat shows", () => {
-    rows = [chat("conv-moved", IRA, { hidden: true })];
-    canvases = ["conv-moved", "scratch"];
-    layouts = ["conv-moved"];
-    const shown = listing().summaries();
-    expect(shown.map((d) => [d.scope, d.status, d.widgets])).toEqual([
-      [SHARED_SCOPE, "none", 0],
-      ["scratch", "none", 1],
-    ]);
   });
 
   test("a pinned chat says so, with its agent's name and model", () => {
@@ -225,6 +208,7 @@ describe("the chat_meta push", () => {
       title: "trip",
       status: "archived",
       agent_name: "ira",
+      agent_id: IRA,
       model: "anthropic/claude-fable-5",
       reasoning_effort: null,
       mode: "unrestricted",

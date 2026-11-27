@@ -1,5 +1,5 @@
 import type { SubagentView } from "../subagents.ts";
-import { isMainChat } from "../canvas-core.ts";
+import { isMainChat } from "../chat-scope.ts";
 import { restState, type Rest } from "./rest.ts";
 import { isScheduledPrompt, looksLikeQuestion, stripHarnessMarkup } from "../harness.ts";
 import { ThreadModel, type Step } from "./thread.ts";

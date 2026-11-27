@@ -51,19 +51,11 @@ describe("harness markup", () => {
   });
 });
 
-describe("the mod's desk block and a loaded skill are events, not the user's words", () => {
-  test("desk activity becomes one event with the gestures as detail; older 'loci' builds are read too", () => {
+describe("old desk blocks and loaded skills are stripped or shown cleanly", () => {
+  test("an old chat's desk block, including 'loci' builds, is left out without a trace", () => {
     const text =
       'build a simple widget again\n\n<loci-desk desk="local-conv-1">\nCanvas activity since your last turn (the user\'s gestures on the loki desk):\n- moved "Weekly steps" (local-conv-1/bar-demo) to (1236, 154)\n- closed "loci" (shared/welcome) — the file still exists\nWidget files live under ~/.loki/widgets/local-conv-1/; read the canvas with canvas_read in a script for the full picture.\n</loci-desk>';
-    expect(extractHarnessEvents(text)).toEqual([
-      {
-        text: "You changed 2 widgets",
-        summary: null,
-        detail: 'moved "Weekly steps" (local-conv-1/bar-demo) to (1236, 154)\nclosed "loci" (shared/welcome) — the file still exists',
-        event: "canvas",
-        yours: true,
-      },
-    ]);
+    expect(extractHarnessEvents(text)).toEqual([]);
     expect(stripHarnessMarkup(text).trim()).toBe("build a simple widget again");
     expect(stripHarnessMarkup('<loki-desk desk="d">\n- x\n</loki-desk>').trim()).toBe("");
   });
@@ -81,23 +73,6 @@ describe("the mod's desk block and a loaded skill are events, not the user's wor
 });
 
 describe("the words an event row carries (plan 2026-11-24-1736, KTD1)", () => {
-  const desk = (...lines: string[]) =>
-    `go\n\n<loki-desk desk="c">\nCanvas activity since your last turn:\n${lines.map((l) => `- ${l}`).join("\n")}\n</loki-desk>`;
-
-  test("canvas gestures count the widgets touched, and say moved only when every gesture was a move", () => {
-    const moves = desk('moved "A" (c/a) to (1, 2)', 'moved "A" (c/a) to (3, 4)', 'moved "B" (c/b) to (5, 6)');
-    expect(extractHarnessEvents(moves)[0]).toMatchObject({ text: "You moved 2 widgets", event: "canvas" });
-    expect(extractHarnessEvents(desk('moved "A" (c/a) to (1, 2)', 'resized "B" (c/b) to 300×200'))[0]).toMatchObject({ text: "You changed 2 widgets" });
-    expect(extractHarnessEvents(desk('resized "A" (c/a) to 300×200'))[0]).toMatchObject({ text: "You changed 1 widget" });
-  });
-
-  test("a set gesture counts the widget it was on, not the value it set", () => {
-    const sets = desk('set title = "Shopping" (was "Todo") on "Notes" (c/notes)', 'set body = "milk" on "Notes" (c/notes)');
-    expect(extractHarnessEvents(sets)[0]).toMatchObject({ text: "You changed 1 widget" });
-    const two = desk('set title = "A" on "Notes" (c/notes)', 'set title = "A" on "Other" (c/other)');
-    expect(extractHarnessEvents(two)[0]).toMatchObject({ text: "You changed 2 widgets" });
-  });
-
   test("a message from another chat is from that chat, by name", () => {
     const raw = chatMessageBlock({ from_agent: "friday", from_chat: "data", title: "Data pipeline" }, "The import is done.\nRows: 12");
     expect(extractHarnessEvents(raw)).toEqual([

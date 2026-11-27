@@ -25,7 +25,7 @@ import { chosenFolder, folderName, foldersOf, shownFolders } from "./new-chat-fo
 import { canRename } from "../shell/sidebar-model";
 import type { ChatSummary } from "../../../core/frame-types.ts";
 import { messageOf } from "../../../core/errors.ts";
-import { isMainChat } from "../../../core/canvas-core.ts";
+import { isMainChat } from "../../../core/chat-scope.ts";
 
 export function openChat(d: ChatSummary) {
   if (d.agent_id && d.conversation_id) openConversation(d.agent_id, d.conversation_id);

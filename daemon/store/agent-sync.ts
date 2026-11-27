@@ -1,6 +1,6 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { backendName } from "../../core/canvas-core.ts";
+import { backendName } from "../../core/chat-scope.ts";
 import { isAgentId } from "../../core/frames.ts";
 import { writeRecord } from "./agents.ts";
 import { writeJsonAtomic } from "../../mod/json-file.ts";

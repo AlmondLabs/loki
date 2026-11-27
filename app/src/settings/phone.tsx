@@ -63,7 +63,7 @@ function ReachBlock({ phone, status }: { phone: PhoneApi; status: PhoneLanStatus
           <>
             The inbox and your chats on a phone, over Tailscale or this Wi‑Fi; nothing to install.
             {status.error && <span className="loki-meta--negative block">{status.error}</span>}
-            {on && !status.app_served && <span className="loki-meta--negative block">The canvas build is missing; run bun run build:app.</span>}
+            {on && !status.app_served && <span className="loki-meta--negative block">The web app build is missing; run bun run build:app.</span>}
           </>
         }
       >

@@ -20,7 +20,6 @@ import { scriptExtensions, scriptSandbox } from "../daemon/scripts.ts";
 import { registerAccountScriptTools } from "../mod/account-ops/script-tools.ts";
 import { AccountThreads } from "../mod/account-threads.ts";
 import { Accounts } from "../mod/accounts.ts";
-import { CanvasStore } from "../mod/canvas-store.ts";
 import { GmailClient } from "../mod/gmail.ts";
 import { GoogleAuth } from "../mod/google-auth.ts";
 import { registerGoogleTools } from "../mod/google-tools/index.ts";
@@ -62,11 +61,6 @@ async function request(owns: "gmail" | "slack" | null): Promise<{ prompt: string
     apiVersion: 1,
     activate: (api: ModApi) => [
       ...registerTools(api, {
-        store: new CanvasStore(),
-        widgets: { entries: () => [], get: () => undefined, setRuntimeError: () => false, rescan: () => Promise.resolve(), close: () => {} },
-        widgetsDir: "/home/loki/.loki/widgets",
-        activeScope: () => "c",
-        broadcast: () => {},
         chats: { suggestions: { add: unused }, agents: () => [], chats: () => [], passChat: () => false, messages: { send: unused, linksOf: unused } },
       }),
       ...registerGoogleTools(api, { accounts, auth, gmail: (id) => new GmailClient({ accounts, account_id: id, auth: auth(id) }), resultsDir: () => dir }),
@@ -104,7 +98,7 @@ const BEFORE = { none: 3927, gmail: 4533, slack: 4486 } as const;
 const AFTER = { none: 3918, gmail: 4123, slack: 4050 } as const;
 const SLACK = 50;
 
-const MOVED = ["history_search", "history_read", "schedule_create", "schedule_list", "schedule_delete", "canvas_read", "canvas_focus", "chat_list"];
+const MOVED = ["history_search", "history_read", "schedule_create", "schedule_list", "schedule_delete", "chat_list"];
 
 describe("what an agent's prompt costs a turn (plan 099, R7)", () => {
   test.each([
@@ -117,13 +111,12 @@ describe("what an agent's prompt costs a turn (plan 099, R7)", () => {
     expect(total, `${total} tokens a turn`).toBeLessThanOrEqual(after + SLACK);
   });
 
-  test("an agent with no account has the script tool and loki's four namespaces, and none of the moved tools as its model's", async () => {
+  test("an agent with no account has the script tool and loki's three namespaces, and none of the moved tools as its model's", async () => {
     const { prompt, tools } = await request(null);
     expect(tools).toContain("codemode");
     expect(tools.filter((t) => MOVED.includes(t))).toEqual([]);
-    for (const namespace of ["## history", "## schedule", "## canvas", "## chat"]) expect(prompt).toContain(namespace);
+    for (const namespace of ["## history", "## schedule", "## chat"]) expect(prompt).toContain(namespace);
     expect(prompt).not.toContain("## google");
-    expect(prompt).toContain("writing files, never through a tool");
   });
 
   test("a Google owner sees its own namespaces beside loki's", async () => {

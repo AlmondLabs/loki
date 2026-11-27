@@ -1,4 +1,4 @@
-import type { Scope } from "./canvas-core.ts";
+import type { Scope } from "./chat-scope.ts";
 import type { AskedBy } from "./attention/priority.ts";
 import type { ReasoningEffort } from "./models.ts";
 
@@ -885,7 +885,6 @@ export interface ChatSummary extends ChatMeta, ChatHome {
   conversation_id: string | null;
   /** Pinned in loki's pins file (mod/pins.ts). */
   pinned?: boolean;
-  widgets: number;
   active: boolean;
   last_active: string | null;
 }

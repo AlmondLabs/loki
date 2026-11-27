@@ -1,7 +1,7 @@
 import { accountsFrames } from "./accounts.ts";
 import { agentsFrames } from "./agents.ts";
 import { chatFrames } from "./chat.ts";
-import { canvasFrames } from "./canvas.ts";
+import { chatsFrames } from "./chats.ts";
 import { foldersFrames } from "./folders.ts";
 import { lanFrames } from "./lan.ts";
 import { peersFrames } from "./peers.ts";
@@ -28,10 +28,10 @@ export {
   type SuggestionAction,
 } from "./types.ts";
 
-export { isAgentId, isGesture, isLanVia, parseSuggestionTarget, replyMentionOf } from "./primitives.ts";
+export { isAgentId, isLanVia, parseSuggestionTarget, replyMentionOf } from "./primitives.ts";
 
 export const FRAMES = {
-  ...canvasFrames,
+  ...chatsFrames,
   ...seenFrames,
   ...foldersFrames,
   ...learnFrames,

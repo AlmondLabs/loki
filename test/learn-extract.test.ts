@@ -140,7 +140,7 @@ describe("learning leads in the writer's call", () => {
     expect(parseExtraction(three, new Set(), { maxLeads: 4 }).leads).toHaveLength(3);
     expect(parseExtraction(three, new Set()).leads).toHaveLength(2);
   });
-  test("the lesson brief names the topic, the moment, the desk-first rule and the cold quiz", () => {
+  test("the lesson brief names the topic, the moment, one-sitting pacing and the cold quiz", () => {
     const b = lessonBrief({
       title: "Savings Plan utilisation",
       why: "you took my word for 'fully covered'",
@@ -149,8 +149,7 @@ describe("learning leads in the writer's call", () => {
     });
     expect(b).toContain("I want to understand: Savings Plan utilisation.");
     expect(b).toContain('came up in "[Long] - cost control": you took my word');
-    expect(b).toContain("sized for one sitting");
-    expect(b).toContain("furnish this chat's canvas");
+    expect(b).toContain("Pace the conversation for one sitting.");
     expect(b).toContain("why this matters to me");
     expect(b).toContain("quiz me cold");
   });

@@ -9,7 +9,7 @@ import { chipText } from "../chat/suggestion-card";
 import { keyboard } from "./env";
 import { keyFor } from "../shell/keymap";
 import { chatItem } from "../item/item-view";
-import { isMainChat } from "../../../core/canvas-core.ts";
+import { isMainChat } from "../../../core/chat-scope.ts";
 
 export const BADGE: Record<AttentionStatus, { label: string; color: string }> = {
   approval: { label: "needs approval", color: "var(--loki-attention)" },

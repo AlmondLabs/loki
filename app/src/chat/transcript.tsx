@@ -30,10 +30,6 @@ export const Transcript = memo(function Transcript({
   people,
   dividerAt = null,
   dividerDay = null,
-  widgets,
-  onFrameWidget,
-  onShowDesk,
-  inline,
   from = 0,
   above = 0,
   arrivedFrom = Infinity,
@@ -49,36 +45,18 @@ export const Transcript = memo(function Transcript({
   busy?: boolean;
 } & MessageLayout) {
   const first = Math.max(0, Math.min(from, rows.length));
-  const marks = new Map<number, WidgetMark[]>();
-  for (const w of widgets ?? []) {
-    if (w.before < first) continue;
-    const list = marks.get(w.before);
-    if (list) list.push(w);
-    else marks.set(w.before, [w]);
-  }
-  const latest = new Map<string, string>();
-  for (const w of widgets ?? []) if (w.earlier === undefined) latest.set(w.widgetId, w.id);
   const shown = first ? rows.slice(first) : rows;
   const timed = !!people && shown.some((r) => !!r.at && Number.isFinite(Date.parse(r.at)));
-  const items = timed ? timeline(rows, marks, first) : null;
-  const itemPills = items ? dayPills(items.map((it) => it.row ?? it.mark)) : null;
   let pills: Array<string | null> | null = null;
-  if (items && itemPills) {
+  if (timed) {
     const dayOf: Array<string | null> = rows.map(() => null);
-    items.forEach((it, k) => {
-      if (it.row) dayOf[it.i] = itemPills[k];
+    dayPills(shown).forEach((label, k) => {
+      dayOf[first + k] = label;
     });
     pills = dayOf;
   }
-  const firsts = people ? runStarts(rows, dividerAt, pills, marks, first) : null;
-  const tools = toolRuns(rows, first, (k) => marks.has(k) || !!pills?.[k] || k === dividerAt);
-  const widgetRow = (w: WidgetMark) => (
-    <Fragment key={`w-${w.id}`}>
-      <WidgetRow mark={w} onFrame={onFrameWidget} onShowDesk={onShowDesk} />
-      {inline && !w.gone && latest.get(w.widgetId) === w.id && inline(w.widgetId)}
-    </Fragment>
-  );
-  const marksAt = (i: number) => marks.get(i)?.map(widgetRow);
+  const firsts = people ? runStarts(rows, dividerAt, pills, first) : null;
+  const tools = toolRuns(rows, first, (k) => !!pills?.[k] || k === dividerAt);
   const message = (m: TranscriptRow, i: number) => {
     const last = i === rows.length - 1;
     if (isWorkRow(m)) {
@@ -110,28 +88,13 @@ export const Transcript = memo(function Transcript({
       </Fragment>
     );
   };
-  if (!items || !itemPills)
-    return (
-      <>
-        {shown.map((m, k) => {
-          const i = first + k;
-          return (
-            <Fragment key={i - above}>
-              {marksAt(i)}
-              {message(m, i)}
-              {i === rows.length - 1 && marksAt(rows.length)}
-            </Fragment>
-          );
-        })}
-        {!rows.length && marksAt(0)}
-      </>
-    );
+  if (!pills) return <>{shown.map((m, k) => message(m, first + k))}</>;
   const days: Array<{ label: string | null; start: number; end: number }> = [];
-  itemPills.forEach((label, k) => {
+  pills.slice(first).forEach((label, k) => {
     if (label || !days.length) days.push({ label, start: k, end: k + 1 });
     else days[days.length - 1].end = k + 1;
   });
-  const draw = (d: { start: number; end: number }) => items.slice(d.start, d.end).map((it) => (it.row ? message(it.row, it.i) : widgetRow(it.mark)));
+  const draw = (d: { start: number; end: number }) => shown.slice(d.start, d.end).map((m, k) => message(m, first + d.start + k));
   return (
     <>
       {days.map((d) =>
@@ -150,29 +113,12 @@ export const Transcript = memo(function Transcript({
   );
 });
 
-type TimelineItem = { i: number; row: TranscriptRow; mark?: undefined } | { i: number; row?: undefined; mark: WidgetMark };
-
-function timeline(rows: TranscriptRow[], marks: ReadonlyMap<number, WidgetMark[]>, from = 0): TimelineItem[] {
-  const out: TimelineItem[] = [];
-  for (let i = from; i <= rows.length; i++) {
-    for (const mark of marks.get(i) ?? []) out.push({ i, mark });
-    if (i < rows.length) out.push({ i, row: rows[i] });
-  }
-  return out;
-}
-
-export function runStarts(
-  rows: TranscriptRow[],
-  dividerAt: number | null = null,
-  pills: Array<string | null> | null = null,
-  breaks: ReadonlyMap<number, unknown> | null = null,
-  from = 0,
-): boolean[] {
+export function runStarts(rows: TranscriptRow[], dividerAt: number | null = null, pills: Array<string | null> | null = null, from = 0): boolean[] {
   const out: boolean[] = new Array<boolean>(rows.length).fill(false);
   let author: TranscriptRow["role"] | null = null;
   for (let i = from; i < rows.length; i++) {
     const m = rows[i];
-    if (i === dividerAt || pills?.[i] || breaks?.has(i)) author = null;
+    if (i === dividerAt || pills?.[i]) author = null;
     const speaks = m.role === "user" || m.role === "assistant";
     out[i] = speaks && m.role !== author;
     if (speaks) author = m.role;
@@ -190,70 +136,6 @@ export interface MessageLayout {
   people?: { user: Person; assistant: Person };
   dividerAt?: number | null;
   dividerDay?: string | null;
-  widgets?: WidgetMark[];
-  onFrameWidget?: (widgetId: string) => void;
-  onShowDesk?: () => void;
-  inline?: (widgetId: string) => ReactNode;
-}
-
-export interface WidgetMark {
-  id: string;
-  before: number;
-  at: string;
-  who: string;
-  change: "added" | "changed" | "removed";
-  title: string;
-  widgetId: string;
-  gone: boolean;
-  earlier?: number;
-}
-
-function WidgetRow({ mark: w, onFrame, onShowDesk }: { mark: WidgetMark; onFrame?: (widgetId: string) => void; onShowDesk?: () => void }) {
-  if (w.earlier !== undefined) {
-    const words = `${w.earlier} earlier widget change${w.earlier === 1 ? "" : "s"}`;
-    return (
-      <div data-row="widget" className="loki-widget-row">
-        <span className="loki-widget-row-icon" aria-hidden>
-          <Icon name="widget" size={16} />
-        </span>
-        {onShowDesk ? (
-          <button type="button" className="loki-widget-row-text loki-widget-row-open" title="Show the canvas" onClick={onShowDesk}>
-            {words}
-          </button>
-        ) : (
-          <span className="loki-widget-row-text">{words}</span>
-        )}
-      </div>
-    );
-  }
-  const time = clockLabel(w.at);
-  const words = (
-    <>
-      <span className="loki-widget-row-agent">{w.who}</span> {w.change} <span className="loki-widget-row-title">{w.title}</span>
-    </>
-  );
-  return (
-    <div data-row="widget" data-gone={w.gone ? "true" : undefined} className="loki-widget-row">
-      <span className="loki-widget-row-icon" aria-hidden>
-        <Icon name="widget" size={16} />
-      </span>
-      {w.gone || !onFrame ? (
-        <span className="loki-widget-row-text">
-          {words}
-          {w.gone && <span>{w.change === "removed" ? " · it is gone from the canvas" : " · since removed from the canvas"}</span>}
-        </span>
-      ) : (
-        <button type="button" className="loki-widget-row-text loki-widget-row-open" title="Show it on the canvas" onClick={() => onFrame(w.widgetId)}>
-          {words}
-        </button>
-      )}
-      {time && (
-        <time className="loki-msg-time" dateTime={w.at}>
-          {time}
-        </time>
-      )}
-    </div>
-  );
 }
 
 function Divider({ day }: { day: string | null }) {
@@ -534,8 +416,6 @@ export function kindedEvent(m: TranscriptRow, arrived?: true): ReactNode {
       return <SubagentEventRow row={m} arrived={arrived} />;
     case "command":
       return <CommandRow row={m} arrived={arrived} />;
-    case "canvas":
-      return <DisclosureLine row={m} icon="widget" arrived={arrived} />;
     case "chat_message":
       return <ChatMessageLine row={m} arrived={arrived} />;
     case "moved":

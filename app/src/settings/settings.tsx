@@ -9,7 +9,6 @@ import { inDesktop, keyboard, modBase, notYetOn, platform, systemName, type Plat
 import { formatKeys, keyFor, keyRows, registerActions, takenBy, wasFor } from "../shell/keymap";
 import { osWords, runsOn } from "../shell/os-words";
 import { Button, Dot, Field, IconButton, Sheet, Switch, sentence } from "../components";
-import { CHAT_PLACEMENTS, type ChatPlacement, type ChatWidth } from "../chat/chat-window";
 import type { ConnectProvider } from "../../../core/attention/protocol.ts";
 import { ProviderSettings } from "./providers";
 import { Phone, type PhoneApi } from "./phone";
@@ -43,8 +42,6 @@ import { XIcon } from "lucide-react";
 import { Glyph } from "../shared/icons";
 import { cn } from "@/lib/utils";
 
-const CHAT_WIDTHS: readonly ChatWidth[] = ["narrow", "wide"];
-
 const HOME = "~/.loki";
 
 const PAGE_KEY = SETTINGS_PAGE_KEY;
@@ -77,10 +74,6 @@ export function Settings({
   chatLink,
   modConnection,
   deskCount,
-  chatWidth,
-  onChatWidth,
-  chatPlacement,
-  onChatPlacement,
   providers,
   onLoadProviders,
   onConnectProvider,
@@ -111,10 +104,6 @@ export function Settings({
   chatLink: ChatLink;
   modConnection: ModConnection;
   deskCount: number;
-  chatWidth: ChatWidth;
-  onChatWidth: (w: ChatWidth) => void;
-  chatPlacement: ChatPlacement;
-  onChatPlacement: (p: ChatPlacement) => void;
   providers: ConnectProvider[] | null;
   onLoadProviders: () => Promise<unknown>;
   onConnectProvider: (providerId: string, fields: Record<string, string>, authMethodId?: string) => Promise<string | null>;
@@ -178,16 +167,7 @@ export function Settings({
     reflection: () =>
       chatLink === "open" && reflect ? <ReflectionSettings reflect={reflect} /> : <Setting label="Not linked" help="loki's daemon is not linked yet." />,
     appearance: () => <AppearancePage />,
-    chat: () => (
-      <ChatPage
-        chatWidth={chatWidth}
-        onChatWidth={onChatWidth}
-        chatPlacement={chatPlacement}
-        onChatPlacement={onChatPlacement}
-        approvals={chatLink === "open" ? mcp.approvals : null}
-        links={chatLink === "open" ? (links ?? null) : null}
-      />
-    ),
+    chat: () => <ChatPage approvals={chatLink === "open" ? mcp.approvals : null} links={chatLink === "open" ? (links ?? null) : null} />,
     labels: () => <LabelsPage labels={labels} chatLink={chatLink} />,
     keys: () => <KeysPage shortcut={shortcut} />,
   };
@@ -277,7 +257,7 @@ function LokiPage({
         <LokiVersionFact update={update} working={working} />
         <SystemFact />
       </Block>
-      <Block title="Mod" help="Canvas layout, widget files, transcripts and chats, served by loki's daemon.">
+      <Block title="Mod" help="Transcripts and chats, served by loki's daemon.">
         <Fact label="Link" value={<Status s={modConnection} />} />
         <Fact label="Chats" value={String(deskCount)} />
         <Fact label="Endpoint" value={modBase()} mono />
@@ -402,26 +382,8 @@ function InstallFold({ install }: { install: InstallReport | null }) {
     <Fold title="What launch installed">
       <ModFact install={install} />
       {install?.mod_path ? <Fact label={install.mod === "linked" ? "Imports" : "Bundle"} value={install.mod_path} mono /> : null}
-      <Fact label="Canvas" value={install ? <InstallState s={install.app} /> : "—"} />
-      {install?.app_path ? <Fact label="Canvas path" value={install.app_path} mono /> : null}
-      <Fact
-        label="Skill"
-        value={
-          install ? (
-            <span>
-              <InstallState s={install.skill} />{" "}
-              {install.skill === "custom" ? (
-                <Note>A symlink or your own copy; left alone</Note>
-              ) : install.skill === "linked" ? (
-                <Note>A symlink to the checkout this build came from</Note>
-              ) : null}
-            </span>
-          ) : (
-            "—"
-          )
-        }
-      />
-      <Fact label="Skill path" value={install?.skill_path ?? "~/.agents/skills/loki"} mono />
+      <Fact label="Web app" value={install ? <InstallState s={install.app} /> : "—"} />
+      {install?.app_path ? <Fact label="Web app path" value={install.app_path} mono /> : null}
       {install?.error ? <Fact label="Error" value={<span style={{ color: "var(--loki-negative)" }}>{install.error}</span>} /> : null}
     </Fold>
   );
@@ -510,37 +472,9 @@ function RecallPage({ recall }: { recall: LearnModel }) {
   );
 }
 
-function ChatPage({
-  chatWidth,
-  onChatWidth,
-  chatPlacement,
-  onChatPlacement,
-  approvals,
-  links,
-}: {
-  chatWidth: ChatWidth;
-  onChatWidth: (w: ChatWidth) => void;
-  chatPlacement: ChatPlacement;
-  onChatPlacement: (p: ChatPlacement) => void;
-  approvals: McpApi["approvals"] | null;
-  links: ChatLinksApi | null;
-}) {
+function ChatPage({ approvals, links }: { approvals: McpApi["approvals"] | null; links: ChatLinksApi | null }) {
   return (
     <>
-      <Block title="Chat panel">
-        <Setting label="Position" help="Where the chat sits on the canvas, centred until the first widget lands.">
-          <Segmented
-            label="Position"
-            options={CHAT_PLACEMENTS}
-            value={chatPlacement}
-            onPick={onChatPlacement}
-            labels={{ left: "Left", center: "Centre", right: "Right" }}
-          />
-        </Setting>
-        <Setting label="Width at the side" help="When the chat sits on the left or the right.">
-          <Segmented label="Width at the side" options={CHAT_WIDTHS} value={chatWidth} onPick={onChatWidth} labels={{ narrow: "Narrow", wide: "Wide" }} />
-        </Setting>
-      </Block>
       <Block title="Always allowed" help="Tools that run without asking, in every chat and every mode but strict.">
         {approvals ? <AlwaysAllowed api={approvals} /> : <Setting label="Not linked" help="loki's daemon is not linked yet." />}
       </Block>
@@ -659,14 +593,12 @@ function Score({ children }: { children: string }) {
 function FilesFold() {
   return (
     <Fold title="Where loki keeps things">
-      <Fact label="Widgets" value={`${HOME}/widgets/<chat>/`} mono />
-      <Fact label="Layout" value={`${HOME}/state/<chat>.json`} mono />
       <Fact label="Flow marks" value={`${HOME}/state/attention.json`} mono />
       <Fact label="Pictures" value={`${HOME}/chat-images/`} mono />
       <Fact label="Learn" value={`${HOME}/recall/  (cards, schedule and the deleted pile)`} mono />
       <Fact label="Token" value={`${HOME}/token`} mono />
       <Fact label="Logs" value={`${HOME}/mod.log · ${HOME}/logs/daemon.log`} mono />
-      <Fact label="Mod · canvas" value={`${HOME}/mod/  ·  ${HOME}/app/  (installed from the app bundle at launch)`} mono />
+      <Fact label="Mod · app" value={`${HOME}/mod/  ·  ${HOME}/app/  (installed from the app bundle at launch)`} mono />
     </Fold>
   );
 }

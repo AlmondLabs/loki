@@ -34,19 +34,12 @@ const plain = (s: string) =>
     .trim()
     .toLowerCase();
 
-export function findStart(
-  rows: readonly TranscriptRow[],
-  start: number,
-  query: string,
-  marks: ReadonlyArray<{ before: number; who: string; change: string; title: string }> = [],
-): number {
+export function findStart(rows: readonly TranscriptRow[], start: number, query: string): number {
   const q = plain(query);
   if (!q) return start;
-  let at = start;
-  for (const m of marks) if (m.before < at && plain(`${m.who} ${m.change} ${m.title}`).includes(q)) at = m.before;
-  for (let i = 0; i < at; i++) {
+  for (let i = 0; i < start; i++) {
     const r = rows[i];
     if (plain([r.text, r.summary, r.detail].filter(Boolean).join(" ")).includes(q)) return i;
   }
-  return at;
+  return start;
 }

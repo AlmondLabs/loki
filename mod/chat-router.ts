@@ -2,7 +2,7 @@ import { isAbsolute, relative, sep } from "node:path";
 import { basename } from "node:path";
 import { peerMeaning, pushMeaning } from "../core/frames.ts";
 import type { PeerLink } from "./peer-link.ts";
-import { scopeFor } from "../core/canvas-core.ts";
+import { scopeFor } from "../core/chat-scope.ts";
 import type { ChatDirectory, ChatRef, Location } from "./chat-directory.ts";
 import { PeerRefusal } from "./peer-link.ts";
 import { messageOf } from "../core/errors.ts";
@@ -43,11 +43,6 @@ export class ChatRouter {
     if (route === "chat" && chat) {
       const known = this.opts.directory.peek(chat);
       return known ? toTarget(known) : this.opts.directory.locate(chat).then(toTarget);
-    }
-    if (route === "scope") {
-      const scope = scopeOfFrame(msg);
-      const known = scope ? this.opts.directory.peek(scope) : null;
-      return known ? toTarget(known) : null;
     }
     return null;
   }
@@ -113,11 +108,6 @@ export class ChatRouter {
     const relay = pushMeaning(frame.type)?.relay;
     const chat = chatOfFrame(frame);
     if (relay === "chat") return chat && from(this.opts.directory.peek(chat)) ? {} : false;
-    if (relay === "scope") {
-      const scope = typeof frame.scope === "string" ? frame.scope : scopeOfEntry(frame.entry);
-      if (!scope) return false;
-      return from(this.opts.directory.peek(scope)) ? { scope } : false;
-    }
     return false;
   }
 
@@ -140,20 +130,6 @@ function chatOfFrame(msg: Record<string, unknown>): ChatRef | null {
 }
 
 const toTarget = (where: Location): Target => (where.at === "mac" ? { mac: where.mac, reachable: where.reachable } : null);
-
-export function scopeOfFrame(msg: Record<string, unknown>): string | null {
-  if (typeof msg.scope === "string") return msg.scope;
-  const gesture = msg.gesture as { id?: unknown } | undefined;
-  const id = typeof msg.id === "string" ? msg.id : typeof gesture?.id === "string" ? gesture.id : null;
-  if (!id) return null;
-  const slash = id.indexOf("/");
-  return slash > 0 ? id.slice(0, slash) : null;
-}
-
-const scopeOfEntry = (entry: unknown): string | null => {
-  const e = entry as { scope?: unknown } | undefined;
-  return typeof e?.scope === "string" ? e.scope : null;
-};
 
 const insideDir = (dir: string, path: string): boolean => {
   const rel = relative(dir, path);

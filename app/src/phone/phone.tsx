@@ -1,6 +1,5 @@
 import { homesOf } from "../shell/chat-sidebar";
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState, type ReactNode } from "react";
-import { WidgetSourceContext } from "../chat/use-inline-widgets";
 import { useAttention } from "../../../core/attention/use-attention.ts";
 import { catchUpQueue } from "../../../core/attention/queue.ts";
 import type { AttentionItem } from "../../../core/attention/model.ts";
@@ -47,7 +46,7 @@ import { nextPrefill, recentPlaces, useFocusOnRoute, type Prefill } from "./sess
 import { useKeyboardInset } from "./viewport";
 import { useEdgeSwipe } from "./edge-swipe";
 import { useModelList } from "../shell/use-model-list";
-import { conversationDirName, isMainChat, scopeFor } from "../../../core/canvas-core.ts";
+import { conversationDirName, isMainChat, scopeFor } from "../../../core/chat-scope.ts";
 import { parentChatOfSubagent } from "../../../core/subagents.ts";
 import type { Runtime } from "../../../core/attention/protocol.ts";
 import type { ModelSelection } from "../../../core/models.ts";
@@ -284,114 +283,112 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
   const health = useHealthBuild();
   const update = <UpdateBar servedBuild={desk.servedBuild} health={health} />;
   return (
-    <WidgetSourceContext.Provider value={desk}>
-      <div ref={shellRef} className="loki-phone loki-phone-shell" data-screen={route.kind}>
-        <main className="loki-phone-main">
-          {conv && (
-            <ConversationPage
-              conv={conv}
-              desk={desk}
-              catchUp={catchUp}
-              onRename={onRename}
-              onArchive={onArchive}
-              models={models.list}
-              onLoadModels={models.load}
-              banner={banner}
-              backLabel={backLabel}
-              onBack={onBack}
-              prefill={prefill}
-            />
-          )}
-          {route.kind === "learn" && (
-            <Learn
-              view={route.view}
-              recall={recall}
-              pass={learnPass}
-              banner={recallNote ? <Banner>{recallNote}</Banner> : banner}
-              backLabel={backLabel}
-              onBack={onBack}
-              onBegin={beginLesson}
-              onOpen={openConversation}
-            />
-          )}
-          {route.kind === "search" && (
-            <Search
-              q={route.q ?? ""}
-              fresh={arrival !== "pop"}
-              sources={searchSources}
-              link={link}
-              loaded={catchUp.agentsLoaded}
-              backLabel={backLabel}
-              onBack={onBack}
-            />
-          )}
-          {route.kind === "archive" && (
-            <Archive
-              desks={desk.desks.list}
-              loaded={desk.desks.loaded}
-              banner={banner}
-              backLabel={backLabel}
-              onBack={onBack}
-              onArchive={onArchive}
-              onRename={onRename}
-            />
-          )}
-          {route.kind === "preferences" && <Preferences banner={banner} backLabel={backLabel} onBack={onBack} />}
-          {route.kind === "usage" && <UsageScreen usage={{ ...desk.usage, agents: catchUp.agents }} banner={banner} backLabel={backLabel} onBack={onBack} />}
-          {route.kind === "connection" && (
-            <ConnectionPage me={me} link={link} modLink={desk.connection} banner={banner} onUnpaired={onUnpaired} backLabel={backLabel} onBack={onBack} />
-          )}
-          {route.kind === "about" && <AboutPage servedBuild={desk.servedBuild} banner={banner} backLabel={backLabel} onBack={onBack} />}
-          {route.kind === "agent" && (
-            <AgentPage
-              agentId={route.agentId}
-              name={agentNameOf(catchUp.agents, desk.desks.list, route.agentId)}
-              desks={desk.desks.list}
-              items={catchUp.items}
-              api={desk.agents}
-              banner={banner}
-              backLabel={backLabel}
-              onBack={onBack}
-            />
-          )}
-          {route.kind === "file" && (
-            <FilePage
-              agentId={route.agentId}
-              path={route.path}
-              name={agentNameOf(catchUp.agents, desk.desks.list, route.agentId)}
-              api={desk.agents}
-              banner={banner}
-              onBack={onBack}
-            />
-          )}
-
-          <Screen
-            tab={tab}
-            me={me}
-            link={link}
+    <div ref={shellRef} className="loki-phone loki-phone-shell" data-screen={route.kind}>
+      <main className="loki-phone-main">
+        {conv && (
+          <ConversationPage
+            conv={conv}
             desk={desk}
             catchUp={catchUp}
-            deck={deck}
-            due={recall.due}
-            banner={banner}
-            recentFolders={recentFolders}
-            onArchive={onArchive}
             onRename={onRename}
-            inboxBack={labelOf(flowFrom)}
+            onArchive={onArchive}
             models={models.list}
             onLoadModels={models.load}
+            banner={banner}
+            backLabel={backLabel}
+            onBack={onBack}
+            prefill={prefill}
           />
-        </main>
-
-        {nav ? (
-          <TabBar active={tab} waiting={waiting}>
-            {update}
-          </TabBar>
-        ) : (
-          update
         )}
-      </div>
-    </WidgetSourceContext.Provider>
+        {route.kind === "learn" && (
+          <Learn
+            view={route.view}
+            recall={recall}
+            pass={learnPass}
+            banner={recallNote ? <Banner>{recallNote}</Banner> : banner}
+            backLabel={backLabel}
+            onBack={onBack}
+            onBegin={beginLesson}
+            onOpen={openConversation}
+          />
+        )}
+        {route.kind === "search" && (
+          <Search
+            q={route.q ?? ""}
+            fresh={arrival !== "pop"}
+            sources={searchSources}
+            link={link}
+            loaded={catchUp.agentsLoaded}
+            backLabel={backLabel}
+            onBack={onBack}
+          />
+        )}
+        {route.kind === "archive" && (
+          <Archive
+            desks={desk.desks.list}
+            loaded={desk.desks.loaded}
+            banner={banner}
+            backLabel={backLabel}
+            onBack={onBack}
+            onArchive={onArchive}
+            onRename={onRename}
+          />
+        )}
+        {route.kind === "preferences" && <Preferences banner={banner} backLabel={backLabel} onBack={onBack} />}
+        {route.kind === "usage" && <UsageScreen usage={{ ...desk.usage, agents: catchUp.agents }} banner={banner} backLabel={backLabel} onBack={onBack} />}
+        {route.kind === "connection" && (
+          <ConnectionPage me={me} link={link} modLink={desk.connection} banner={banner} onUnpaired={onUnpaired} backLabel={backLabel} onBack={onBack} />
+        )}
+        {route.kind === "about" && <AboutPage servedBuild={desk.servedBuild} banner={banner} backLabel={backLabel} onBack={onBack} />}
+        {route.kind === "agent" && (
+          <AgentPage
+            agentId={route.agentId}
+            name={agentNameOf(catchUp.agents, desk.desks.list, route.agentId)}
+            desks={desk.desks.list}
+            items={catchUp.items}
+            api={desk.agents}
+            banner={banner}
+            backLabel={backLabel}
+            onBack={onBack}
+          />
+        )}
+        {route.kind === "file" && (
+          <FilePage
+            agentId={route.agentId}
+            path={route.path}
+            name={agentNameOf(catchUp.agents, desk.desks.list, route.agentId)}
+            api={desk.agents}
+            banner={banner}
+            onBack={onBack}
+          />
+        )}
+
+        <Screen
+          tab={tab}
+          me={me}
+          link={link}
+          desk={desk}
+          catchUp={catchUp}
+          deck={deck}
+          due={recall.due}
+          banner={banner}
+          recentFolders={recentFolders}
+          onArchive={onArchive}
+          onRename={onRename}
+          inboxBack={labelOf(flowFrom)}
+          models={models.list}
+          onLoadModels={models.load}
+        />
+      </main>
+
+      {nav ? (
+        <TabBar active={tab} waiting={waiting}>
+          {update}
+        </TabBar>
+      ) : (
+        update
+      )}
+    </div>
   );
 }
 

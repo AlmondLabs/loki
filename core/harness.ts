@@ -64,27 +64,13 @@ export interface HarnessEvent {
   link?: { agent_id: string; conversation_id: string };
   subagent_chat?: string;
   event?: EventKind;
-  /** Set on what the person did before writing (their canvas gestures, the suggestion they sent from): placed before their words. */
+  /** Set on what the person did before writing (e.g. the suggestion they sent from): placed before their words. */
   yours?: true;
-}
-
-function canvasWords(lines: readonly string[]): string {
-  const widgets = new Set(lines.map((l) => [...l.matchAll(/"[^"]*" \(([^)]*)\)/g)].at(-1)?.[1] ?? [...l.matchAll(/"[^"]*"/g)].at(-1)?.[0] ?? l));
-  const moved = lines.length > 0 && lines.every((l) => l.startsWith("moved "));
-  return `You ${moved ? "moved" : "changed"} ${String(widgets.size)} ${widgets.size === 1 ? "widget" : "widgets"}`;
 }
 
 export function extractHarnessEvents(whole: string): HarnessEvent[] {
   const text = whole.replace(ANSWER_BLOCK, "");
   const out: HarnessEvent[] = [];
-  for (const m of text.matchAll(/<lo[ck]i-desk(?:\s+desk="[^"]*")?[^>]*>([\s\S]*?)<\/lo[ck]i-desk>/g)) {
-    const lines = m[1]
-      .split("\n")
-      .map((l) => l.trim())
-      .filter((l) => l.startsWith("- "))
-      .map((l) => l.slice(2));
-    out.push({ text: canvasWords(lines), summary: null, detail: lines.length ? lines.join("\n") : null, event: "canvas", yours: true });
-  }
   for (const m of text.matchAll(/<loki-moved\b([^>]*)\/>/g)) {
     const was = decodeEntities(/\bfrom="([^"]*)"/.exec(m[1])?.[1] ?? "");
     const now = decodeEntities(/\bto="([^"]*)"/.exec(m[1])?.[1] ?? "");

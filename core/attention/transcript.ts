@@ -47,7 +47,7 @@ export interface FileRef {
  * (core/harness.ts, ThreadModel) and carried in history pages from the daemon; a row without it is drawn as a plain
  * event.
  */
-export type EventKind = "subagent" | "chat_message" | "canvas" | "moved" | "command";
+export type EventKind = "subagent" | "chat_message" | "moved" | "command";
 
 export interface TranscriptRow {
   role: "user" | "assistant" | "tool" | "event";

@@ -30,14 +30,7 @@ describe("your commands are yours (plan 2026-11-24-1736, R5)", () => {
   });
 });
 
-describe("the canvas, another chat and a move, each in its own look (plan 2026-11-24-1736, R2, R6, R8)", () => {
-  test("canvas gestures are one widget line that opens to the list", () => {
-    const html = mac({ role: "event", text: "You moved 2 widgets", summary: null, detail: 'moved "A" (c/a) to (1, 2)', event: "canvas" });
-    expect(html).toMatch(/<button[^>]*aria-expanded="false"/);
-    expect(html).toContain("You moved 2 widgets");
-    expect(html).not.toContain("moved &quot;A&quot;");
-  });
-
+describe("another chat and a move, each in its own look (plan 2026-11-24-1736, R2, R6, R8)", () => {
   test("a message from another chat is one line, and Open Chat is not part of the line that opens it", () => {
     const row: TranscriptRow = {
       role: "event",

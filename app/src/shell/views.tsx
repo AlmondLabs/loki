@@ -1,5 +1,5 @@
 import { lazy, Suspense } from "react";
-import { scopeFor } from "../../../core/canvas-core.ts";
+import { scopeFor } from "../../../core/chat-scope.ts";
 import { LOKI_COMMANDS } from "../../../core/attention/commands.ts";
 import { labelCommand } from "../chat/labels";
 import { saveLabels } from "../workspace/workspace-conversation";
@@ -14,7 +14,6 @@ const Learn = lazy(() => import("../learn/learn").then((m) => ({ default: m.Lear
 import type { Learn as LearnModel } from "./use-learn";
 import { avatarUrl } from "../workspace/env";
 import type { ModelEntry } from "../chat/model-picker";
-import type { ChatPlacement, ChatWidth } from "../chat/chat-window";
 
 import { Welcome } from "./welcome";
 import type { DaemonStatus, WelcomeStep } from "./bootstrap";
@@ -120,7 +119,6 @@ export function FlowView({
         onOpenWorker={onOpenWorker}
         chats={catchUp}
         loadHistory={(item) => void catchUp.loadHistory(item)}
-        widgetSource={desk}
         modelFor={(agentId, conversationId) => desk.modelOf(scopeFor(conversationId, agentId))}
         reasoningEffortFor={(agentId, conversationId) => desk.reasoningEffortOf(scopeFor(conversationId, agentId))}
         models={models}
@@ -203,10 +201,6 @@ export interface PreferencesSources {
   desk: Workspace;
   catchUp: CatchUp;
   daemon: DaemonStatus | null;
-  chatWidth: ChatWidth;
-  onChatWidth: (w: ChatWidth) => void;
-  chatPlacement: ChatPlacement;
-  onChatPlacement: (p: ChatPlacement) => void;
   onModelsChanged: () => void;
 }
 
@@ -214,10 +208,6 @@ export function preferencesProps({
   desk,
   catchUp,
   daemon,
-  chatWidth,
-  onChatWidth,
-  chatPlacement,
-  onChatPlacement,
   onModelsChanged,
   update,
   shortcut,
@@ -227,10 +217,6 @@ export function preferencesProps({
     chatLink: catchUp.status === "off" ? "connecting" : catchUp.status,
     modConnection: desk.connection,
     deskCount: desk.desks.list.filter((d) => d.status === "live").length,
-    chatWidth,
-    onChatWidth,
-    chatPlacement,
-    onChatPlacement,
     providers: catchUp.providers,
     onLoadProviders: catchUp.loadProviders,
     onConnectProvider: catchUp.connectProvider,

@@ -6,7 +6,6 @@ import { useWorkspace } from "../workspace/use-workspace";
 import { Settings } from "../settings/settings";
 import { useDaemonStatus } from "./bootstrap";
 import { MODELS_CHANGED_KEY } from "./open-settings";
-import { useChatLayout } from "./use-chat-layout";
 import { useGlobalShortcut } from "./use-global-shortcut";
 import { useLokiUpdate } from "./use-loki-update";
 import { useLearn } from "./use-learn";
@@ -30,7 +29,6 @@ export function SettingsWindow() {
   const recall = useLearn(desk, "settings", (m) => void notify(m));
   const update = useLokiUpdate();
   const shortcut = useGlobalShortcut();
-  const chat = useChatLayout(desk);
   const [opening, setOpening] = useState<{ page: string | null; n: number }>(() => ({ page: settingsWindow?.page ?? null, n: 0 }));
 
   useEffect(() => {
@@ -66,10 +64,6 @@ export function SettingsWindow() {
     desk,
     catchUp,
     daemon: daemon.status,
-    chatWidth: chat.chatWidth,
-    onChatWidth: chat.setChatWidth,
-    chatPlacement: chat.chatPlacement,
-    onChatPlacement: chat.setChatPlacement,
     onModelsChanged: markModelsChanged,
     update,
     shortcut,

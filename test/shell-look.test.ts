@@ -30,21 +30,14 @@ describe("the window shell on Liquid Glass", () => {
   });
 });
 
-describe("search, sheets, menus and the Canvas's chips on Liquid Glass (U7)", () => {
-  test("every sheet, popover and type-ahead list is strong glass, and the Canvas's floating chips are glass, from the glass tokens", () => {
+describe("search, sheets, menus and floating chips on Liquid Glass (U7)", () => {
+  test("every sheet, popover and type-ahead list is strong glass, and floating chips are glass, from the glass tokens", () => {
     const sheets = must(/\.loki-sheet-card,\s*\.loki-popover,\s*\.loki-mail-suggest \{([^}]*)\}/.exec(glass), "the sheet rule")[1];
     expect(sheets).toContain("var(--loki-glass-strong)");
     expect(sheets).toContain("var(--loki-glass-blur)");
     const chips = must(/\.loki-chip--float \{([^}]*)\}/.exec(glass), "the chip rule")[1];
     expect(chips).toContain("var(--loki-glass)");
     expect(`${sheets}${chips}`).not.toMatch(/blur\(/);
-  });
-
-  test("widgets are sent the page's stylesheet and day or night, so they draw in Liquid Glass's roles", () => {
-    const widget = readFileSync(join(APP, "workspace", "module-widget.tsx"), "utf8");
-    expect(widget).toMatch(/return \{ theme: d\.theme \?\? "dark" \};/);
-    expect(widget).toMatch(/attributeFilter: \["data-theme"\]/);
-    expect(widget).not.toContain("palette");
   });
 });
 

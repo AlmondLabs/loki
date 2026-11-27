@@ -3,7 +3,7 @@ import { CheckIcon, CircleAlertIcon, LoaderCircleIcon, LockIcon, SquareIcon } fr
 import type { ChatEvent } from "../../../core/attention/model.ts";
 import type { TranscriptRow } from "../../../core/attention/transcript.ts";
 import { useThreadRows, type useAttention } from "../../../core/attention/use-attention.ts";
-import { scopeFor } from "../../../core/canvas-core.ts";
+import { scopeFor } from "../../../core/chat-scope.ts";
 import type { ModelSelection, ReasoningEffort } from "../../../core/models.ts";
 import { subagentDisplayName, type SubagentStatus, type SubagentView } from "../../../core/subagents.ts";
 import { Conversation, type ConversationActions, type ConversationView } from "../chat/conversation";
