@@ -1,4 +1,4 @@
-import type { Context } from "@earendil-works/chord";
+import type { Context } from "@earendil-works/chord/context";
 import type { CommitPublication, ConversationId, UsageState } from "@earendil-works/pi-durable";
 import { createReadStream, readFileSync } from "node:fs";
 import { createInterface } from "node:readline";
@@ -186,15 +186,16 @@ export class UsageLedger {
 
   attach(agentId: string, store: AgentStore): void {
     this.unsubscribe.get(agentId)?.();
-    this.unsubscribe.set(
-      agentId,
-      store.harness.subscribeCommits((publication) => {
-        if (!publication.changes.some((c) => c.type === "document" && c.record.kind === "pi.usage" && c.conversationId !== undefined && Boolean(c.value)))
+    const observation = store.harness.observeCommits({
+      advance: (publication) => {
+        if (!publication.changes.some((c) => c.type === "document" && c.kind === "change" && c.record.kind === "pi.usage" && c.conversationId !== undefined))
           return;
         const at = this.now();
         this.enqueue(() => this.apply(agentId, store, publication, at));
-      }),
-    );
+      },
+      end: () => {},
+    });
+    this.unsubscribe.set(agentId, () => observation.detach());
     this.enqueue(() => this.baseline(agentId, store));
   }
 
@@ -357,7 +358,7 @@ export class UsageLedger {
   private async apply(agentId: string, store: AgentStore, publication: CommitPublication, at: number): Promise<void> {
     let grew = false;
     for (const change of publication.changes) {
-      if (change.type !== "document" || change.record.kind !== "pi.usage" || change.conversationId === undefined || !change.value) continue;
+      if (change.type !== "document" || change.kind !== "change" || change.record.kind !== "pi.usage" || change.conversationId === undefined) continue;
       const conversationId = change.conversationId;
       const seen = (this.seen[agentId] ??= {});
       const now = modelCounters(change.value);

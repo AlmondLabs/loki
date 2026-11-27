@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { Context } from "@earendil-works/chord";
+import type { Context } from "@earendil-works/chord/context";
 import { validateToolArguments } from "@earendil-works/pi-ai/utils/validation";
 import { defineTool, type JsonObject, type ToolExecutionApi } from "@earendil-works/pi-durable";
 import { BackgroundTasks, backgroundExtension, shell, wrapBashWithBackground } from "../daemon/background.ts";

@@ -1,5 +1,4 @@
-import type { AgentEvent, EntryRecord } from "@earendil-works/pi-durable";
-import type { AssistantMessage } from "@earendil-works/pi-ai";
+import type { ConversationView, EntryRecord, LiveState } from "@earendil-works/pi-durable";
 import { COMPACTION, compactionSteps, messageAt, messageSteps, type ImageNamer, type PiMessage } from "../core/attention/pi-steps.ts";
 import type { ChatEvent } from "../core/attention/model.ts";
 
@@ -27,19 +26,30 @@ function unanswered(reason: string | undefined, detail: unknown): string {
   return `the agent could not take this message up${reason ? ` (${reason}${said ? `: ${said}` : ""})` : tail}`;
 }
 
-function textBlocks(message: AssistantMessage | undefined): Map<number, string> {
-  const out = new Map<number, string>();
-  (Array.isArray(message?.content) ? message.content : []).forEach((block, i) => {
-    if (block.type === "text") out.set(i, block.text);
-  });
-  return out;
+function joinedText(message: { readonly content?: ReadonlyArray<{ readonly type: string; readonly text?: string }> } | undefined): string {
+  const parts: string[] = [];
+  for (const block of message?.content ?? []) {
+    if (block.type === "text" && typeof block.text === "string") parts.push(block.text);
+  }
+  return parts.join("\n");
+}
+
+function liveOf(view: ConversationView): LiveState | undefined {
+  // oxlint-disable-next-line typescript/no-unnecessary-type-assertion -- tsgolint 7.0.2005 calls this a no-op, but tsc needs it: view.docs values are typed as JsonObject.
+  return view.docs["pi.live"] as LiveState | undefined;
 }
 
 export class ChatEventConverter {
   private partial: { text: string; at: string | null } | null = null;
-  private blocks = new Map<number, string>();
-  private maxIndex = -1;
-  private readonly blocking = new Set<string>();
+  private lastEntryId = 0;
+  private running = false;
+  private retryAt: number | null = null;
+  private doneTools = new Set<string>();
+  private blockingCompactions = new Set<number>();
+  private activeCompactions = new Set<number>();
+  private lastCompactionFailureId: number | null = null;
+  private lastRunFailureKey: string | null = null;
+  private lastCompactionEnded = false;
   private readonly nameImage?: ImageNamer;
 
   constructor(_agentId = "", nameImage?: ImageNamer) {
@@ -50,114 +60,138 @@ export class ChatEventConverter {
     return this.partial?.text ? { ...this.partial } : null;
   }
 
-  convert(ev: AgentEvent, now = new Date().toISOString()): ChatEvent[] {
-    switch (ev.type) {
-      case "snapshot": {
-        this.blocks = textBlocks(ev.generation?.message);
-        this.maxIndex = Math.max(-1, ...this.blocks.keys());
-        const text = this.joined();
-        this.partial = text ? { text, at: now } : null;
-        return [];
-      }
-      case "run_start":
-        return [{ kind: "loop", state: "running" }];
-      case "run_end": {
-        this.partial = null;
-        this.blocks.clear();
-        this.maxIndex = -1;
-        return [{ kind: "settle" }, { kind: "loop", state: "idle" }, { kind: "turn_end" }];
-      }
-      // Outside (pi-durable): a user message is shown at its end, which says what entry it is (a compaction's summary is
-      // a user message too). An answer's start is its first partial, and often holds its first words.
-      case "message_start":
-        if (ev.message.role === "user") return [];
-        this.blocks = textBlocks(ev.message.role === "assistant" ? ev.message : undefined);
-        this.maxIndex = Math.max(-1, ...this.blocks.keys());
-        return this.streamed(now);
-      case "message_update": {
-        if (this.partial !== null && ev.changes.length > 0 && ev.changes.every((c) => c.type === "text_delta" && c.contentIndex === this.maxIndex)) {
-          let delta = "";
-          for (const change of ev.changes) if (change.type === "text_delta") delta += change.delta;
-          if (!delta) return [];
-          this.blocks.set(this.maxIndex, (this.blocks.get(this.maxIndex) ?? "") + delta);
-          this.partial = { text: this.partial.text + delta, at: this.partial.at };
-          return [{ kind: "step", step: { kind: "assistant", text: delta, at: now, chunk: true } }];
-        }
-        for (const change of ev.changes) {
-          if (change.type === "text_start" || change.type === "block") {
-            if (change.block.type === "text") {
-              this.blocks.set(change.contentIndex, change.block.text);
-              if (change.contentIndex > this.maxIndex) this.maxIndex = change.contentIndex;
-            }
-          } else if (change.type === "text_delta") {
-            this.blocks.set(change.contentIndex, (this.blocks.get(change.contentIndex) ?? "") + change.delta);
-            if (change.contentIndex > this.maxIndex) this.maxIndex = change.contentIndex;
-          } else if (change.type === "message") {
-            this.blocks = textBlocks(change.message);
-            this.maxIndex = Math.max(-1, ...this.blocks.keys());
-          }
-        }
-        return this.streamed(now);
-      }
-      case "auto_retry_start":
-        this.partial = null;
-        this.blocks.clear();
-        this.maxIndex = -1;
-        return [{ kind: "step", step: { kind: "assistant", text: "", at: now } }];
-      case "message_end":
-        this.partial = null;
-        this.blocks.clear();
-        this.maxIndex = -1;
-        return this.answered(ev.entry, now);
-      case "tool_execution_end": {
-        const result = ev.entry?.model?.[0] as { content?: unknown; isError?: boolean } | undefined;
-        // Outside (pi-durable): a tool task that faulted or was orphaned ends with no entry; the call shows as failed.
-        return [
-          {
-            kind: "step",
-            step: { kind: "result", id: ev.toolCallId, output: result?.content ?? "the tool did not finish", failed: result ? result.isError === true : true },
-          },
-        ];
-      }
-      case "compaction_start":
-        if (!ev.blocking) return [];
-        this.blocking.add(String(ev.taskId));
-        return [{ kind: "step", step: { kind: "compaction", state: "running", detail: null, at: now } }];
-      case "compaction_end": {
-        const shown = this.blocking.delete(String(ev.taskId));
-        if (ev.error) return [{ kind: "step", step: { kind: "compaction", state: "failed", detail: ev.error, at: now } }];
-        return shown ? [{ kind: "step", step: { kind: "compaction", state: "ended", detail: null, at: now } }] : [];
-      }
-      case "task_failed":
-        return [{ kind: "error", message: ev.message }];
-      case "submission":
-        if (ev.record.status !== "unanswered") return [];
-        return [
-          { kind: "error", message: unanswered(ev.record.reason, ev.record.detail) },
-          { kind: "settle" },
-          { kind: "loop", state: "idle" },
-          { kind: "turn_end" },
-        ];
-      default:
-        return [];
+  compactionEnded(): boolean {
+    return this.lastCompactionEnded;
+  }
+
+  seed(view: ConversationView, now = new Date().toISOString()): void {
+    const live = liveOf(view);
+    this.lastEntryId = view.entries.at(-1)?.id ?? 0;
+    this.running = Boolean(live?.run);
+    this.retryAt = live?.generation?.retry?.at ?? null;
+    const text = joinedText(live?.generation?.message);
+    this.partial = text ? { text, at: now } : null;
+    this.doneTools = new Set((live?.tools ?? []).filter((t) => t.status === "done").map((t) => t.callId));
+    this.blockingCompactions = new Set((live?.compactions ?? []).filter((c) => c.blocking).map((c) => Number(c.taskId)));
+    this.activeCompactions = new Set((live?.compactions ?? []).map((c) => Number(c.taskId)));
+    this.lastCompactionFailureId = live?.compactionFailure ? Number(live.compactionFailure.taskId) : null;
+    this.lastRunFailureKey = live?.runFailure ? `${String(live.runFailure.taskId)}:${live.runFailure.inputs.join(",")}` : null;
+    this.lastCompactionEnded = false;
+  }
+
+  convert(view: ConversationView, now = new Date().toISOString()): ChatEvent[] {
+    const live = liveOf(view);
+    const out: ChatEvent[] = [];
+    this.lastCompactionEnded = false;
+
+    if (!this.running && live?.run) {
+      this.running = true;
+      out.push({ kind: "loop", state: "running" });
     }
-  }
 
-  private streamed(now: string): ChatEvent[] {
-    const was = this.partial?.text ?? "";
-    const text = this.joined();
-    if (text === was) return [];
-    const at = this.partial?.at ?? now;
-    this.partial = text ? { text, at } : null;
-    if (text.startsWith(was)) return [{ kind: "step", step: { kind: "assistant", text: text.slice(was.length), at: now, chunk: true } }];
-    return [{ kind: "streaming", text, at }];
-  }
+    for (const entry of view.entries) {
+      if (entry.id <= this.lastEntryId) continue;
+      this.lastEntryId = entry.id;
+      if (entry.kind === "pi.assistant") {
+        this.partial = null;
+        out.push(...this.answered(entry, now));
+      } else if (entry.kind === COMPACTION) {
+        this.lastCompactionEnded = true;
+        out.push(...this.answered(entry, now));
+      } else if (entry.kind === "pi.user") {
+        out.push(...this.answered(entry, now));
+      } else if (entry.kind === "pi.tool-result") {
+        const result = entry.model?.[0] as { toolCallId?: string; content?: unknown; isError?: boolean } | undefined;
+        if (result?.toolCallId) {
+          this.doneTools.add(result.toolCallId);
+          out.push({
+            kind: "step",
+            step: { kind: "result", id: result.toolCallId, output: result.content ?? "the tool did not finish", failed: result.isError === true },
+          });
+        }
+      }
+    }
 
-  private joined(): string {
-    return [...this.blocks.entries()]
-      .sort((a, b) => a[0] - b[0])
-      .map(([, text]) => text)
-      .join("\n");
+    if (live?.tools) {
+      for (const slot of live.tools) {
+        if (slot.status === "done" && slot.entry === undefined && !this.doneTools.has(slot.callId)) {
+          this.doneTools.add(slot.callId);
+          out.push({ kind: "step", step: { kind: "result", id: slot.callId, output: "the tool did not finish", failed: true } });
+        }
+      }
+    } else {
+      this.doneTools.clear();
+    }
+
+    if (live?.generation?.retry !== undefined) {
+      if (live.generation.retry.at !== this.retryAt) {
+        this.retryAt = live.generation.retry.at;
+        this.partial = null;
+        out.push({ kind: "step", step: { kind: "assistant", text: "", at: now } });
+      }
+    } else {
+      this.retryAt = null;
+    }
+
+    if (live?.run && live.generation?.message && !live.generation.retry) {
+      const was = this.partial?.text ?? "";
+      const text = joinedText(live.generation.message);
+      if (text !== was) {
+        const at = this.partial?.at ?? now;
+        this.partial = text ? { text, at } : null;
+        if (text) {
+          if (text.startsWith(was)) out.push({ kind: "step", step: { kind: "assistant", text: text.slice(was.length), at: now, chunk: true } });
+          else out.push({ kind: "streaming", text, at });
+        }
+      }
+    } else if (!live?.generation?.message) {
+      this.partial = null;
+    }
+
+    const currentCompactions = live?.compactions ?? [];
+    const currentIds = new Set(currentCompactions.map((c) => Number(c.taskId)));
+    for (const c of currentCompactions) {
+      const id = Number(c.taskId);
+      if (c.blocking && !this.blockingCompactions.has(id)) {
+        this.blockingCompactions.add(id);
+        out.push({ kind: "step", step: { kind: "compaction", state: "running", detail: null, at: now } });
+      }
+    }
+    if (live?.compactionFailure && Number(live.compactionFailure.taskId) !== this.lastCompactionFailureId) {
+      const id = Number(live.compactionFailure.taskId);
+      this.lastCompactionFailureId = id;
+      this.blockingCompactions.delete(id);
+      this.lastCompactionEnded = true;
+      out.push({ kind: "step", step: { kind: "compaction", state: "failed", detail: live.compactionFailure.error, at: now } });
+    }
+    for (const id of [...this.blockingCompactions]) {
+      if (!currentIds.has(id)) {
+        this.blockingCompactions.delete(id);
+        out.push({ kind: "step", step: { kind: "compaction", state: "ended", detail: null, at: now } });
+      }
+    }
+    for (const id of this.activeCompactions) {
+      if (!currentIds.has(id)) this.lastCompactionEnded = true;
+    }
+    this.activeCompactions = currentIds;
+
+    const rf = live?.runFailure;
+    const rfKey = rf ? `${String(rf.taskId)}:${rf.inputs.join(",")}` : null;
+    const newFailure = rf !== undefined && rfKey !== this.lastRunFailureKey;
+    if (newFailure) {
+      this.lastRunFailureKey = rfKey;
+      out.push({ kind: "error", message: unanswered(rf.reason, rf.detail) });
+    }
+
+    if (!live?.run && (this.running || newFailure)) {
+      this.running = false;
+      this.partial = null;
+      out.push({ kind: "settle" }, { kind: "loop", state: "idle" }, { kind: "turn_end" });
+    } else if (newFailure && live?.run) {
+      out.push({ kind: "settle" }, { kind: "turn_end" });
+    }
+
+    return out;
   }
 
   private answered(entry: EntryRecord, now: string): ChatEvent[] {

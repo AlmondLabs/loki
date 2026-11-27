@@ -33,6 +33,7 @@ async function chatWithBuiltins(mod?: LokiMod) {
     name: "test.bash-spy",
     wraps: [
       {
+        kind: "tool",
         tool: "bash",
         wrap: (tool: ToolRegistration): ToolRegistration => ({
           ...tool,

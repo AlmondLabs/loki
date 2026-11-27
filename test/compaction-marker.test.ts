@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import type { AgentEvent } from "@earendil-works/pi-durable";
+import type { ConversationView, LiveState } from "@earendil-works/pi-durable";
 import { ChatEventConverter } from "../daemon/chat-events.ts";
 import { entrySteps } from "../core/attention/pi-steps.ts";
 import { COMPACTED_TEXT, foldSteps, ThreadModel, type Step } from "../core/attention/thread.ts";
@@ -10,7 +10,11 @@ const SUMMARY = "The conversation history before this point was compacted into t
 
 const compactionEntry = { kind: "pi.compaction", model: [{ role: "user", content: [{ type: "text", text: SUMMARY }], timestamp: AT }] };
 const done: Step = { kind: "compaction", state: "done", detail: "## Goal\n- Ship it", at: new Date(AT).toISOString() };
-const ended = (entry: object) => ({ type: "message_end", entry: { id: 1, conversationId: 1, ...entry } }) as unknown as AgentEvent;
+const view = (opts: { entries?: unknown[]; live?: LiveState } = {}): ConversationView => ({
+  conversation: { id: 1 } as never,
+  entries: (opts.entries ?? []).map((e, i) => ({ id: i + 1, conversationId: 1, ...(e as object) })) as never,
+  docs: opts.live ? { "pi.live": opts.live } : {},
+});
 
 describe("a compaction in history", () => {
   test("its entry is one step, the summary taken out of its wrapper", () => {
@@ -31,35 +35,43 @@ describe("a compaction in history", () => {
 describe("a compaction as it happens", () => {
   test("one that holds the turn up shows while it runs; a background one does not", () => {
     const c = new ChatEventConverter();
-    expect(c.convert({ type: "compaction_start", taskId: 7 as never, reason: "threshold", blocking: true }, NOW)).toEqual([
+    expect(c.convert(view({ live: { compactions: [{ taskId: 7 as never, trigger: "threshold", blocking: true, attempt: 1 }] } }), NOW)).toEqual([
       { kind: "step", step: { kind: "compaction", state: "running", detail: null, at: NOW } },
     ]);
-    expect(c.convert({ type: "compaction_start", taskId: 8 as never, reason: "threshold", blocking: false }, NOW)).toEqual([]);
+    expect(
+      c.convert(
+        view({
+          live: {
+            compactions: [
+              { taskId: 7 as never, trigger: "threshold", blocking: true, attempt: 1 },
+              { taskId: 8 as never, trigger: "threshold", blocking: false, attempt: 1 },
+            ],
+          },
+        }),
+        NOW,
+      ),
+    ).toEqual([]);
   });
 
   test("its summary is the finished row, never a message from the person", () => {
     const c = new ChatEventConverter();
-    expect(c.convert({ type: "message_start", message: compactionEntry.model[0] as never }, NOW)).toEqual([]);
-    expect(c.convert(ended(compactionEntry), NOW)).toEqual([{ kind: "step", step: done }]);
+    expect(c.convert(view({ entries: [compactionEntry] }), NOW)).toEqual([{ kind: "step", step: done }]);
   });
 
   test("a person's message still shows, when it is written", () => {
     const c = new ChatEventConverter();
     const message = { role: "user", content: [{ type: "text", text: "hello" }], timestamp: AT };
-    expect(c.convert({ type: "message_start", message: message as never }, NOW)).toEqual([]);
-    expect(c.convert(ended({ kind: "pi.user", model: [message] }), NOW)).toEqual([
+    expect(c.convert(view({ entries: [{ kind: "pi.user", model: [message] }] }), NOW)).toEqual([
       { kind: "step", step: { kind: "user", raw: "hello", at: new Date(AT).toISOString() } },
     ]);
   });
 
   test("an end says why it failed; a bare end takes away only a row it showed", () => {
     const c = new ChatEventConverter();
-    c.convert({ type: "compaction_start", taskId: 7 as never, reason: "threshold", blocking: true }, NOW);
-    expect(c.convert({ type: "compaction_end", taskId: 7 as never, reason: "threshold" }, NOW)).toEqual([
-      { kind: "step", step: { kind: "compaction", state: "ended", detail: null, at: NOW } },
-    ]);
-    expect(c.convert({ type: "compaction_end", taskId: 8 as never, reason: "threshold" }, NOW)).toEqual([]);
-    expect(c.convert({ type: "compaction_end", taskId: 9 as never, reason: "threshold", error: "prompt too long" }, NOW)).toEqual([
+    c.convert(view({ live: { compactions: [{ taskId: 7 as never, trigger: "threshold", blocking: true, attempt: 1 }] } }), NOW);
+    expect(c.convert(view(), NOW)).toEqual([{ kind: "step", step: { kind: "compaction", state: "ended", detail: null, at: NOW } }]);
+    expect(c.convert(view(), NOW)).toEqual([]);
+    expect(c.convert(view({ live: { compactionFailure: { taskId: 9 as never, trigger: "threshold", error: "prompt too long" } } }), NOW)).toEqual([
       { kind: "step", step: { kind: "compaction", state: "failed", detail: "prompt too long", at: NOW } },
     ]);
   });

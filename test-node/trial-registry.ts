@@ -1,4 +1,4 @@
-import { Type } from "@earendil-works/pi-ai";
+import { Type } from "typebox";
 import { createRegistry, defineExtension, defineTool } from "@earendil-works/pi-durable";
 
 export function trialRegistry() {

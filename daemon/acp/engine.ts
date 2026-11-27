@@ -1,4 +1,4 @@
-import type { Context } from "@earendil-works/chord";
+import type { Context } from "@earendil-works/chord/context";
 import type { ChatEvent } from "../../core/attention/model.ts";
 import type { ChatState, PayloadOf } from "../../core/frames.ts";
 import { modeOf } from "../../core/chat-links.ts";

@@ -83,22 +83,27 @@ let chatSeq = 0;
 async function daemonTurn(store: AgentStore, instructions: string, prompt: Prompt): Promise<TurnTimings> {
   const cwd = workDir();
   const chat = await store.createChat(`trial-${chatSeq++}`, { agent: { model: { provider: "openrouter", modelId: MODEL }, instructions, cwd } }, ctx);
-  const view = await chat.viewState(ctx);
+  const watch = await chat.watch(ctx);
   let firstOutputAt: number | null = null;
-  view.subscribe((value) => {
+  const check = (value: typeof watch.value) => {
     if (firstOutputAt !== null) return;
     const live = value.docs["pi.live"] as { generation?: { message?: { content?: Array<{ type?: string; text?: string }> } }; tools?: unknown[] } | undefined;
     const content = live?.generation?.message?.content ?? [];
     const answered = value.entries.some((e) => e.kind === "pi.assistant");
     if (answered || content.some((p) => (p.type === "text" && p.text) || p.type === "thinking" || p.type === "toolCall") || (live?.tools?.length ?? 0) > 0)
       firstOutputAt = Date.now();
+  };
+  check(watch.value);
+  watch.start((call) => {
+    if (call.kind === "value") check(call.value);
+    return Promise.resolve();
   });
   const before = (await store.entries(chat, ctx)).length;
   const sentAt = Date.now();
   const submission = await chat.submit({ type: "input", content: prompt.text }, ctx);
   const settled = await submission.wait(ctx);
   const endAt = Date.now();
-  view.dispose();
+  await watch.stop();
   if (settled.status !== "done") throw new Error(`turn ${settled.status}: ${JSON.stringify(settled).slice(0, 300)}`);
   const saved: Saved[] = [];
   for (const entry of (await store.entries(chat, ctx)).slice(before)) {

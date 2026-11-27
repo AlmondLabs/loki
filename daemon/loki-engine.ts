@@ -1,6 +1,6 @@
-import type { Context } from "@earendil-works/chord";
+import type { Context } from "@earendil-works/chord/context";
 import type { Models } from "@earendil-works/pi-ai/models";
-import { LiveDoc, watchEvents, type AgentEventStream, type Conversation, type Submission } from "@earendil-works/pi-durable";
+import { LiveDoc, type Conversation, type ConversationWatch, type Submission } from "@earendil-works/pi-durable";
 import { existsSync } from "node:fs";
 import type { ChatEvent } from "../core/attention/model.ts";
 import type { ImageNamer } from "../core/attention/pi-steps.ts";
@@ -37,9 +37,9 @@ export class LokiEngine implements Engine {
     context: Context;
     push: (agentId: string, conversationId: string, events: ChatEvent[]) => void;
     nameImage?: ImageNamer;
-    watch?: typeof watchEvents;
+    watch?: (chat: Conversation, context: Context) => Promise<ConversationWatch>;
   };
-  private readonly following = new Map<string, Promise<AgentEventStream>>();
+  private readonly following = new Map<string, Promise<ConversationWatch>>();
   private readonly converters = new Map<string, ChatEventConverter>();
 
   constructor(deps: LokiEngine["deps"]) {
@@ -183,16 +183,18 @@ export class LokiEngine implements Engine {
     await following;
   }
 
-  private async follow({ store, chat, agentId, conversationId }: EngineChat): Promise<AgentEventStream> {
-    const stream = await (this.deps.watch ?? watchEvents)(store.harness, chat.id, this.deps.context);
+  private async follow({ chat, agentId, conversationId }: EngineChat): Promise<ConversationWatch> {
+    const watch = await (this.deps.watch ? this.deps.watch(chat, this.deps.context) : chat.watch(this.deps.context));
     const converter = new ChatEventConverter(agentId, this.deps.nameImage);
+    converter.seed(watch.value);
     this.converters.set(keyOf(agentId, conversationId), converter);
-    stream.start(async (batch) => {
-      const events = batch.flatMap((ev) => converter.convert(ev));
+    watch.start(async (call) => {
+      if (call.kind !== "value") return;
+      const events = converter.convert(call.value);
       if (events.length) this.deps.push(agentId, conversationId, events);
-      if (batch.some((ev) => ev.type === "compaction_end")) await this.deps.mcp?.forget(chat, this.deps.context).catch(() => {});
+      if (converter.compactionEnded()) await this.deps.mcp?.forget(chat, this.deps.context).catch(() => {});
     });
-    return stream;
+    return watch;
   }
 
   private async state({ store, chat, agentId, conversationId }: EngineChat): Promise<ChatState> {
