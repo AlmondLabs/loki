@@ -32,11 +32,13 @@ export class AcpProcess {
   private generation: symbol;
   private kill: (() => void) | null = null;
   private readonly startTimeoutMs: number;
+  private readonly clientVersion: string;
 
-  constructor(config: AcpAgentConfig, handlers: AcpHandlers, startTimeoutMs = START_TIMEOUT_MS) {
+  constructor(config: AcpAgentConfig, handlers: AcpHandlers, startTimeoutMs = START_TIMEOUT_MS, clientVersion = "1") {
     this.config = config;
     this.handlers = handlers;
     this.startTimeoutMs = startTimeoutMs;
+    this.clientVersion = clientVersion;
     this.generation = Symbol(config.name);
   }
 
@@ -76,6 +78,10 @@ export class AcpProcess {
       partial = lines.pop() ?? "";
       for (const line of lines) if (line.trim()) this.handlers.log?.(line.slice(0, LOG_LINE_MAX));
     });
+    child.stderr.on("end", () => {
+      if (partial.trim()) this.handlers.log?.(partial.slice(0, LOG_LINE_MAX));
+      partial = "";
+    });
     const exited = new Promise<Error>((resolve) => {
       child.once("error", (e) => resolve(e));
       child.once("exit", (code, signal) => resolve(new Error(`${this.config.name} exited (${signal ?? `code ${code}`})`)));
@@ -112,18 +118,31 @@ export class AcpProcess {
       const init = await Promise.race([
         connection.agent.request(methods.agent.initialize, {
           protocolVersion: PROTOCOL_VERSION,
-          clientCapabilities: { fs: { readTextFile: false, writeTextFile: false }, terminal: false, elicitation: { url: {} } },
-          clientInfo: { name: "loki", version: "1" },
+          clientCapabilities: {
+            fs: { readTextFile: false, writeTextFile: false },
+            terminal: false,
+            elicitation: { url: {} },
+            session: { compaction: {}, notices: {} },
+          },
+          clientInfo: { name: "loki", version: this.clientVersion },
         }),
         exited.then((e) => Promise.reject(e)),
         timedOut,
       ]);
-      if (this.config.auth_method)
+      if (init.protocolVersion !== PROTOCOL_VERSION) {
+        throw new Error(`${this.config.name} asked for ACP protocol version ${String(init.protocolVersion)}, not ${PROTOCOL_VERSION}`);
+      }
+      if (this.config.auth_method) {
+        const offered = init.authMethods;
+        if (offered && !offered.some((m) => m.id === this.config.auth_method)) {
+          throw new Error(`${this.config.name} does not offer sign-in method ${this.config.auth_method}`);
+        }
         await Promise.race([
           connection.agent.request(methods.agent.authenticate, { methodId: this.config.auth_method }),
           exited.then((e) => Promise.reject(e)),
           timedOut,
         ]);
+      }
       return { connection, init, kill };
     } catch (error) {
       kill();
@@ -140,16 +159,24 @@ export class AcpProcess {
     return new Error(tail ? `${message}\n${tail.split("\n").slice(-5).join("\n")}` : message);
   }
 
-  async newSession(params: acp.NewSessionRequest): Promise<acp.NewSessionResponse> {
-    return (await this.started()).connection.agent.request(methods.agent.session.new, params);
+  async newSession(params: acp.NewSessionRequest, cancellationSignal?: AbortSignal): Promise<acp.NewSessionResponse> {
+    return (await this.started()).connection.agent.request(methods.agent.session.new, params, cancellationSignal ? { cancellationSignal } : undefined);
   }
 
-  async loadSession(params: acp.LoadSessionRequest): Promise<acp.LoadSessionResponse> {
-    return (await this.started()).connection.agent.request(methods.agent.session.load, params);
+  async loadSession(params: acp.LoadSessionRequest, cancellationSignal?: AbortSignal): Promise<acp.LoadSessionResponse> {
+    return (await this.started()).connection.agent.request(methods.agent.session.load, params, cancellationSignal ? { cancellationSignal } : undefined);
   }
 
-  async prompt(params: acp.PromptRequest): Promise<acp.PromptResponse> {
-    return (await this.started()).connection.agent.request(methods.agent.session.prompt, params);
+  async resumeSession(params: acp.ResumeSessionRequest, cancellationSignal?: AbortSignal): Promise<acp.ResumeSessionResponse> {
+    return (await this.started()).connection.agent.request(methods.agent.session.resume, params, cancellationSignal ? { cancellationSignal } : undefined);
+  }
+
+  async closeSession(params: acp.CloseSessionRequest): Promise<acp.CloseSessionResponse> {
+    return (await this.started()).connection.agent.request(methods.agent.session.close, params);
+  }
+
+  async prompt(params: acp.PromptRequest, cancellationSignal?: AbortSignal): Promise<acp.PromptResponse> {
+    return (await this.started()).connection.agent.request(methods.agent.session.prompt, params, cancellationSignal ? { cancellationSignal } : undefined);
   }
 
   async cancel(sessionId: string): Promise<void> {

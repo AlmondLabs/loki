@@ -10,6 +10,7 @@ import type { StoreManager } from "../kernel/stores.ts";
 import { messageOf } from "../../core/errors.ts";
 
 export const LOKI_TOOLS_SERVER = "loki";
+const MAX_BODY_BYTES = 4 * 1024 * 1024;
 
 interface ChatKey {
   agentId: string;
@@ -86,13 +87,34 @@ export class LokiTools {
     return calls;
   }
 
+  forgetChat(agentId: string, conversationId: string): void {
+    const chat = chatKey(agentId, conversationId);
+    const key = this.keys.get(chat);
+    this.keys.delete(chat);
+    this.called.delete(chat);
+    if (key) this.chats.delete(key);
+  }
+
+  forgetAgent(agentId: string): void {
+    const prefix = `${agentId}\u0000`;
+    for (const [chat, key] of this.keys) {
+      if (!chat.startsWith(prefix)) continue;
+      this.keys.delete(chat);
+      this.called.delete(chat);
+      this.chats.delete(key);
+    }
+  }
+
   static named(tools: readonly string[]): string[] {
     return tools.map((t) => `mcp__${LOKI_TOOLS_SERVER}__${t}`);
   }
 
-  readOnly(): string[] {
-    const served = this.deps.tools().filter((t) => t.kind === "read" && (!t.callers || t.callers.includes("model")));
-    return LokiTools.named([...(this.deps.scripts ? [ACP_SCRIPT_TOOL] : []), ...served.map((t) => t.name)]);
+  readOnly(agentId?: string): string[] {
+    const forChat = this.deps.tools().filter((t) => !t.forAgent || (agentId !== undefined && t.forAgent(agentId)));
+    const served = forChat.filter((t) => t.kind === "read" && (!t.callers || t.callers.includes("model")));
+    const scriptOnly = forChat.filter((t) => t.callers?.includes("tools") === true && !t.callers.includes("model"));
+    const withScript = this.deps.scripts && scriptOnly.length > 0 ? [ACP_SCRIPT_TOOL] : [];
+    return LokiTools.named([...withScript, ...served.map((t) => t.name)]);
   }
 
   private async serve(req: IncomingMessage, res: ServerResponse): Promise<void> {
@@ -103,7 +125,16 @@ export class LokiTools {
       return;
     }
     const chunks: Buffer[] = [];
-    for await (const chunk of req) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk)));
+    let total = 0;
+    for await (const chunk of req) {
+      const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk));
+      total += buf.byteLength;
+      if (total > MAX_BODY_BYTES) {
+        res.writeHead(413, { connection: "close" }).end();
+        return;
+      }
+      chunks.push(buf);
+    }
     const headers = new Headers();
     for (const [name, value] of Object.entries(req.headers)) if (typeof value === "string") headers.set(name, value);
     const method = req.method ?? "GET";
@@ -178,7 +209,16 @@ export class LokiTools {
     const store = await this.deps.stores.get(chat.agentId);
     const conversation = await store.chat(chat.conversationId, this.deps.context);
     if (!conversation) throw new Error("this chat is no longer here");
-    const call = { read: store.harness, conversationId: conversation.id, callId: randomUUID(), signal, output: () => {} };
+    const settings = await store.agentSettings(conversation.id, this.deps.context);
+    const cwd = settings && "cwd" in settings && typeof settings.cwd === "string" ? settings.cwd : undefined;
+    const call = {
+      read: store.harness,
+      conversationId: conversation.id,
+      callId: randomUUID(),
+      signal,
+      output: () => {},
+      ...(cwd === undefined ? {} : { cwd }),
+    };
     return tool.run(args, call, this.deps.context);
   }
 }

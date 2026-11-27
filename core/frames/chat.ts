@@ -394,11 +394,24 @@ export const chatFrames = {
     return rename || color !== null ? { name, ...(rename ? { rename } : {}), ...(color !== null ? { color } : {}) } : "rename, color or remove required";
   }),
   chat_engines_get: request("chat_engines", "the ACP agents a chat can run on, and how each stands", nothing),
-  chat_engine_set: request("chat_engines", "add or change an ACP agent: its name and how loki starts it", (m: Raw) =>
-    checkEngineId(m.id) && str(m.name) && m.name.trim() && str(m.command) && m.command.trim()
-      ? { id: m.id, name: m.name.trim(), command: m.command.trim(), args: strings(m.args) }
-      : "id (lowercase letters, digits and dashes), name and command required",
-  ),
+  chat_engine_set: request("chat_engines", "add or change an ACP agent: its name and how loki starts it", (m: Raw) => {
+    if (!checkEngineId(m.id) || !str(m.name) || !m.name.trim() || !str(m.command) || !m.command.trim()) {
+      return "id (lowercase letters, digits and dashes), name and command required";
+    }
+    const env = m.env === undefined ? undefined : stringRecord(m.env);
+    if (env === null) return "env must map names to strings";
+    if (m.auth_method !== undefined && typeof m.auth_method !== "string") return "auth_method must be a string";
+    if (m.login !== undefined && typeof m.login !== "string") return "login must be a string";
+    return {
+      id: m.id,
+      name: m.name.trim(),
+      command: m.command.trim(),
+      args: strings(m.args),
+      ...(env !== undefined ? { env } : {}),
+      ...(typeof m.auth_method === "string" ? { auth_method: m.auth_method.trim() } : {}),
+      ...(typeof m.login === "string" ? { login: m.login.trim() } : {}),
+    };
+  }),
   chat_engine_remove: request("chat_engines", "remove an ACP agent, or put a built-in one back as loki ships it", (m: Raw) =>
     checkNonEmpty(m.id) ? { id: m.id } : "id required",
   ),

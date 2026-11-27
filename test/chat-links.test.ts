@@ -70,6 +70,11 @@ describe("the link rules", () => {
     expect(stricterMode("acceptEdits", null)).toBe("strict");
     expect(lokiModeOf(undefined, false)).toBe("unrestricted");
     expect(lokiModeOf("bypassPermissions", true)).toBe("unrestricted");
+    expect(lokiModeOf("yolo", true)).toBe("unrestricted");
+    expect(lokiModeOf("dontAsk", true)).toBe("unrestricted");
+    expect(lokiModeOf("accept-edits", true)).toBe("acceptEdits");
+    expect(lokiModeOf("ask", true)).toBe("strict");
+    expect(lokiModeOf("agent", true)).toBe("standard");
     expect(lokiModeOf("default", true)).toBe("standard");
     expect(lokiModeOf("something-new", true)).toBeNull();
     expect(looserThan("unrestricted", "standard")).toBe(true);

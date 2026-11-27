@@ -973,7 +973,10 @@ export interface EngineView {
   name: string;
   command: string;
   args: string[];
-  /** Claude Code, which loki ships; `changed` when the person's file overrides how it starts. */
+  env?: Record<string, string>;
+  auth_method?: string;
+  login?: string;
+  /** Built into loki; `changed` when the person's file overrides how it starts. */
   builtin: boolean;
   changed: boolean;
   status: "ready" | "started" | "not_found" | "signed_out" | "failed" | "unknown";

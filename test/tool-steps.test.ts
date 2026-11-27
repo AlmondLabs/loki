@@ -465,5 +465,10 @@ describe("core titles the tools whose few words live in their own argument", () 
     expect(toolLabel("suggestion_create", { title: "Review the plan", text: "…", agent_id: "a" })).toBe("suggestion_create · Review the plan");
     expect(toolLabel("message_propose", { account: "x", subject: "Lunch", text: "Hi" })).toBe("message_propose · Lunch");
     expect(toolLabel("memory_apply_patch", { patch: "*** Begin Patch\n*** Update File: people/ada.md\n@@" })).toBe("memory_apply_patch · people/ada.md");
+    expect(toolLabel("mcp__loki__suggestion_create", { title: "Check ACP", text: "…" })).toBe("mcp__loki__suggestion_create · Check ACP");
+    expect(line(tool("mcp__loki__script", ""))).toEqual(["A script", "Script", "code"]);
+    expect(toolLabel("mcp__loki__ticket_propose", { title: "Fix login" })).toBe("mcp__loki__ticket_propose · Fix login");
+    expect(toolLabel("mcp__loki__script", { code: "// @description: List unread\nreturn 1" })).toBe("mcp__loki__script");
+    expect(stepLine({ role: "tool", text: "mcp__loki__script", tool: { name: "mcp__loki__script", description: "List unread" } }).title).toBe("List unread");
   });
 });

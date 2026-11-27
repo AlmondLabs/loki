@@ -43,7 +43,7 @@ import { McpTools } from "./mcp/index.ts";
 import { appVersion, paths } from "../mod/paths.ts";
 import { LearnStore } from "../mod/learn.ts";
 import { UsageLedger } from "./usage.ts";
-import { readAcpAgents } from "./acp/agents.ts";
+import { commandFound, readAcpAgents } from "./acp/agents.ts";
 import { AcpChats } from "./acp/chats.ts";
 import { LokiTools } from "./acp/loki-tools.ts";
 import { openInBrowser } from "./acp/open-url.ts";
@@ -182,7 +182,11 @@ const passes = new PassRunner({
     engineFor: async (agentId) => {
       const infos = await (await stores.get(agentId)).chats(context);
       const newest = infos
-        .filter((i) => !i.hidden && i.engine?.kind === "acp" && acp.agent(i.engine.agent))
+        .filter((i) => {
+          if (i.hidden || i.archived || i.engine?.kind !== "acp") return false;
+          const agent = acp.agent(i.engine.agent);
+          return Boolean(agent && commandFound(agent.command, { ...process.env, ...agent.env }));
+        })
         .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
         .at(0);
       return newest?.engine ?? null;
@@ -233,13 +237,17 @@ const acp = new AcpChats({
   agents: () => readAcpAgents(acpFile),
   systemPrompt: (agentId, withTools) => agentPrompt(backend, agentId, readLocalAgent(agentId, backend)?.name ?? null, withTools),
   homeDir: homedir(),
+  nameImage,
+  clientVersion: appVersion(paths.root) ?? "1",
   mods,
-  mcpServers: async (agentId, conversationId) => {
+  mcpServers: async (agentId, conversationId, engineEnv) => {
     const own = lokiTools.serverFor(agentId, conversationId);
-    return [...(own ? [own] : []), ...(await mcp.acpServers(agentId))];
+    return [...(own ? [own] : []), ...(await mcp.acpServers(agentId, engineEnv))];
   },
-  allowedTools: (agentId) => [...lokiTools.readOnly(), ...mcp.acpReadOnly(agentId)],
+  allowedTools: (agentId) => [...lokiTools.readOnly(agentId), ...mcp.acpReadOnly(agentId)],
   passServer: (agentId, conversationId, tools) => lokiTools.serverFor(agentId, conversationId, tools),
+  forgetChat: (agentId, conversationId) => lokiTools.forgetChat(agentId, conversationId),
+  forgetAgent: (agentId) => lokiTools.forgetAgent(agentId),
   openUrl: (url) => openInBrowser(url, report),
   configFile: acpFile,
   cacheFile: join(args.dir, "state", "acp-offered.json"),
@@ -344,7 +352,7 @@ await mods.load({
     }),
 });
 mcp.start();
-void lokiTools.start().catch((error: unknown) => report(`loki tools did not start: ${String(error)}`));
+await lokiTools.start().catch((error: unknown) => report(`loki tools did not start: ${String(error)}`));
 const sources = (f: string) => f.endsWith(".ts") && !f.includes(".loki-build");
 const watching = checkout
   ? [

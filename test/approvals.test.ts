@@ -536,9 +536,11 @@ describe("approvals for scripts", () => {
     }
   });
 
-  test("a script's card offers no always-allow; a command's does", () => {
+  test("a script's card offers no always-allow; a command's does unless allowAlways is false", () => {
     expect(offersAlways({ toolName: "codemode" })).toBe(false);
     expect(offersAlways({ toolName: "write" })).toBe(true);
+    expect(offersAlways({ toolName: "write", allowAlways: false })).toBe(false);
+    expect(offersAlways({ toolName: "write", allowAlways: true })).toBe(true);
   });
 });
 

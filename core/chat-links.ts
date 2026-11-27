@@ -163,12 +163,17 @@ export const modeOf = (stored: unknown): PermissionMode => (isPermissionMode(sto
 
 const ACP_MODES: Record<string, PermissionMode> = {
   plan: "strict",
+  ask: "strict",
   default: "standard",
+  agent: "standard",
   "read-only": "strict",
   auto: "acceptEdits",
+  "accept-edits": "acceptEdits",
   acceptEdits: "acceptEdits",
   "full-access": "unrestricted",
   bypassPermissions: "unrestricted",
+  dontAsk: "unrestricted",
+  yolo: "unrestricted",
 };
 
 export function lokiModeOf(mode: string | null | undefined, acp: boolean): PermissionMode | null {

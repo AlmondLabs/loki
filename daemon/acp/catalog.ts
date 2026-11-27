@@ -38,6 +38,8 @@ export function selectOptions(option: acp.SessionConfigOption | undefined): Offe
   return option.options.flatMap((o) => ("options" in o ? o.options : [o])).map((o) => ({ value: o.value, name: o.name, description: o.description ?? null }));
 }
 
+export const SIGNED_OUT = /auth|sign.?in|log.?in|credential|unauthorized|unauthenticated/i;
+
 export class AcpCatalog {
   private readonly deps: AcpCatalogDeps;
   private readonly offered: Map<string, Offered>;
@@ -59,11 +61,7 @@ export class AcpCatalog {
   offer(agent: string, next: Offered): void {
     if (JSON.stringify(next) === JSON.stringify(this.offered.get(agent))) return;
     this.offered.set(agent, next);
-    if (!this.deps.cacheFile) return;
-    try {
-      mkdirSync(dirname(this.deps.cacheFile), { recursive: true });
-      writeFileSync(this.deps.cacheFile, `${JSON.stringify(Object.fromEntries(this.offered), null, 2)}\n`);
-    } catch {}
+    this.writeCache();
   }
 
   went(agent: string, health: AgentHealth): void {
@@ -81,7 +79,7 @@ export class AcpCatalog {
         const builtin = shipped !== undefined;
         const health = this.health.get(a.id);
         const failed = health?.status === "failed" ? (health.detail ?? "") : null;
-        const signedOut = failed !== null && /auth|sign.?in|log.?in|credential/i.test(failed);
+        const signedOut = failed !== null && SIGNED_OUT.test(failed);
         const status: EngineView["status"] = !commandFound(a.command, { ...process.env, ...a.env })
           ? "not_found"
           : signedOut
@@ -96,7 +94,19 @@ export class AcpCatalog {
                 : `sign in to ${a.name}, then send again`
               : (health?.detail ?? null);
         const changed = builtin && JSON.stringify(a) !== JSON.stringify(shipped);
-        return { id: a.id, name: a.name, command: a.command, args: a.args, builtin, changed, status, detail };
+        return {
+          id: a.id,
+          name: a.name,
+          command: a.command,
+          args: a.args,
+          ...(a.env ? { env: a.env } : {}),
+          ...(a.auth_method ? { auth_method: a.auth_method } : {}),
+          ...(a.login ? { login: a.login } : {}),
+          builtin,
+          changed,
+          status,
+          detail,
+        };
       }),
       config_path: this.deps.configFile ?? "",
     };
@@ -104,9 +114,20 @@ export class AcpCatalog {
 
   set(agent: AcpAgentConfig): void {
     this.edit((agents) => {
-      const { env, auth_method, login } = agents.find((a) => a.id === agent.id) ?? {};
-      const kept = { ...(env ? { env } : {}), ...(auth_method ? { auth_method } : {}), ...(login ? { login } : {}) };
-      return [...agents.filter((a) => a.id !== agent.id), { ...kept, ...agent }];
+      const prev = agents.find((a) => a.id === agent.id);
+      const env = agent.env ?? prev?.env;
+      const authMethod = agent.auth_method ?? prev?.auth_method;
+      const login = agent.login ?? prev?.login;
+      const next: AcpAgentConfig = {
+        id: agent.id,
+        name: agent.name,
+        command: agent.command,
+        args: agent.args,
+        ...(env && Object.keys(env).length > 0 ? { env } : {}),
+        ...(authMethod ? { auth_method: authMethod } : {}),
+        ...(login ? { login } : {}),
+      };
+      return [...agents.filter((a) => a.id !== agent.id), next];
     }, agent.id);
   }
 
@@ -128,8 +149,8 @@ export class AcpCatalog {
 
   models(): ModelEntry[] {
     return this.deps.agents().flatMap((agent) => {
+      if (!commandFound(agent.command, { ...process.env, ...agent.env })) return [];
       const offered = this.offered.get(agent.id);
-      if (!offered && !commandFound(agent.command, { ...process.env, ...agent.env })) return [];
       const models = offered?.models ?? [];
       const choices = models.some((m) => m.value === "default") ? models : [{ value: "default", name: "Default", description: null }, ...models];
       return choices.flatMap((m) => {
@@ -151,6 +172,16 @@ export class AcpCatalog {
     if (!this.deps.configFile) throw new Error("this daemon keeps no agents file");
     writeAcpAgents(this.deps.configFile, change(readAcpAgents(this.deps.configFile)));
     this.health.delete(id);
+    this.offered.delete(id);
+    this.writeCache();
+  }
+
+  private writeCache(): void {
+    if (!this.deps.cacheFile) return;
+    try {
+      mkdirSync(dirname(this.deps.cacheFile), { recursive: true });
+      writeFileSync(this.deps.cacheFile, `${JSON.stringify(Object.fromEntries(this.offered), null, 2)}\n`);
+    } catch {}
   }
 
   private readCache(): Record<string, Offered> {

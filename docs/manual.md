@@ -830,9 +830,15 @@ queued messages, loki's tools), with these differences:
 - Cursor loads the MCP servers set up in Cursor itself (a project's `.cursor/mcp.json`). It may not load the ones
   loki hands it.
 
-Any other agent that speaks ACP and needs the same sign-in step can be added in `~/.loki/state/acp.json` with an
-`auth_method`: the method id it lists when it starts (`grok.com` for Grok Build, for example). A `login` field, there
-or on any agent, is the sign-in command loki shows when the agent says you are signed out.
+**Chat through Antigravity.** A chat can also run through Antigravity's CLI (`agy`), using the models your Antigravity
+account offers. Install the CLI and run `agy acp --login` once in a terminal if not already signed in; the
+**Antigravity** tab appears in the model picker whenever `agy` is on your `PATH`. It works as Claude Code does above
+(cards, Stop, queued messages, loki's persona, memory and tools).
+
+Any other agent that speaks ACP can be added in Settings › Engines (including custom environment variables, a
+`login` sign-in hint, and an ACP `auth_method` id when an agent asks for one on start), or directly in
+`~/.loki/state/acp.json`. A `login` field is the sign-in command loki shows when the agent says you are signed out;
+`auth_method` is the ACP authentication method id it advertises when starting (`cursor_login` for Cursor, for example).
 
 ## Questions from the agent
 

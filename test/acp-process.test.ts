@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { AcpProcess } from "../daemon/acp/process.ts";
@@ -66,6 +66,32 @@ describe("an ACP agent's process", () => {
       expect(commandPath("npx", { PATH: dir, PATHEXT: ".EXE;.CMD" })).toBe(join(dir, "npx.cmd"));
     } finally {
       rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test.runIf(process.platform !== "win32")("commandPath ignores non-executable files and directories on POSIX", () => {
+    const dir = mkdtempSync(join(tmpdir(), "loki-exec-"));
+    try {
+      const plain = join(dir, "agy");
+      writeFileSync(plain, "#!/bin/sh\n");
+      chmodSync(plain, 0o644);
+      expect(commandPath("agy", { PATH: dir })).toBeNull();
+      chmodSync(plain, 0o755);
+      expect(commandPath("agy", { PATH: dir })).toBe(plain);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("initialize rejects protocol version mismatches and missing auth methods", async () => {
+    const badProto = new AcpProcess({ ...FAKE, env: { FAKE_ACP_PROTOCOL_VERSION: "99" } }, handlers);
+    const badAuth = new AcpProcess({ ...FAKE, auth_method: "missing_method" }, handlers);
+    try {
+      await expect(badProto.capabilities()).rejects.toThrow(/protocol version 99/);
+      await expect(badAuth.capabilities()).rejects.toThrow(/does not offer sign-in method missing_method/);
+    } finally {
+      await badProto.close();
+      await badAuth.close();
     }
   });
 });

@@ -109,7 +109,7 @@ export type ChatInfo = {
  * null leaves the agent's own), and the agent's session id once it has one.
  */
 // oxlint-disable-next-line typescript/consistent-type-definitions -- part of ChatInfo, a pi-durable document
-export type ChatEngine = { kind: "acp"; agent: string; model: string; effort?: string | null; session_id: string | null };
+export type ChatEngine = { kind: "acp"; agent: string; model: string; effort?: string | null; session_id: string | null; cost_so_far?: number };
 
 export type ImportedMessage = Record<string, unknown> & { role: string; timestamp: number };
 
@@ -153,6 +153,7 @@ export interface UsageAdd {
   output: number;
   cacheRead: number;
   cacheWrite: number;
+  reasoning?: number;
   cost: number;
 }
 
@@ -338,7 +339,7 @@ export class AgentStore {
 
   async appendEntries(
     conversation: Conversation,
-    entries: ReadonlyArray<{ kind: "pi.user" | "pi.assistant" | "pi.tool-result"; message: Record<string, unknown> }>,
+    entries: ReadonlyArray<{ kind: "pi.user" | "pi.assistant" | "pi.tool-result" | "pi.compaction"; message: Record<string, unknown> }>,
     usage: { model: string; add: UsageAdd } | null,
     context: Context,
   ): Promise<void> {
@@ -354,14 +355,18 @@ export class AgentStore {
       const doc = await tx.doc(UsageDoc, conversation.id);
       const zero = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } };
       const was = usage.model in doc.models ? doc.models[usage.model] : zero;
-      const { input, output, cacheRead, cacheWrite } = usage.add;
+      const { input, output, cacheRead, cacheWrite, reasoning = 0 } = usage.add;
+      const existingReasoning = Object.entries(was).find(([k]) => k === "reasoning")?.[1];
+      const totalReasoning = (typeof existingReasoning === "number" ? existingReasoning : 0) + reasoning;
+      const extraReasoning = totalReasoning > 0 ? { reasoning: totalReasoning } : {};
       doc.models[usage.model] = {
         ...was,
+        ...extraReasoning,
         input: was.input + input,
         output: was.output + output,
         cacheRead: was.cacheRead + cacheRead,
         cacheWrite: was.cacheWrite + cacheWrite,
-        totalTokens: was.totalTokens + input + output + cacheRead + cacheWrite,
+        totalTokens: was.totalTokens + input + output + cacheRead + cacheWrite + reasoning,
         cost: { ...was.cost, total: was.cost.total + usage.add.cost },
       };
     }, context);

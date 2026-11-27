@@ -53,23 +53,24 @@ export class AcpEngine implements Engine {
     const wanted = acpHandle(p.handle);
     if (!wanted) throw new Error(`not an ACP model: ${p.handle}`);
     const sameAgent = c.engine?.agent === wanted.agent;
+    if (!sameAgent && c.engine) await this.deps.acp.leave(c.agentId, c.conversationId);
     const next: ChatEngine = {
       kind: "acp",
       agent: wanted.agent,
       model: wanted.model,
       effort: p.reasoning_effort,
       session_id: sameAgent ? (c.engine?.session_id ?? null) : null,
+      ...(sameAgent && c.engine?.cost_so_far !== undefined ? { cost_so_far: c.engine.cost_so_far } : {}),
     };
     await c.store.updateChat(c.conversationId, { engine: next }, this.deps.context);
     await this.deps.acp.setModel(c.agentId, c.conversationId, wanted.model, p.reasoning_effort);
-    if (!sameAgent) {
-      const view = this.deps.acp.view(next);
-      this.deps.push(c.agentId, c.conversationId, [{ kind: "device", engine: view, ...(view.modes.length ? { mode: view.modes[0].id } : {}) }]);
-    }
+    const view = this.deps.acp.view(next);
+    this.deps.push(c.agentId, c.conversationId, [{ kind: "device", engine: view, ...(!sameAgent && view.modes.length ? { mode: view.modes[0].id } : {}) }]);
     if (!started) this.deps.acp.warm(c.agentId, c.conversationId, next);
   }
 
   async leave(c: EngineChat): Promise<void> {
+    await this.deps.acp.leave(c.agentId, c.conversationId);
     await c.store.updateChat(c.conversationId, { engine: null }, this.deps.context);
     const mode = (await c.store.chatInfo(c.chat.id, this.deps.context))?.mode;
     this.deps.push(c.agentId, c.conversationId, [{ kind: "device", engine: null, mode: modeOf(mode) }]);

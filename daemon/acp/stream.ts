@@ -22,15 +22,13 @@ export interface Turn {
   abort: AbortController;
   text: string;
   thought: string;
+  compaction: string;
   at: string | null;
   calls: Map<string, Call>;
   plan: acp.PlanEntry[] | null;
   model: string | null;
   cost: number;
-  writes: Array<Promise<void>>;
-  startedAt: number;
-  firstOutputAt: number | null;
-  responses: number;
+  writeChain: Promise<void>;
 }
 
 export interface Live {
@@ -39,6 +37,8 @@ export interface Live {
   agent: string;
   model: string;
   effort: string | null;
+  defaultModel?: string | null;
+  defaultEffort?: string | null;
   sessionId: string | null;
   epoch: symbol | null;
   loading: boolean;
@@ -66,6 +66,7 @@ export interface StreamHost {
   view: (engine: Pick<ChatEngine, "agent" | "model">) => ChatEngineView;
   chat: (agentId: string, conversationId: string) => Promise<{ store: AgentStore; chat: Conversation }>;
   saveMode: (agentId: string, conversationId: string, modeId: string) => Promise<void>;
+  saveCost?: (agentId: string, conversationId: string, costSoFar: number) => Promise<void>;
   remember: (live: Live) => void;
 }
 
@@ -73,17 +74,26 @@ export const kindOf = (call: Call): { tool_kind?: string } => (call.toolKind ? {
 
 export const hasArgs = (args: unknown): boolean => args !== undefined && args !== null && !(typeof args === "object" && Object.keys(args).length === 0);
 
+function blockText(block: acp.ContentBlock): string {
+  if (block.type === "text") return block.text;
+  if (block.type === "resource_link") return block.title ? `${block.title} (${block.uri})` : block.uri;
+  if (block.type === "resource") {
+    return "text" in block.resource && typeof block.resource.text === "string" ? block.resource.text : block.resource.uri;
+  }
+  return `[${block.type}]`;
+}
+
 export function contentOutput(content: acp.ToolCallContent[] | null | undefined): string {
   return (content ?? [])
     .map((c) => {
       if (c.type === "diff") {
         const lines = (text: string) => text.replace(/\n$/, "").split("\n");
-        const old = lines(c.oldText ?? "").map((l) => `-${l}`);
-        const now = lines(c.newText).map((l) => `+${l}`);
-        return [`--- ${c.path}`, `+++ ${c.path}`, ...(c.oldText ? old : []), ...now].join("\n");
+        const old = c.oldText ? lines(c.oldText).map((l) => `-${l}`) : [];
+        const now = c.newText ? lines(c.newText).map((l) => `+${l}`) : [];
+        return [`--- ${c.path}`, `+++ ${c.path}`, ...old, ...now].join("\n");
       }
       if (c.type === "terminal") return `(terminal ${c.terminalId})`;
-      return c.content.type === "text" ? c.content.text : `[${c.content.type}]`;
+      return blockText(c.content);
     })
     .join("\n");
 }
@@ -121,32 +131,32 @@ export function stopNote(reason: acp.StopReason): string | null {
   return null;
 }
 
+function queueWrite(turn: Turn, work: () => Promise<void>): void {
+  turn.writeChain = turn.writeChain.then(work, work);
+}
+
 export async function writeCall(
   host: StreamHost,
-  live: Live,
   store: AgentStore,
   chat: Conversation,
   id: string,
   call: Call,
   failed: boolean,
   output: string,
+  at: string,
 ): Promise<void> {
-  const at = Date.parse(host.now());
+  const timestamp = Date.parse(at);
   const content = [
     ...(call.thoughtBefore ? [{ type: "thinking", thinking: call.thoughtBefore }] : []),
     ...(call.textBefore ? [{ type: "text", text: call.textBefore }] : []),
     { type: "toolCall", id, name: call.name, arguments: call.args ?? {}, ...kindOf(call) },
   ];
   const result = [{ type: "text", text: output }];
-  host.push(live.agentId, live.conversationId, [
-    { kind: "step", step: { kind: "call", name: call.name, args: call.args, id, at: new Date(at).toISOString(), ...kindOf(call) } },
-    { kind: "step", step: { kind: "result", id, output: result, failed } },
-  ]);
   await store.appendEntries(
     chat,
     [
-      { kind: "pi.assistant", message: { role: "assistant", content, timestamp: at } },
-      { kind: "pi.tool-result", message: { role: "toolResult", toolCallId: id, toolName: call.name, content: result, isError: failed, timestamp: at } },
+      { kind: "pi.assistant", message: { role: "assistant", content, timestamp } },
+      { kind: "pi.tool-result", message: { role: "toolResult", toolCallId: id, toolName: call.name, content: result, isError: failed, timestamp } },
     ],
     null,
     host.context,
@@ -156,9 +166,14 @@ export async function writeCall(
 export function completeCall(host: StreamHost, live: Live, turn: Turn, id: string, call: Call, failed: boolean, raw: string): void {
   call.done = true;
   call.failed = failed;
-  turn.responses++;
   const output = call.output || raw || (failed ? "the tool failed" : "done");
-  turn.writes.push(host.chat(live.agentId, live.conversationId).then(({ store, chat }) => writeCall(host, live, store, chat, id, call, failed, output)));
+  const at = host.now();
+  const result = [{ type: "text", text: output }];
+  host.push(live.agentId, live.conversationId, [
+    { kind: "step", step: { kind: "call", name: call.name, args: call.args, id, at, ...kindOf(call) } },
+    { kind: "step", step: { kind: "result", id, output: result, failed } },
+  ]);
+  queueWrite(turn, () => host.chat(live.agentId, live.conversationId).then(({ store, chat }) => writeCall(host, store, chat, id, call, failed, output, at)));
 }
 
 export async function finishTurn(
@@ -170,24 +185,23 @@ export async function finishTurn(
   usage: acp.Usage | null,
   engine: ChatEngine,
 ): Promise<string> {
-  await Promise.allSettled(turn.writes);
-  await [...turn.calls.entries()]
-    .filter(([, call]) => !call.done)
-    .reduce<Promise<void>>(
-      (chain, [id, call]) =>
-        chain.then(() => {
-          call.done = true;
-          call.failed = true;
-          turn.responses++;
-          return writeCall(host, live, store, chat, id, call, true, call.output || "the tool did not finish");
-        }),
-      Promise.resolve(),
-    );
+  await turn.writeChain;
+  for (const [id, call] of turn.calls.entries()) {
+    if (call.done) continue;
+    call.done = true;
+    call.failed = true;
+    const output = call.output || "the tool did not finish";
+    const at = host.now();
+    host.push(live.agentId, live.conversationId, [
+      { kind: "step", step: { kind: "call", name: call.name, args: call.args, id, at, ...kindOf(call) } },
+      { kind: "step", step: { kind: "result", id, output: [{ type: "text", text: output }], failed: true } },
+    ]);
+    await writeCall(host, store, chat, id, call, true, output, at);
+  }
   const at = host.now();
   const entries: Array<{ kind: "pi.assistant" | "pi.tool-result"; message: Record<string, unknown> }> = [];
   if (turn.plan) {
     const id = `plan-${turn.id}`;
-    turn.responses++;
     entries.push(
       { kind: "pi.assistant", message: { role: "assistant", content: [{ type: "toolCall", id, name: "plan", arguments: {} }], timestamp: Date.parse(at) } },
       {
@@ -208,7 +222,6 @@ export async function finishTurn(
   turn.text = "";
   turn.thought = "";
   if (words) {
-    turn.responses++;
     const content = [...(thought ? [{ type: "thinking", thinking: thought }] : []), { type: "text", text: words }];
     const message = { role: "assistant", content, timestamp: Date.parse(turn.at ?? at) };
     entries.push({ kind: "pi.assistant", message });
@@ -225,12 +238,18 @@ export async function finishTurn(
           output: usage?.outputTokens ?? 0,
           cacheRead: usage?.cachedReadTokens ?? 0,
           cacheWrite: usage?.cachedWriteTokens ?? 0,
+          reasoning: usage?.thoughtTokens ?? 0,
           cost: turn.cost,
         }
       : null;
   if (entries.length || add)
     await store.appendEntries(chat, entries, add ? { model: `acp:${engine.agent}/${turn.model ?? engine.model}`, add } : null, host.context);
   return words;
+}
+
+function configValue(options: acp.SessionConfigOption[], category: string): string | null {
+  const option = options.find((o) => o.category === category);
+  return option?.type === "select" ? option.currentValue : null;
 }
 
 export function applySessionNotification(host: StreamHost, live: Live, n: acp.SessionNotification): void {
@@ -247,10 +266,16 @@ export function applySessionNotification(host: StreamHost, live: Live, n: acp.Se
       host.remember(live);
       push([{ kind: "device", engine: host.view({ agent: live.agent, model: live.model }) }]);
       return;
-    case "config_option_update":
+    case "config_option_update": {
       live.configOptions = u.configOptions;
+      const model = configValue(u.configOptions, "model");
+      if (model) live.model = model;
+      const mode = configValue(u.configOptions, "mode");
+      if (mode) void host.saveMode(live.agentId, live.conversationId, mode).catch(() => {});
       host.remember(live);
+      push([{ kind: "device", ...(mode ? { mode } : {}), engine: host.view({ agent: live.agent, model: live.model }) }]);
       return;
+    }
   }
   // Outside (ACP): loading a session replays its history as updates, and loki has it already.
   if (live.loading) return;
@@ -261,18 +286,15 @@ export function applySessionNotification(host: StreamHost, live: Live, n: acp.Se
     case "agent_message_chunk":
       if (u.content.type !== "text" || !u.content.text) return;
       turn.at ??= now;
-      turn.firstOutputAt ??= Date.parse(now);
       turn.text += u.content.text;
       push([{ kind: "step", step: { kind: "assistant", text: u.content.text, at: now, chunk: true } }]);
       return;
     case "agent_thought_chunk":
       if (u.content.type !== "text" || !u.content.text) return;
-      turn.firstOutputAt ??= Date.parse(now);
       turn.thought += u.content.text;
       push([{ kind: "step", step: { kind: "thinking", text: u.content.text, at: now, chunk: true } }]);
       return;
     case "tool_call": {
-      turn.firstOutputAt ??= Date.parse(now);
       const call: Call = {
         name: u.title || u.name || u.kind || "tool",
         args: u.rawInput ?? {},
@@ -287,10 +309,10 @@ export function applySessionNotification(host: StreamHost, live: Live, n: acp.Se
       turn.thought = "";
       turn.at = null;
       turn.calls.set(u.toolCallId, call);
-      if (hasArgs(call.args)) {
+      if (u.status === "completed" || u.status === "failed") completeCall(host, live, turn, u.toolCallId, call, u.status === "failed", rawText(u.rawOutput));
+      else if (hasArgs(call.args)) {
         push([{ kind: "step", step: { kind: "call", name: call.name, args: call.args, id: u.toolCallId, at: now, ...kindOf(call) } }]);
       }
-      if (u.status === "completed" || u.status === "failed") completeCall(host, live, turn, u.toolCallId, call, u.status === "failed", rawText(u.rawOutput));
       return;
     }
     case "tool_call_update": {
@@ -321,9 +343,57 @@ export function applySessionNotification(host: StreamHost, live: Live, n: acp.Se
         // Outside (ACP): an agent reports its session's running total; a total below the last one is a restarted agent's, all of it new.
         turn.cost += u.cost.amount >= live.costSoFar ? u.cost.amount - live.costSoFar : u.cost.amount;
         live.costSoFar = u.cost.amount;
+        void host.saveCost?.(live.agentId, live.conversationId, live.costSoFar).catch(() => {});
       }
       return;
     }
+    case "compaction_summary_chunk":
+      turn.compaction += blockText(u.content);
+      return;
+    case "compaction_update": {
+      if (u.status === "in_progress") {
+        turn.compaction = "";
+        push([{ kind: "step", step: { kind: "compaction", state: "running", detail: null, at: now } }]);
+        return;
+      }
+      if (u.status === "completed") {
+        const fromBlocks = u.summary?.map(blockText).join("") ?? "";
+        const summary = (fromBlocks || turn.compaction).trim();
+        turn.compaction = "";
+        push([{ kind: "step", step: { kind: "compaction", state: "done", detail: summary || null, at: now } }]);
+        queueWrite(turn, () =>
+          host.chat(live.agentId, live.conversationId).then(({ store, chat }) =>
+            store.appendEntries(
+              chat,
+              [
+                {
+                  kind: "pi.compaction",
+                  message: {
+                    role: "assistant",
+                    content: [{ type: "text", text: summary ? `<summary>\n${summary}\n</summary>` : "" }],
+                    timestamp: Date.parse(now),
+                  },
+                },
+              ],
+              null,
+              host.context,
+            ),
+          ),
+        );
+        return;
+      }
+      if (u.status === "failed" || u.status === "cancelled") {
+        turn.compaction = "";
+        push([{ kind: "step", step: { kind: "compaction", state: u.status === "failed" ? "failed" : "ended", detail: u.error ?? null, at: now } }]);
+      }
+      return;
+    }
+    case "notice":
+      if (u.severity === "error") {
+        const message = u.description ? `${u.title}: ${u.description}` : u.title;
+        push([{ kind: "error", message }]);
+      }
+      return;
     default:
       return;
   }
