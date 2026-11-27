@@ -48,7 +48,8 @@ describe("git worktrees for subagents", () => {
     const wt = await createWorktree(join(repo, "packages", "sub"), worktreesDir, "sub-1");
     expect(wt.branch).toBe("loki-subagent/sub-1");
     expect(wt.path).toBe(join(worktreesDir, "sub-1"));
-    expect(realpathSync(wt.repoRoot)).toBe(realpathSync(repo));
+    expect(realpathSync.native(wt.repoRoot)).toBe(realpathSync.native(repo));
+    expect(realpathSync.native(wt.cwd)).toBe(realpathSync.native(join(wt.path, "packages", "sub")));
     expect(existsSync(join(wt.cwd, "note.txt"))).toBe(true);
 
     writeFileSync(join(wt.cwd, "note.txt"), "edited in worktree\n");

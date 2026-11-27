@@ -1,11 +1,12 @@
 import { execFile } from "node:child_process";
-import { existsSync } from "node:fs";
-import { mkdir, realpath, rm } from "node:fs/promises";
+import { existsSync, realpath } from "node:fs";
+import { mkdir, rm } from "node:fs/promises";
 import { isAbsolute, join, relative } from "node:path";
 import { promisify } from "node:util";
 import { messageOf } from "../core/errors.ts";
 
 const execFileAsync = promisify(execFile);
+const realpathNative = promisify(realpath.native);
 
 const NO_FILE = process.platform === "win32" ? "NUL" : "/dev/null";
 const GIT_ENV: NodeJS.ProcessEnv = {
@@ -47,7 +48,7 @@ export async function createWorktree(repoCwd: string, worktreesDir: string, id: 
   } catch {
     throw new Error("workspace: 'worktree' requires a git repository.");
   }
-  const [realRoot, realCwd] = await Promise.all([realpath(repoRoot), realpath(repoCwd)]);
+  const [realRoot, realCwd] = await Promise.all([realpathNative(repoRoot), realpathNative(repoCwd)]);
   const rel = relative(realRoot, realCwd);
   await mkdir(worktreesDir, { recursive: true });
   const worktreePath = join(worktreesDir, id);
