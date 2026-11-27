@@ -1463,9 +1463,10 @@ button.loki-list-section-toggle {
   position: relative;
   display: flex;
   align-items: center;
+  gap: 2px;
   height: 28px;
   margin-top: 8px;
-  padding: 0 8px;
+  padding: 0 4px 0 8px;
 }
 .loki-place-group:first-child > .loki-place-head {
   margin-top: 0;
@@ -1477,12 +1478,11 @@ button.loki-list-section-toggle {
   font-size: var(--text-xs);
   font-weight: 600;
 }
+.loki-place-action,
 .loki-place-fold {
-  position: absolute;
-  top: 4px;
-  right: 4px;
   display: grid;
   place-items: center;
+  flex: none;
   width: 20px;
   height: 20px;
   padding: 0;
@@ -1490,6 +1490,18 @@ button.loki-list-section-toggle {
   border-radius: var(--radius-md);
   background: transparent;
   color: var(--loki-muted);
+}
+.loki-place-action {
+  cursor: pointer;
+}
+@media (hover: hover) and (pointer: fine) {
+  .loki-place-action:hover,
+  .loki-place-fold:hover {
+    background: var(--loki-hover);
+    color: var(--loki-fg);
+  }
+}
+.loki-place-fold {
   opacity: 0;
 }
 .loki-place-head:hover .loki-place-fold,

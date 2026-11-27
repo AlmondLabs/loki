@@ -13,6 +13,7 @@ export function agentSources({
   initialAgentId,
   state,
   face,
+  onNewAgent,
   selection = agentsSelection,
 }: {
   agents: Array<{ id: string; name: string }>;
@@ -21,14 +22,16 @@ export function agentSources({
   initialAgentId: string | null;
   state: AgentsSelectionState;
   face: (agentId: string, name: string) => ReactNode;
+  onNewAgent?: () => void;
   selection?: AgentsSelection;
 }): PlaceSources {
-  const shown = state.creating ? null : shownAgent(state.agent, initialAgentId, agents);
+  const shown = shownAgent(state.agent, initialAgentId, agents);
   return {
     items: agentRows(agents, desks, items).map((r) => ({ id: r.id, title: r.name, face: face(r.id, r.name), count: r.waiting, live: r.running })),
     selected: shown ?? NO_AGENT,
     onSelect: (id) => {
       if (id !== NO_AGENT) selection.pickAgent(id);
     },
+    ...(onNewAgent ? { action: { label: "New Agent", onRun: onNewAgent } } : {}),
   };
 }

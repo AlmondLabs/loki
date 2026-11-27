@@ -4,18 +4,19 @@ import { firstAgentId, readingFor, shownShaOf, shownSkillOf } from "../app/src/a
 import type { MemorySkillInfo } from "../core/frame-types.ts";
 
 describe("agent pages", () => {
-  test("five pages, in this order, each with a hint", () => {
-    expect(AGENT_PAGES).toEqual(["profile", "memory", "changes", "reflection", "skills"]);
+  test("four pages, in this order, each with a hint", () => {
+    expect(AGENT_PAGES).toEqual(["profile", "memory", "changes", "skills"]);
     for (const p of AGENT_PAGES) expect(AGENT_PAGE_HINT[p].length).toBeGreaterThan(0);
-    expect(AGENT_PAGES.map((p) => AGENT_PAGE_LABEL[p])).toEqual(["Profile", "Memory", "Changes", "Reflection", "Skills"]);
+    expect(AGENT_PAGES.map((p) => AGENT_PAGE_LABEL[p])).toEqual(["Profile", "Memory", "Changes", "Skills"]);
   });
-  test("a first visit lands in memory; the remembered page has its own key", () => {
-    expect(DEFAULT_AGENT_PAGE).toBe("memory");
+  test("a first visit lands on profile; the remembered page has its own key", () => {
+    expect(DEFAULT_AGENT_PAGE).toBe("profile");
     expect(AGENT_PAGE_KEY).toBe("loki.agentsPage");
     expect(AGENT_PAGE_KEY).not.toBe("loki.settingsPage");
   });
   test("isAgentPage guards what sessionStorage hands back", () => {
     expect(isAgentPage("skills")).toBe(true);
+    expect(isAgentPage("reflection")).toBe(false);
     expect(isAgentPage("global skills")).toBe(false);
     expect(isAgentPage(null)).toBe(false);
     expect(isAgentPage(3)).toBe(false);
@@ -65,7 +66,7 @@ describe("agents selection", () => {
     const { createAgentsSelection, AGENT_ID_KEY } = await import("../app/src/agents/selection.ts");
     const store = memory();
     const a = createAgentsSelection(store);
-    expect(a.get()).toEqual({ agent: { kind: "none" }, page: "memory", creating: false });
+    expect(a.get()).toEqual({ agent: { kind: "none" }, page: "profile", creating: false });
     a.pickPage("skills");
     a.pickAgent("a2");
     expect(store.m.get(AGENT_PAGE_KEY)).toBe("skills");
@@ -83,9 +84,10 @@ describe("agents selection", () => {
     expect(store.m.has(AGENT_ID_KEY)).toBe(false);
     expect(createAgentsSelection(store).get().agent).toEqual({ kind: "none" });
   });
-  test("a junk page in storage falls back; a blocked storage still works in memory", async () => {
+  test("legacy reflection page migrates to changes; junk falls back to profile; blocked storage works in memory", async () => {
     const { createAgentsSelection } = await import("../app/src/agents/selection.ts");
-    expect(createAgentsSelection(memory({ [AGENT_PAGE_KEY]: "global skills" })).get().page).toBe("memory");
+    expect(createAgentsSelection(memory({ [AGENT_PAGE_KEY]: "reflection" })).get().page).toBe("changes");
+    expect(createAgentsSelection(memory({ [AGENT_PAGE_KEY]: "global skills" })).get().page).toBe("profile");
     const blocked = {
       getItem: () => {
         throw new Error("no");
@@ -100,9 +102,9 @@ describe("agents selection", () => {
     const s = createAgentsSelection(blocked);
     s.pickPage("changes");
     expect(s.get().page).toBe("changes");
-    expect(createAgentsSelection(null).get().page).toBe("memory");
+    expect(createAgentsSelection(null).get().page).toBe("profile");
   });
-  test("subscribers hear every change; picking an agent ends the new-agent form", async () => {
+  test("subscribers hear every change; picking an agent ends the new-agent sheet", async () => {
     const { createAgentsSelection } = await import("../app/src/agents/selection.ts");
     const s = createAgentsSelection(memory());
     let heard = 0;
@@ -112,7 +114,7 @@ describe("agents selection", () => {
     s.pickAgent("a1");
     expect(s.get()).toMatchObject({ agent: { kind: "agent", id: "a1" }, creating: false });
     off();
-    s.pickPage("profile");
+    s.pickPage("memory");
     expect(heard).toBe(2);
   });
   test("the agent shown: the picked one, else the desk's agent before any pick, else the first", async () => {
@@ -186,16 +188,29 @@ describe("agents as sources", () => {
     expect(agentSources({ agents: left, desks, items, initialAgentId: "a1", state: selection.get(), selection, face: () => null }).selected).toBe("a2");
   });
 
-  test("while the new-agent form is open no agent is selected", async () => {
+  test("while the new-agent sheet is open the selected agent stays highlighted and the sidebar carries New Agent", async () => {
     const { agentSources } = await import("../app/src/agents/agents-column.tsx");
     const { createAgentsSelection } = await import("../app/src/agents/selection.ts");
     const selection = createAgentsSelection(null);
     selection.setCreating(true);
-    const sources = agentSources({ agents, desks, items, initialAgentId: null, state: selection.get(), selection, face: () => null });
-    expect(sources.items.some((it) => it.id === sources.selected)).toBe(false);
+    let ran = 0;
+    const sources = agentSources({
+      agents,
+      desks,
+      items,
+      initialAgentId: null,
+      state: selection.get(),
+      selection,
+      face: () => null,
+      onNewAgent: () => ran++,
+    });
+    expect(sources.selected).toBe("a1");
+    expect(sources.action?.label).toBe("New Agent");
+    sources.action?.onRun();
+    expect(ran).toBe(1);
   });
 
-  test("a source's working dot and count in the sidebar", async () => {
+  test("a source's working dot, count, and heading action in the sidebar", async () => {
     const { createElement } = await import("react");
     const { renderToStaticMarkup } = await import("react-dom/server");
     const { Places } = await import("../app/src/shell/sidebar.tsx");
@@ -204,84 +219,94 @@ describe("agents as sources", () => {
         segment: "agents",
         onSelect: () => {},
         waiting: 0,
-        sources: { agents: { items: [{ id: "a2", title: "friday", count: 2, live: true }], selected: "a2", onSelect: () => {} } },
+        sources: {
+          agents: {
+            items: [{ id: "a2", title: "friday", count: 2, live: true }],
+            selected: "a2",
+            onSelect: () => {},
+            action: { label: "New Agent", onRun: () => {} },
+          },
+        },
       }),
     );
     expect(html).toContain('aria-label="friday, working, 2 waiting"');
     expect(html).toContain("loki-list-row-live");
+    expect(html).toContain('class="loki-place-action"');
+    expect(html).toContain('aria-label="New Agent"');
   });
 });
 
 describe("agents list column", () => {
-  test("Profile spans the list and detail; the list returns on Memory and the other pages", async () => {
+  test("the three-column layout stays consistent across all four pages and while creating", async () => {
     const { agentsHasList } = await import("../app/src/agents/selection.ts");
-    expect(agentsHasList({ agent: { kind: "agent", id: "a1" }, page: "profile", creating: false }, 2)).toBe(false);
-    for (const page of ["memory", "changes", "reflection", "skills"] as const)
+    for (const page of ["profile", "memory", "changes", "skills"] as const) {
       expect(agentsHasList({ agent: { kind: "agent", id: "a1" }, page, creating: false }, 2)).toBe(true);
-  });
-  test("the new-agent form and the invitation before the first agent span them too", async () => {
-    const { agentsHasList } = await import("../app/src/agents/selection.ts");
-    expect(agentsHasList({ agent: { kind: "agent", id: "a1" }, page: "memory", creating: true }, 2)).toBe(false);
-    expect(agentsHasList({ agent: { kind: "none" }, page: "memory", creating: false }, 0)).toBe(false);
+    }
+    expect(agentsHasList({ agent: { kind: "agent", id: "a1" }, page: "memory", creating: true }, 2)).toBe(true);
+    expect(agentsHasList({ agent: { kind: "none" }, page: "profile", creating: false }, 0)).toBe(false);
   });
 });
 
 describe("agents page lists", () => {
-  test("Memory lists the agent's files, flat under their folders, skills and the face left out; choosing one reads it", async () => {
+  test("Profile lists the agent's live chats, filtered by query", async () => {
+    const { chatRows } = await import("../app/src/agents/profile-page.tsx");
+    const at = "2026-11-14T10:00:00Z";
+    const desks = [
+      { scope: "a1:default", agent_id: "a1", conversation_id: "default", status: "live", title: null, active: true, last_active: at },
+      { scope: "a1:c2", agent_id: "a1", conversation_id: "c2", status: "live", title: "Deploy check", active: false, last_active: at },
+      { scope: "a1:arch", agent_id: "a1", conversation_id: "arch", status: "archived", title: "Old chat", active: false, last_active: at },
+      { scope: "a2:default", agent_id: "a2", conversation_id: "default", status: "live", title: "Other agent", active: false, last_active: at },
+    ] as never;
+    const rows = chatRows(desks, "a1");
+    expect(rows.map((r) => [r.id, r.title, r.live])).toEqual([
+      ["default", "Main chat", true],
+      ["c2", "Deploy check", false],
+    ]);
+    expect(chatRows(desks, "a1", "deploy").map((r) => r.id)).toEqual(["c2"]);
+  });
+
+  test("Memory lists the agent's files, flat under their folders, skills and the face left out, and filters by query", async () => {
     const { memoryRows } = await import("../app/src/agents/memory-page.tsx");
     const at = "2026-11-14T10:00:00Z";
-    const rows = memoryRows([
+    const files = [
       { path: "system/persona.md", bytes: 10, modified_at: at },
       { path: "system/human.md", bytes: 10, modified_at: at },
       { path: "notes.md", bytes: 10, modified_at: at },
       { path: "skills/notes/SKILL.md", bytes: 10, modified_at: at },
       { path: "profile.png", bytes: 10, modified_at: at },
-    ]);
+    ];
+    const rows = memoryRows(files);
     expect(rows.map((r) => [r.id, r.title, r.section])).toEqual([
       ["system/persona.md", "persona.md", "system"],
       ["system/human.md", "human.md", "system"],
       ["notes.md", "notes.md", undefined],
     ]);
+    expect(memoryRows(files, "human").map((r) => r.id)).toEqual(["system/human.md"]);
     expect(readingFor("memory", rows[1].id, null, null)).toEqual({ kind: "file", path: "system/human.md" });
   });
-  test("Reflection says it is reading its settings and its last change before either answers", async () => {
-    const { createElement } = await import("react");
-    const { renderToStaticMarkup } = await import("react-dom/server");
-    const { ReflectionPage } = await import("../app/src/agents/reflection-page.tsx");
-    const never = () => new Promise<never>(() => {});
-    const html = renderToStaticMarkup(
-      createElement(ReflectionPage, {
-        agentId: "a1",
-        agentName: "ira",
-        api: { reflection: never } as never,
-        reflect: { get: never, set: never, run: never },
-        run: null,
-        reading: {} as never,
-        onRevert: () => {},
-      }),
-    );
-    expect(html).toContain("Reading the settings…");
-    expect(html).toContain("Reading…");
-    expect(html).not.toContain("did not answer");
-  });
-  test("Changes lists the commits newest first, a pass's marked; Reflection lists only reflection's", async () => {
-    const { changeRows } = await import("../app/src/agents/changes-page.tsx");
-    const { reflectionRuns } = await import("../app/src/agents/reflection-page.tsx");
+
+  test("Changes lists commits newest first, marks Reflection/Doctor passes, and filters by pass and query", async () => {
+    const { changePills, changeRows, filterChanges } = await import("../app/src/agents/changes-page.tsx");
     const at = "2026-11-14T10:00:00Z";
     const log = [
       { sha: "c3", message: "learn the deploy", at, files: ["notes.md"], author: "Reflection Subagent" },
-      { sha: "c2", message: "fix a typo", at, files: ["a.md", "b.md"], author: "ira" },
+      { sha: "c2", message: "trim core notes", at, files: ["system/human.md"], author: "Doctor" },
+      { sha: "c1", message: "fix a typo", at, files: ["a.md", "b.md"], author: "ira" },
     ];
     const rows = changeRows(log);
     expect(rows.map((r) => [r.id, r.title, r.preview])).toEqual([
       ["c3", "learn the deploy", "notes.md"],
-      ["c2", "fix a typo", "2 files"],
+      ["c2", "trim core notes", "system/human.md"],
+      ["c1", "fix a typo", "2 files"],
     ]);
-    expect(reflectionRuns(log).map((c) => c.sha)).toEqual(["c3"]);
-    expect(readingFor("reflection", "system/persona.md", null, null, "c3")).toEqual({ kind: "commit", sha: "c3" });
-    expect(readingFor("reflection", "system/persona.md", null, null, null)).toBeNull();
+    expect(changePills(log, "all").map((p) => p.value)).toEqual(["all", "reflection", "doctor"]);
+    expect(changePills([log[2]], "all").map((p) => p.value)).toEqual(["all"]);
+    expect(filterChanges(log, "reflection").map((c) => c.sha)).toEqual(["c3"]);
+    expect(filterChanges(log, "doctor").map((c) => c.sha)).toEqual(["c2"]);
+    expect(filterChanges(log, "all", "typo").map((c) => c.sha)).toEqual(["c1"]);
   });
-  test("Skills lists the agent's own, then the installed ones, each under its group", async () => {
+
+  test("Skills lists the agent's own under Self and installed under Installed, and filters by query", async () => {
     const { skillRows } = await import("../app/src/agents/skills-page.tsx");
     const skills = [
       { name: "stocks", path: "skills/stocks/SKILL.md", origin: "other", source: { label: "acme/skills" } },
@@ -289,8 +314,9 @@ describe("agents page lists", () => {
     ] as unknown as MemorySkillInfo[];
     expect(skillRows(skills as never).map((r) => [r.id, r.section, r.preview])).toEqual([
       ["notes", "Self", "Keep notes"],
-      ["stocks", "Other", "acme/skills"],
+      ["stocks", "Installed", "acme/skills"],
     ]);
+    expect(skillRows(skills as never, "acme").map((r) => r.id)).toEqual(["stocks"]);
   });
 });
 
@@ -305,9 +331,8 @@ describe("agents place", () => {
     onAskToUpdate: () => {},
     onUpdateAgent: () => Promise.resolve(null),
     write: {},
-    reflect: {},
-    listModels: () => Promise.resolve([]),
-    onShowChats: () => {},
+    models: [],
+    onLoadModels: () => {},
   });
   const render = async (p: object) => {
     const { createElement, Fragment } = await import("react");
@@ -326,14 +351,15 @@ describe("agents place", () => {
     expect(html).toContain("No agents yet<");
     expect(html).toContain(">New Agent</button>");
   });
-  test("Memory has its list with New Agent in its toolbar and the pages centred in the detail's; Profile has no list", async () => {
+  test("Profile keeps the Chats list with New Chat in its toolbar; Memory, Changes and Skills keep searchable lists", async () => {
     const { createAgentsSelection } = await import("../app/src/agents/selection.ts");
     const selection = createAgentsSelection(null);
+    const profile = await render({ ...props([{ id: "a1", name: "ira" }]), selection });
+    expect(profile).toContain("loki-content-list");
+    expect(profile).toContain('aria-label="New Chat"');
+    selection.pickPage("memory");
     const memory = await render({ ...props([{ id: "a1", name: "ira" }]), selection });
     expect(memory).toContain("loki-content-list");
-    expect(memory).toContain('aria-label="New Agent"');
-    selection.pickPage("profile");
-    const profile = await render({ ...props([{ id: "a1", name: "ira" }]), selection });
-    expect(profile).toContain('<div id="list"></div>');
+    expect(memory).not.toContain('aria-label="New Agent"');
   });
 });

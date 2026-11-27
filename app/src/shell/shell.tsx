@@ -207,6 +207,12 @@ export function Shell() {
     setPrefsOpen(false);
     setSegment("chats");
   };
+  const startNewAgent = () => {
+    column.dismiss();
+    setPrefsOpen(false);
+    setSegment("agents");
+    agentsSelection.setCreating(true);
+  };
   const queueFirst = useFirstMessage(desk.scope, desk.connection, (m) =>
     catchUp.send(m.runtime, m.text, m.images, { desk: null, labels: null, origin: "chats" }),
   );
@@ -268,6 +274,12 @@ export function Shell() {
       if (desk.scope !== "shared") recentPlaces.add(chatPlace(desk.scope));
     } else if (segment !== "settings") recentPlaces.add(sectionPlace(segment));
   }, [segment, desk.scope]);
+  const settingsWindow = SETTINGS_WINDOW;
+  const showPreferences = (page?: string | null) => {
+    if (settingsWindow) return openSettingsWindow(page);
+    if (page) sessionStorage.setItem(SETTINGS_PAGE_KEY, page);
+    setPrefsOpen(true);
+  };
   let placeOwner: ReactNode;
   switch (segment) {
     case "flow":
@@ -293,12 +305,16 @@ export function Shell() {
         <AgentsView
           desk={desk}
           catchUp={catchUp}
+          models={modelList}
+          onLoadModels={loadModels}
+          onNewChat={startNewChat}
           onOpenChat={openChat}
           onAskToUpdate={(agentId, text) => {
             openChat(agentId, MAIN_CHAT_ID, { chat: true });
             setChatPrefill({ text, tick: Date.now() });
           }}
-          onShowChats={() => setSegment("chats")}
+          onOpenPreferences={showPreferences}
+          onNotice={notice}
         />
       );
       break;
@@ -355,6 +371,7 @@ export function Shell() {
     initialAgentId: desk.agentId,
     state: agentsState,
     face: (agentId, name) => <AgentFace name={name} src={avatarUrl(agentId)} size={16} />,
+    onNewAgent: startNewAgent,
   });
   const chooseAgent = (id: string) => {
     column.dismiss();
@@ -389,12 +406,6 @@ export function Shell() {
   const listLead = lead(layout.listShown);
   const detailLead = lead(!layout.listShown);
   const sidebarLayer = layout.sidebarOver ? 1 : undefined;
-  const settingsWindow = SETTINGS_WINDOW;
-  const showPreferences = (page?: string | null) => {
-    if (settingsWindow) return openSettingsWindow(page);
-    if (page) sessionStorage.setItem(SETTINGS_PAGE_KEY, page);
-    setPrefsOpen(true);
-  };
   const working = chatWorking(catchUp.items);
   const updateLabel = updateItemLabel(update.status);
   const chatKey = (id: string, run: (inset: boolean) => void) => {

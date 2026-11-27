@@ -16,10 +16,9 @@ export function shownShaOf(sha: string | null, log: MemoryCommit[]): string | nu
   return sha ?? log.at(0)?.sha ?? null;
 }
 
-export function readingFor(page: AgentPage, filePath: string, shownSha: string | null, shownSkill: AgentSkill | null, shownRun: string | null = null): Reading {
+export function readingFor(page: AgentPage, filePath: string, shownSha: string | null, shownSkill: AgentSkill | null): Reading {
   if (page === "memory") return { kind: "file", path: filePath };
   if (page === "changes") return shownSha ? { kind: "commit", sha: shownSha } : null;
-  if (page === "reflection") return shownRun ? { kind: "commit", sha: shownRun } : null;
   if (page === "skills") return shownSkill ? { kind: "file", path: shownSkill.path } : null;
   return null;
 }

@@ -48,7 +48,7 @@ export interface AgentsWrite {
   revertMemory: (agentId: string, sha: string) => Promise<string | null>;
 }
 
-export type ModelChoice = Pick<ModelEntry, "handle" | "reasoning_effort">;
+export type ModelChoice = ModelEntry;
 
 export interface AgentEdit {
   name?: string;

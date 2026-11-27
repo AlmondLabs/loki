@@ -1,5 +1,6 @@
 import { useEffect, useEffectEvent, useState } from "react";
 
+import { notify } from "../components";
 import { READING, answered, valueOf, type Fetched } from "../shared/fetched";
 import type { AgentDetails, AgentEdit, AgentSkill, AgentsApi, AgentsWrite } from "./types";
 import type { MemoryCommit, MemorySkill } from "../../../core/frame-types.ts";
@@ -12,6 +13,7 @@ export function useAgentDetails({
   onAskToUpdate,
   onDeleted,
   onSkillAdded,
+  onNotice = (m) => void notify(m),
 }: {
   selected: string | null;
   api: AgentsApi;
@@ -20,10 +22,10 @@ export function useAgentDetails({
   onAskToUpdate: (agentId: string, text: string) => void;
   onDeleted: () => void;
   onSkillAdded: (name: string) => void;
+  onNotice?: (message: string) => void;
 }) {
   const [details, setDetails] = useState<Record<string, Fetched<AgentDetails>>>({});
   const [commits, setCommits] = useState<Record<string, MemoryCommit[]>>({});
-  const [notice, setNotice] = useState<string | null>(null);
 
   const load = (id: string) =>
     api
@@ -43,10 +45,7 @@ export function useAgentDetails({
   const fetched = selected ? (details[selected] ?? READING) : READING;
   const d = valueOf(fetched);
   const log = selected ? (commits[selected] ?? []) : [];
-  const flash = (m: string) => {
-    setNotice(m);
-    setTimeout(() => setNotice((c) => (c === m ? null : c)), 3000);
-  };
+  const flash = (m: string) => onNotice(m);
   const save = async (body: AgentEdit) => {
     if (!selected) return;
     const err = await onUpdateAgent(selected, body);
@@ -134,7 +133,6 @@ export function useAgentDetails({
     fetched,
     d,
     log,
-    notice,
     flash,
     save,
     confirmDelete,

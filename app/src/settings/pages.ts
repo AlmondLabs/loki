@@ -11,6 +11,7 @@ export type SettingsPage =
   | "macs"
   | "skills"
   | "learn"
+  | "reflection"
   | "appearance"
   | "chat"
   | "labels"
@@ -25,7 +26,7 @@ export const GROUPS: readonly SettingsGroup[] = [
   { title: "General", pages: ["appearance", "chat", "keys"] },
   { title: "Models and tools", pages: ["providers", "engines", "mcp", "skills"] },
   { title: "Your devices", pages: ["macs", "phone"] },
-  { title: "Flow and Learn", pages: ["flow", "accounts", "learn"] },
+  { title: "Flow and Learn", pages: ["flow", "accounts", "learn", "reflection"] },
   { title: "Labels", pages: ["labels"] },
   { title: "loki", pages: ["loki", "usage"] },
 ];
@@ -44,6 +45,7 @@ const TITLES: Record<SettingsPage, string> = {
   macs: "Macs",
   skills: "Skills",
   learn: "Learn",
+  reflection: "Reflection",
   appearance: "Appearance",
   chat: "Chat",
   labels: "Labels",
@@ -64,6 +66,7 @@ export const PAGE_ICON: Record<SettingsPage, { icon: IconName; tint: string }> =
   flow: { icon: "inbox", tint: "var(--loki-label-5)" },
   accounts: { icon: "mail", tint: "var(--loki-label-0)" },
   learn: { icon: "learn", tint: "var(--loki-label-2)" },
+  reflection: { icon: "brain", tint: "var(--loki-label-6)" },
   labels: { icon: "tag", tint: "var(--loki-label-1)" },
   loki: { icon: "info", tint: "var(--loki-label-4)" },
   usage: { icon: "chart", tint: "var(--loki-label-6)" },
@@ -82,6 +85,7 @@ export const PAGE_WORDS: Partial<Record<SettingsPage, string[]>> = {
   appearance: ["theme", "dark mode", "light mode", "colours"],
   chat: ["panel", "width", "always allowed", "approvals", "chat links", "links"],
   learn: ["recall", "cards"],
+  reflection: ["memory", "passes", "doctor", "background", "acp", "sleep"],
   keys: ["keys", "shortcuts", "keyboard"],
 };
 

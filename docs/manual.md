@@ -303,31 +303,39 @@ are on is read.
   you as a list beside the selected card, see below. Its row in the sidebar carries the waiting count, the same number
   the tray title and dock badge show, and its lanes are listed under it.
 - **Agents** (⌘4): your agents are listed under Agents in the sidebar — face, name, a green dot while one works, a
-  count of what waits on you — and choosing one keeps the page that was showing. The pages are tabs in the middle of
-  the detail's toolbar (a first visit lands on Memory); the list beside it holds the page's items, and the detail the
-  one chosen in it. **New Agent** ("+") sits in the list's toolbar. ⌘[ and ⌘] step the list. **Profile** has no
-  items, so its form takes the list's room too: face, name, description and model
-  (editable), effort and context, "★ favourite" when it is one, where it is working (its live chats, each a
-  link, then **main chat** and **chats**), and delete at the bottom; deleting the agent shows the first one left.
-  **Memory**: the files in the list, under the folder each sits in, and the one you chose read beside it, with "ask
-  <agent> to update this". **Changes**: what it learned as memory commits in the list, newest first, the diff beside
-  it; a commit by reflection or by a memory review (`/doctor`) is marked so. **revert** on the diff undoes that commit with a new one,
-  as yours (so a revert can be reverted too); git refuses when a later commit changed the same lines, and says so. **Reflection**: whether loki keeps its agents' memory up to date in the background — on by default and for
-  every agent at once: once chats have been quiet for half an hour, the agent reads what was said in them since it
-  last looked, several chats together (at most every two hours), and keeps in memory what will matter in later
-  chats, counting what recurs across them, the tool calls that failed included, each with the try that fixed it, so a
-  mistake the agent keeps making becomes a note on what to do instead (and reads a chat right after its context is
-  compacted); the list holds reflection's runs among the latest changes, and the one you choose is read under the
-  settings, with the last change reflection made when none is that recent; `/reflect` in a chat does it now. Reflection also reads your edits and rejections on proposed replies and consistent Flow triage patterns so those preferences carry across chats. Every chat has shared cross-agent preferences (`shared/`, kept under 6 KB) and the agent's core notes (`system/`, kept under 12 KB) in full, and reflection moves what not every chat needs into other notes. Those are listed by their one-line description, and the agent reads one when it fits the work (`memory_read` paginates large files, and `memory_search` ranks keyword and phrase matches across `shared/` and the agent's notes); the skills are listed with descriptions cut to 200 characters, under the folder each group is in, and the agent reads a skill's `SKILL.md` with `read` for the rest; the chat shows that read as a step named after the skill (**Read skill** in a summary), as it does a Claude Code chat's skill. **Skills**:
-  one row each in the list, in two groups — **self**, the ones the agent (or you) wrote ("write" over the skill adds one, "install" takes a
-  source: `owner/repo/path` on GitHub, a GitHub or git URL, or a folder on this Mac), and
-  **other**, installed from somewhere named on the row (a checkout linked into `~/.agents/skills`, a repo the `skills`
-  CLI recorded, a source you typed once). Choose a skill and it opens beside the list with its origin, whether the agent has
-  edited its copy, and **refresh**: the latest is pulled from the source and compared; an untouched copy is replaced
-  and committed; a copy the agent edited is not overwritten — upstream is staged and the agent's main chat opens with a
+  count of what waits on you — with **New Agent** ("+") on the Agents heading (opening in a sheet), and choosing one
+  keeps the page that was showing. The four pages are tabs in the middle of the detail's toolbar (a first visit lands on
+  Profile), with each page's actions in the toolbar's trailing group; the list beside it holds the page's items, and
+  the detail the one chosen in it. ⌘[ and ⌘] step the list. **Profile**: the agent's live chats in the list beside
+  grouped identity cards (name, description, model picker, home Mac when paired, MCP server switches, and delete in a
+  confirmation sheet at the bottom; deleting the agent shows the first one left), with **Main Chat** and **New Chat**
+  in the toolbar. **Memory**: searchable files in the list, under the folder each sits in, and the one you chose read
+  beside it, with **Ask to Update** in the toolbar. **Changes**: searchable memory commits in the list, newest first,
+  filtered by **All**, **Reflection** and **Doctor** pills, with the full commit message and diff card beside it; a commit
+  by reflection or by a memory review (`/doctor`) is marked so. **Revert** in the toolbar undoes that commit with a new
+  one, as yours (so a revert can be reverted too); git refuses when a later commit changed the same lines, and says so.
+  Reflection's global switches live in Preferences › Reflection (on by default and for every agent at once: once chats
+  have been quiet for half an hour, the agent reads what was said in them since it last looked, several chats together
+  at most every two hours, and keeps in memory what will matter in later chats, counting what recurs across them, the
+  tool calls that failed included, each with the try that fixed it, so a mistake the agent keeps making becomes a note
+  on what to do instead, and reads a chat right after its context is compacted; `/reflect` in a chat does it now).
+  Reflection also reads your edits and rejections on proposed replies and consistent Flow triage patterns so those
+  preferences carry across chats. Every chat has shared cross-agent preferences (`shared/`, kept under 6 KB) and the
+  agent's core notes (`system/`, kept under 12 KB) in full, and reflection moves what not every chat needs into other
+  notes. Those are listed by their one-line description, and the agent reads one when it fits the work (`memory_read`
+  paginates large files, and `memory_search` ranks keyword and phrase matches across `shared/` and the agent's notes);
+  the skills are listed with descriptions cut to 200 characters, under the folder each group is in, and the agent reads
+  a skill's `SKILL.md` with `read` for the rest; the chat shows that read as a step named after the skill (**Read
+  skill** in a summary), as it does a Claude Code chat's skill. **Skills**: searchable rows in two groups — **Self**,
+  the ones the agent (or you) wrote (**Write Skill** in the toolbar opens a sheet to add one, **Install Skill** takes a
+  source: `owner/repo/path` on GitHub, a GitHub or git URL, or a folder on this Mac), and **Installed**, from somewhere
+  named on the row (a checkout linked into `~/.agents/skills`, a repo the `skills` CLI recorded, a source you typed
+  once). Choose a skill and it opens beside the list with its origin, whether the agent has edited its copy, and
+  **Refresh** in the toolbar: the latest is pulled from the source and compared; an untouched copy is replaced and
+  committed; a copy the agent edited is not overwritten — upstream is staged and the agent's main chat opens with a
   request to reconcile, keeping what it learned and taking what upstream improved; a copy that matches is reported
-  current. A skill nobody recorded a source for asks for one the first time. **remove** takes a skill out of the
-  agent's memory. The page is remembered for the window.
+  current. A skill nobody recorded a source for asks for one in a sheet the first time. **Remove Skill** asks to confirm
+  before taking a skill out of the agent's memory. The page is remembered for the window.
 - **Preferences** (⌘, or ⌘6, or the menu bar): in the Mac app a window of its own, elsewhere a sheet over the whole window: six groups down the
   left as System Settings lists them, each a grey heading over its pages, one row per page with its coloured symbol;
   the last page is remembered for the window. A filter over the list finds a page by its name, its group or what it
@@ -375,6 +383,9 @@ are on is read.
      2. **Learn**: Learn's switch (off until you turn it on), cards a day (a ceiling, five by default, per
         calendar day; once it is reached nothing more is read until tomorrow), run now (every conversation with
         something new, at once), the last run, and Export for Anki (every card, in Anki's plain-text import format).
+     3. **Reflection**: the global switch for background memory reflection across every agent, and whether reflection,
+        Learn and `/doctor` fall back to the agent's newest Claude Code or Cursor chat when no provider is connected
+        for its model.
   5. **Labels**: every label on your chats with its colour and how many chats carry it; **rename** (on every chat
      that has it), **colour** (one of eight) and **delete** (asks first, naming how many chats; the chats stay).
   6. **loki**

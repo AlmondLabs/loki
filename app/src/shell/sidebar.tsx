@@ -148,6 +148,7 @@ export interface PlaceSources {
   items: readonly PlaceSource[];
   selected: string;
   onSelect: (id: string) => void;
+  action?: { label: string; icon?: IconName; onRun: () => void };
 }
 
 function savedFolds(): SidebarPref {
@@ -213,6 +214,11 @@ export function Places({
               <span id={headingId} className="loki-place-heading">
                 {s.label}
               </span>
+              {own.action && (
+                <button type="button" className="loki-place-action" aria-label={own.action.label} title={own.action.label} onClick={own.action.onRun}>
+                  <Icon name={own.action.icon ?? "plus"} size={12} />
+                </button>
+              )}
               <button
                 type="button"
                 className="loki-place-fold"
