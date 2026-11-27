@@ -1,4 +1,4 @@
-import { isReasoningEffort, type AppliedModel, type ModelEntry, type ModelSelection } from "../models.ts";
+import type { AppliedModel, ModelEntry, ModelSelection } from "../models.ts";
 import { DOCTOR_WAIT_MS, HANDOFF_WAIT_MS, REPLY_WAIT_MS } from "../frame-client.ts";
 import type { InputOf, ReplyAction, ReplyDecideOptions, ReplyOf, RequestName, RequestResult, SuggestionAction } from "../frames.ts";
 import type {
@@ -170,7 +170,7 @@ export class FrameChatClient {
     return Promise.resolve({
       version: "loki daemon",
       protocol: null,
-      commands: ["compact", "clear", "remember", "reflect", "doctor", "advisor"],
+      commands: ["compact", "clear", "remember", "reflect", "doctor"],
       exclusive: true,
     });
   }
@@ -208,7 +208,7 @@ export class FrameChatClient {
       ...(state.suggestions ? [{ kind: "suggestions" as const, suggestions: state.suggestions }] : []),
       ...(state.reply_proposals ? [{ kind: "reply_proposals" as const, proposals: state.reply_proposals }] : []),
       ...(state.links ? [{ kind: "links" as const, links: state.links }] : []),
-      ...(state.advisor !== undefined ? [{ kind: "advisor" as const, advisor: state.advisor }] : []),
+      ...(state.subagents !== undefined ? [{ kind: "subagents" as const, subagents: state.subagents }] : []),
     ]);
     return { type: "chat_state" };
   }
@@ -407,10 +407,6 @@ export class FrameChatClient {
       ...(typeof body.name === "string" ? { name: body.name } : {}),
       ...(typeof body.description === "string" ? { description: body.description } : {}),
       ...(typeof body.model === "string" ? { model: body.model } : {}),
-      ...(typeof body.advisor_model === "string" || body.advisor_model === null ? { advisor_model: body.advisor_model } : {}),
-      ...(isReasoningEffort(body.advisor_reasoning_effort) || body.advisor_reasoning_effort === null
-        ? { advisor_reasoning_effort: body.advisor_reasoning_effort }
-        : {}),
     });
   }
 

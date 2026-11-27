@@ -319,7 +319,7 @@ export async function changeList(folder: string | undefined, deps: GitDeps = {})
 }
 
 /**
- * The `changes_read` tool, offered only to a chat whose tool list adds it (an advisor). Arguments:
+ * The `changes_read` tool, offered only to a chat whose tool list adds it (a read-only subagent). Arguments:
  * - `kind`: `status`, `diff`, `log` or `show`.
  * - `options`: flags from that kind's fixed list; anything else is refused.
  * - `revisions`: branches, tags, commits or ranges, never starting with `-` (diff at most 2, log and show at most 1, status none).

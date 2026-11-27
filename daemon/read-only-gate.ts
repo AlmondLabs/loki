@@ -1,12 +1,18 @@
+import { defineExtension, section, wrapSection, type Extension, type ToolRegistration, type Wrap } from "@earendil-works/pi-durable";
 import { realpath, stat } from "node:fs/promises";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { CHANGES_TOOL } from "./changes.ts";
-import { memoryRoot } from "./memory.ts";
+import { AgentInfoDoc } from "./kernel/index.ts";
+import { memoryRoot, memorySection } from "./memory.ts";
 import { commandWords, isReadOnlyCommand } from "./read-only-command.ts";
+import { sections } from "./section-cache.ts";
 import { resultsDirOf } from "./tool-results.ts";
+import { fileTools } from "./tools.ts";
 
-export const ADVISOR_TOOLS: readonly string[] = [
+export const READ_ONLY_EXTENSION = "loki.read-only";
+
+export const READ_ONLY_TOOLS: readonly string[] = [
   "read",
   "find",
   "grep",
@@ -19,15 +25,45 @@ export const ADVISOR_TOOLS: readonly string[] = [
   "history_read",
   CHANGES_TOOL,
 ];
-const ADVISOR_TOOL_SET: ReadonlySet<string> = new Set(ADVISOR_TOOLS);
+const READ_ONLY_TOOL_SET: ReadonlySet<string> = new Set(READ_ONLY_TOOLS);
 
-export interface AdvisorFolders {
+const DIRECT_HISTORY = ["history_search", "history_read"];
+const LEFT_OUT_SECTIONS: readonly string[] = ["replies", "canvas", "accounts", "mcp"];
+
+const READ_ONLY_PROMPT = [
+  "You are a read-only helper subagent. You read and never change anything: you may inspect files, run read-only shell commands, read git changes with changes_read, search the web, and read memory and history. Any call that modifies files or state is refused.",
+].join("\n");
+
+export function readOnlyExtension(backendDir: string): Extension {
+  const history = DIRECT_HISTORY.map((name): Wrap => ({
+    tool: name,
+    wrap: (tool: ToolRegistration): ToolRegistration => ({ ...tool, callers: ["model", "tools"] }),
+  }));
+  const files = fileTools({ followLinks: false }).map((own): Wrap => ({ tool: own.name, wrap: (): ToolRegistration => own }));
+  const leftOut = LEFT_OUT_SECTIONS.map((key) => wrapSection(key, (s) => ({ ...s, render: () => undefined })));
+  const memory = wrapSection("memory", (s) => ({
+    ...s,
+    render: async (input, context) => {
+      const agent = await input.read.snapshot(AgentInfoDoc, context);
+      if (!agent?.id) return undefined;
+      const root = memoryRoot(backendDir, agent.id);
+      return sections.get(`memory-read\u0000${root}`, () => memorySection(root, "read"));
+    },
+  }));
+  return defineExtension({
+    name: READ_ONLY_EXTENSION,
+    sections: [section("read_only", () => READ_ONLY_PROMPT)],
+    wraps: [...history, ...files, ...leftOut, memory],
+  });
+}
+
+export interface ReadOnlyFolders {
   dataDir: string;
   backendDir: string;
   home: string;
 }
 
-export interface AdvisorCall {
+export interface ReadOnlyCall {
   name: string;
   args: Record<string, unknown>;
   cwd: string | undefined;
@@ -43,20 +79,20 @@ interface Reach {
 const WORKING_FOLDER = ".";
 const UNICODE_SPACES = /[  -   　]/g;
 
-const offList = (name: string) => `An advisor reads and never changes anything, so it cannot use ${name}.`;
+const offList = (name: string) => `A read-only subagent reads and never changes anything, so it cannot use ${name}.`;
 const NOT_READ_ONLY =
-  "An advisor runs only commands that read (ls, find, rg, grep, cat, head, tail, wc and pwd, joined by |), never one that changes anything or runs another program; read git changes with changes_read.";
+  "A read-only subagent runs only commands that read (ls, find, rg, grep, cat, head, tail, wc and pwd, joined by |), never one that changes anything or runs another program; read git changes with changes_read.";
 const shown = (asked: string) => (asked === WORKING_FOLDER ? "The working folder" : asked);
-const inData = (asked: string) => `${shown(asked)} is inside loki's data folder, where chats are kept, which an advisor may not read.`;
+const inData = (asked: string) => `${shown(asked)} is inside loki's data folder, where chats are kept, which a read-only subagent may not read.`;
 const aboveData = (asked: string) =>
   `A search of ${asked === WORKING_FOLDER ? "the working folder" : asked} would reach into loki's data folder, where chats are kept: search a folder within it instead, with the grep or find tool and a path.`;
-const FOLLOWS_LINKS = "An advisor's search may not follow links, since a link can lead into loki's data folder.";
+const FOLLOWS_LINKS = "A read-only subagent's search may not follow links, since a link can lead into loki's data folder.";
 const WILDCARD =
-  "An advisor's shell command may not use a wildcard (*, ? or [), since the shell would follow a link it matches, which can lead into loki's data folder: list and search files with the find and grep tools, which do not follow links, or quote a pattern meant for find, grep or rg.";
+  "A read-only subagent's shell command may not use a wildcard (*, ? or [), since the shell would follow a link it matches, which can lead into loki's data folder: list and search files with the find and grep tools, which do not follow links, or quote a pattern meant for find, grep or rg.";
 const notLongOption = (program: string, word: string, named: string) =>
-  `"${word}" is not a long option an advisor's ${program} takes, since a shortened one such as --recur can search a whole folder; it takes ${named}. Use the short letter, or the grep and find tools.`;
-const otherHome = (asked: string) => `An advisor may not read another home folder (${asked}).`;
-const UNCHECKED = "loki cannot check where this advisor's paths lead, so it refuses them.";
+  `"${word}" is not a long option a read-only subagent's ${program} takes, since a shortened one such as --recur can search a whole folder; it takes ${named}. Use the short letter, or the grep and find tools.`;
+const otherHome = (asked: string) => `A read-only subagent may not read another home folder (${asked}).`;
+const UNCHECKED = "loki cannot check where this read-only subagent's paths lead, so it refuses them.";
 
 const pathArg = (value: unknown): string => (typeof value === "string" && value ? value : WORKING_FOLDER);
 
@@ -171,8 +207,8 @@ async function chainOf(path: string): Promise<{ ids: string[]; whole: boolean }>
   }
 }
 
-export async function advisorRefusal(call: AdvisorCall, folders: AdvisorFolders | undefined): Promise<string | null> {
-  if (!ADVISOR_TOOL_SET.has(call.name)) return offList(call.name);
+export async function readOnlyRefusal(call: ReadOnlyCall, folders: ReadOnlyFolders | undefined): Promise<string | null> {
+  if (!READ_ONLY_TOOL_SET.has(call.name)) return offList(call.name);
   if (call.name === "bash" && (!isReadOnlyCommand(call.args.command) || call.args.background === true || call.args.wait_ms !== undefined)) {
     return NOT_READ_ONLY;
   }

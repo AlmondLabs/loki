@@ -110,7 +110,7 @@ export const KEYMAP: Binding[] = [
   { id: "view.zoomOut", keys: ["cmd+-"], where: "chats", label: "Zoom Out", typing: true, menu: "View" },
   { id: "canvas.arrange", keys: ["cmd+shift+a"], where: "chats", label: "Arrange Widgets", typing: true, menu: "View/canvas" },
   { id: "canvas.undo", keys: ["cmd+z"], where: "chats", label: "Undo Widget Move", menu: "View/canvas", menuAccel: false },
-  { id: "canvas.messages", keys: ["escape"], where: "chats", label: "back to Messages from the Canvas or Advisor tab", note: "handled by the shell" },
+  { id: "canvas.messages", keys: ["escape"], where: "chats", label: "back to Messages from the Canvas or Workers tab", note: "handled by the shell" },
 
   { id: "chat.send", keys: ["enter"], where: "chat", label: "send", typing: true, note: "the box" },
   { id: "chat.newline", keys: ["shift+enter"], where: "chat", label: "new line", typing: true, note: "the box" },

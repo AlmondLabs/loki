@@ -21,7 +21,6 @@ import { SeenStore } from "./seen.ts";
 import { LearnStore, isoDay } from "./learn.ts";
 import { isPassChat, startLessonViaChats } from "./learn-worker.ts";
 import { PassState } from "../daemon/passes-state.ts";
-import { changesConsultText } from "../daemon/advisor-changes.ts";
 import { readPins, setPin } from "./pins.ts";
 import { addRecentModel, readRecentModels } from "./models.ts";
 import { readUsualModels, recordUsualModel } from "./usual-models.ts";
@@ -77,7 +76,7 @@ import { jiraCardView, jiraThreadText } from "./jira-view.ts";
 import { coalesce } from "../core/timers.ts";
 import { Suggestions, chatCaller, withSuggestionsOnOpen, type SuggestionRecords } from "./suggestions.ts";
 import { ChatMessages, LinkStore, withLinksOnOpen } from "./chat-links.ts";
-import { AdvisorStrips, withAdvisorOnOpen } from "./chat-advisor.ts";
+import { SubagentStrips, withSubagentsOnOpen } from "./chat-subagents.ts";
 import type { LinkAnswer, LinkAsk } from "../core/chat-links.ts";
 import { registerTools } from "./tools.ts";
 import { registerAccountScriptTools } from "./account-ops/script-tools.ts";
@@ -162,10 +161,10 @@ export function activateLoki(api: ModApi, host: Host): () => void {
   const { chats, chat: chatBackend } = host;
   const chatEvents = (agentId: string, conversationId: string, events: ChatEvent[]) =>
     broadcast({ type: "chat_event", agent_id: agentId, conversation_id: conversationId, events });
-  const advisorStrips = new AdvisorStrips(chatBackend, chatEvents);
+  const subagentStrips = new SubagentStrips(chatBackend, chatEvents);
   chatBackend.attach((agentId, conversationId, events) => {
     chatEvents(agentId, conversationId, events);
-    advisorStrips.heard(agentId, conversationId, events);
+    subagentStrips.heard(agentId, conversationId, events);
   });
   const desks = new ChatRegistry(join(paths.state, "chats.json"), (id) => chats.agentOf(id));
   const seen = new SeenStore(join(paths.state, "attention.json"));
@@ -494,7 +493,10 @@ export function activateLoki(api: ModApi, host: Host): () => void {
     setPin: (agentId, conversationId, pinned) => setPin(agentId, conversationId, pinned),
     recentModels: { read: () => readRecentModels(), add: (handle) => addRecentModel(handle) },
     usualModels: { read: () => readUsualModels(), record: (agentId, handle, effort) => recordUsualModel(agentId, handle, effort, new Date()) },
-    chat: withRepliesOnOpen(withLinksOnOpen(withAdvisorOnOpen(suggestions ? withSuggestionsOnOpen(chatBackend, suggestions) : chatBackend), messages), replies),
+    chat: withRepliesOnOpen(
+      withLinksOnOpen(withSubagentsOnOpen(suggestions ? withSuggestionsOnOpen(chatBackend, suggestions) : chatBackend), messages),
+      replies,
+    ),
     suggestions,
     messages,
     replies,
@@ -602,7 +604,7 @@ export function activateLoki(api: ModApi, host: Host): () => void {
     })
     .catch((err: unknown) => log.error("server:error", messageOf(err)));
 
-  const eventDisposers: Array<() => void> = [advisorStrips.start()];
+  const eventDisposers: Array<() => void> = [subagentStrips.start()];
   const titleRefreshes = new ScopeDebouncer(1200);
   const ignored = (e: ChatRef) => passChat(e.chatId);
 
@@ -672,10 +674,6 @@ export function activateLoki(api: ModApi, host: Host): () => void {
           chats: () => macs.summaries(),
           passChat,
           messages,
-          advisor: {
-            consult: (ref, text) => chatBackend.consult(ref, "agent", text),
-            changes: (folder) => changesConsultText(folder),
-          },
         }
       : undefined,
   });

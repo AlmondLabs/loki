@@ -10,7 +10,7 @@ import type { IconName } from "./icons";
 import type { Route } from "./router";
 import type { ChatSummary } from "../../../core/frame-types.ts";
 import { isMainChat } from "../../../core/canvas-core.ts";
-import { isAdvisorChat } from "../../../core/advisor.ts";
+import { isSubagentChat, subagentDisplayName, subagentIdOfChat } from "../../../core/subagents.ts";
 import { lastSeen } from "../shared/lan-model";
 import { liveDesksLabel, type AgentRowModel } from "../shared/agent-model";
 
@@ -109,8 +109,8 @@ export function threadFor(
       convItem?.title ??
       (isMainChat(conv.conversationId)
         ? `${agentNameOf(agents, desks, conv.agentId) ?? "agent"} · main chat`
-        : isAdvisorChat(conv.conversationId)
-          ? "Advisor"
+        : isSubagentChat(conv.conversationId)
+          ? subagentDisplayName(subagentIdOfChat(conv.conversationId) ?? conv.conversationId)
           : null),
     agentName: convDesk?.agent_name ?? convItem?.agent_name ?? agentNameOf(agents, desks, conv.agentId),
   };

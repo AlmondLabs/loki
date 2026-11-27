@@ -121,18 +121,18 @@ describe("the chat directory (plan 023, addendum B)", () => {
     expect(m.dir(BOOK).answer(CHAT)).toEqual({ held: false, moved_to: null });
   });
 
-  test("a chat's advisor chat is where its chat is: here, on the Mac its list names, and after a move, never on the Mac its chat left (KTD11)", async () => {
+  test("a chat's subagent chat is where its parent chat is: here, on the Mac its list names, and after a move, never on the Mac its parent left", async () => {
     const m = macs([BOOK, MINI, THIRD]);
-    const advisor: ChatRef = { agent_id: "agent-ira", conversation_id: "advisor-conv-1" };
+    const worker: ChatRef = { agent_id: "agent-ira", conversation_id: "conv-1~subagent~kestrel" };
     m.stores.get(BOOK)?.add(SCOPE);
-    expect(m.dir(BOOK).peek(advisor)).toEqual({ at: "here" });
-    expect(m.dir(BOOK).answer(advisor)).toEqual({ held: true, moved_to: null });
+    expect(m.dir(BOOK).peek(worker)).toEqual({ at: "here" });
+    expect(m.dir(BOOK).answer(worker)).toEqual({ held: true, moved_to: null });
     m.dir(MINI).heard(BOOK, { kind: "holds", scopes: [SCOPE] });
-    expect(m.dir(MINI).peek(advisor)).toEqual({ at: "mac", mac: BOOK, reachable: true });
-    expect(await m.dir(THIRD).locate(advisor)).toEqual({ at: "mac", mac: BOOK, reachable: true });
+    expect(m.dir(MINI).peek(worker)).toEqual({ at: "mac", mac: BOOK, reachable: true });
+    expect(await m.dir(THIRD).locate(worker)).toEqual({ at: "mac", mac: BOOK, reachable: true });
     m.move(BOOK, MINI);
-    expect(m.dir(BOOK).answer(advisor)).toEqual({ held: false, moved_to: MINI });
-    expect(m.dir(MINI).peek(advisor)).toEqual({ at: "here" });
-    expect(m.dir(THIRD).peek(advisor)).toEqual({ at: "mac", mac: MINI, reachable: true });
+    expect(m.dir(BOOK).answer(worker)).toEqual({ held: false, moved_to: MINI });
+    expect(m.dir(MINI).peek(worker)).toEqual({ at: "here" });
+    expect(m.dir(THIRD).peek(worker)).toEqual({ at: "mac", mac: MINI, reachable: true });
   });
 });

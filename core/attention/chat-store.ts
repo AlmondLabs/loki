@@ -1,5 +1,5 @@
 import type { ChatLink, LinkDuration } from "../chat-links.ts";
-import type { AppliedModel, ModelSelection, ReasoningEffort } from "../models.ts";
+import type { AppliedModel, ModelSelection } from "../models.ts";
 import { isMainChat } from "../canvas-core.ts";
 import { keepSame } from "../same-data.ts";
 import type { ChatClient, NewAgentOptions } from "./chat-client.ts";
@@ -433,7 +433,7 @@ export class ChatStore {
     const l = this.liveOf(key);
     this.host().sent?.(rt);
     const at = new Date(this.now()).toISOString();
-    const mode = sendMode(l, rt.conversation_id);
+    const mode = sendMode(l);
     if (mode === "queue") {
       l.queued.push({ text, images, desk: env.desk, labels: env.labels });
       l.thread.queue(sentRow(text, images, at));
@@ -536,8 +536,6 @@ export class ChatStore {
       description?: string;
       model?: string;
       home_mac?: string;
-      advisor_model?: string | null;
-      advisor_reasoning_effort?: ReasoningEffort | null;
     },
   ): Promise<string | null> => {
     const err = await this.tried((c) => c.updateAgent(agentId, body));

@@ -1,5 +1,5 @@
-export type CanvasTab = "messages" | "advisor" | "canvas";
-export type PaneView = "messages" | "advisor" | "inset";
+export type CanvasTab = "messages" | "workers" | "canvas";
+export type PaneView = "messages" | "workers" | "inset";
 
 export interface PaneState {
   readonly tabs: Readonly<Record<string, CanvasTab>>;
@@ -15,23 +15,23 @@ export function chooseTab(s: PaneState, scope: string, tab: CanvasTab): PaneStat
 
 export const openTab = (s: PaneState, scope: string): PaneState => chooseTab(s, scope, "messages");
 
-export const shownTab = (tab: CanvasTab, hasAdvisor: boolean): CanvasTab => (tab === "advisor" && !hasAdvisor ? "messages" : tab);
+export const shownTab = (tab: CanvasTab, hasWorkers: boolean): CanvasTab => (tab === "workers" && !hasWorkers ? "messages" : tab);
 
 export function escapeTab(s: PaneState, scope: string, shown: CanvasTab, { typing }: { typing: boolean }): PaneState | null {
   if (typing || shown === "messages") return null;
   return chooseTab(s, scope, "messages");
 }
 
-const VIEW: Record<CanvasTab, PaneView> = { messages: "messages", advisor: "advisor", canvas: "inset" };
+const VIEW: Record<CanvasTab, PaneView> = { messages: "messages", workers: "workers", canvas: "inset" };
 
 export const paneView = (active: boolean, tab: CanvasTab): PaneView | null => (active ? VIEW[tab] : null);
 
-const ADVISOR_KEYS = new Set(["chat.focus", "chat.find", "chat.model"]);
-const MESSAGES_KEYS = new Set([...ADVISOR_KEYS, "chat.mode", "chat.suggestions"]);
+const WORKER_KEYS = new Set(["chat.focus", "chat.find", "chat.model"]);
+const MESSAGES_KEYS = new Set([...WORKER_KEYS, "chat.mode", "chat.suggestions"]);
 
 export function chatKeyTarget(id: string, tab: CanvasTab): PaneView | null {
   if (tab === "canvas") return "inset";
-  if (tab === "advisor") return ADVISOR_KEYS.has(id) ? "advisor" : null;
+  if (tab === "workers") return WORKER_KEYS.has(id) ? "workers" : null;
   return MESSAGES_KEYS.has(id) ? "messages" : null;
 }
 

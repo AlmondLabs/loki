@@ -62,7 +62,6 @@ const ROWS: TranscriptRow[] = [
   tool("subagent", "Check the forecast helper's tests", "All pass.", { description: "Check the forecast helper without running live jobs" }),
   tool("read", "/tmp/signups-planning/test_weekly_signups_offline.py", "def test_weeks(): …"),
   tool("Read", "signups.csv", "week,signups"),
-  { role: "tool", text: "advisor_consult", tool: { name: "advisor_consult", output: "Looks sound." } },
   tool("memory_edit", "reference/acme/signups.md", "Edited."),
   tool("memory_edit", "projects/signups.md", "Edited."),
   tool("mcp__github__list_pull_requests", "", "3 open"),

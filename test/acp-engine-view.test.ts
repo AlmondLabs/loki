@@ -43,7 +43,7 @@ describe("a chat's engine in the app (plan 020)", () => {
 
   test("an ACP chat's commands: loki's, the ones loki runs, then the agent's, with loki's winning a shared name", () => {
     const ids = engineCommands(CLAUDE).map((c) => c.id);
-    expect(ids).toEqual([...LOKI_COMMANDS.map((c) => c.id), "reflect", "doctor", "advisor", "review"]);
+    expect(ids).toEqual([...LOKI_COMMANDS.map((c) => c.id), "reflect", "doctor", "review"]);
     expect(engineCommands(CLAUDE).find((c) => c.id === "review")).toMatchObject({ where: "harness", args: "[branch]" });
   });
 

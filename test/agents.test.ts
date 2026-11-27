@@ -49,15 +49,6 @@ describe("agents: the record", () => {
     expect(a.favourite).toBe(true);
     expect(a.system_head).toBe("You are a Letta Code agent.");
   });
-  test("reads the advisor model and its effort, and none when the record names none", () => {
-    const advised = "agent-local-advised";
-    writeFileSync(
-      join(dir, "agents", `${backendName(advised)}.json`),
-      JSON.stringify({ id: advised, name: "kit", advisor_model: "openai/gpt-6.1-sol", advisor_reasoning_effort: "high" }),
-    );
-    expect(readLocalAgent(advised, dir)).toMatchObject({ advisor_model: "openai/gpt-6.1-sol", advisor_reasoning_effort: "high" });
-    expect(readLocalAgent(AGENT, dir)).toMatchObject({ advisor_model: null, advisor_reasoning_effort: null });
-  });
   test("agent ids are path segments: traversal shapes are refused everywhere", () => {
     expect(isAgentId("default-agent-local-45b66c51-fe5b-44e8-b36c-696adc14ee28")).toBe(true);
     expect(isAgentId("agent_1.v2")).toBe(true);

@@ -8,7 +8,7 @@
  * Whose work a call was: the person's own chats (with their scheduled prompts and background notices), a helper's
  * child conversation, or one of loki's background passes.
  */
-export type UsageOrigin = "chats" | "helpers" | "reflection" | "learn" | "doctor" | "advisor";
+export type UsageOrigin = "chats" | "helpers" | "reflection" | "learn" | "doctor";
 
 /** A row's estimated cost by token type; `other` is cost known only as a total (history from before the ledger). */
 export interface UsageCost {

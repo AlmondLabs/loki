@@ -11,8 +11,6 @@ import { ago } from "../shared/ago";
 import { Head } from "./bits";
 import { keyFor } from "../shell/keymap";
 import type { AgentDetails, AgentEdit, ModelChoice } from "./types";
-import { effortTitle } from "../chat/model-picker";
-import { REASONING_EFFORTS, type ReasoningEffort } from "../../../core/models.ts";
 import type { ChatSummary } from "../../../core/frame-types.ts";
 import { MAIN_CHAT_ID } from "../../../core/canvas-core.ts";
 
@@ -172,17 +170,14 @@ function Identity({
   const [name, setName] = useState(d.agent.name);
   const [description, setDescription] = useState(d.agent.description ?? "");
   const [model, setModel] = useState(d.agent.model ?? "");
-  const [advisorModel, setAdvisorModel] = useState(d.agent.advisor_model ?? "");
   const [shownD, setShownD] = useState(d);
   if (shownD !== d) {
     setShownD(d);
     setName(d.agent.name);
     setDescription(d.agent.description ?? "");
     setModel(d.agent.model ?? "");
-    setAdvisorModel(d.agent.advisor_model ?? "");
   }
   const handles = [...new Set((models ?? []).map((m) => m.handle))];
-  const advisorEfforts = effortsOf(models ?? [], d.agent.advisor_model, d.agent.advisor_reasoning_effort);
   const settings = d.agent.model_settings;
   const bits = [
     typeof settings.reasoning_effort === "string" ? `effort ${settings.reasoning_effort}` : null,
@@ -234,47 +229,6 @@ function Identity({
           ))}
           {d.agent.favourite && <span style={{ color: "var(--loki-accent)" }}>· ★ favourite</span>}
         </div>
-        <div className="loki-meta loki-meta--wrap flex flex-wrap items-center gap-2">
-          <label htmlFor="loki-advisor-model">Advisor model</label>
-          <Field
-            id="loki-advisor-model"
-            inline
-            mono
-            list="loki-advisor-models"
-            value={advisorModel}
-            placeholder={isLokiModel(d.agent.model) ? "Same as the agent's model" : "One of loki's models"}
-            onFocus={onLoadModels}
-            onChange={(e) => setAdvisorModel(e.target.value)}
-            onBlur={() => advisorModel.trim() !== (d.agent.advisor_model ?? "") && void onSave({ advisor_model: advisorModel.trim() || null })}
-            onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
-            style={{ width: 240, fontSize: "var(--text-xs)" }}
-          />
-          <datalist id="loki-advisor-models">
-            {handles.filter(isLokiModel).map((m) => (
-              <option key={m} value={m} />
-            ))}
-          </datalist>
-          {advisorEfforts.length > 0 && (
-            <select
-              aria-label="Advisor effort"
-              value={d.agent.advisor_reasoning_effort ?? ""}
-              onFocus={onLoadModels}
-              onChange={(e) => {
-                const effort = REASONING_EFFORTS.find((x) => x === e.target.value) ?? null;
-                void onSave({ advisor_reasoning_effort: effort });
-              }}
-              style={{ font: "inherit", color: "var(--loki-fg)" }}
-            >
-              <option value="">Default Effort</option>
-              {advisorEfforts.map((effort) => (
-                <option key={effort} value={effort}>
-                  {effortTitle(effort)}
-                </option>
-              ))}
-            </select>
-          )}
-        </div>
-        <span className="loki-meta loki-meta--wrap">Applies to new advisors.</span>
         {macs.length > 1 && (
           <label className="loki-meta loki-meta--wrap flex items-center gap-2">
             Lives on
@@ -296,15 +250,6 @@ function Identity({
       </div>
     </section>
   );
-}
-
-const isLokiModel = (handle: string | null | undefined): handle is string => !!handle && !handle.startsWith("acp:");
-
-function effortsOf(models: ModelChoice[], handle: string | null, saved: ReasoningEffort | null): ReasoningEffort[] {
-  const offered = new Set(models.flatMap((m) => (m.handle === handle && m.reasoning_effort ? [m.reasoning_effort] : [])));
-  if (offered.size < 2 && !saved) return [];
-  if (saved) offered.add(saved);
-  return REASONING_EFFORTS.filter((e) => offered.has(e));
 }
 
 function contextSize(tokens: number): string {

@@ -1,16 +1,5 @@
 import { describe, expect, test } from "vitest";
-import {
-  HARNESS_COMMANDS,
-  LOKI_COMMANDS,
-  allCommands,
-  commandInput,
-  engineCommands,
-  matchCommands,
-  parseSlash,
-  phoneCommand,
-  slashQuery,
-} from "../core/attention/commands.ts";
-import type { ChatEngineView } from "../core/models.ts";
+import { HARNESS_COMMANDS, LOKI_COMMANDS, allCommands, commandInput, matchCommands, parseSlash, slashQuery } from "../core/attention/commands.ts";
 
 describe("slash commands", () => {
   test("parseSlash reads a command and its arguments, and leaves paths and prose alone", () => {
@@ -46,24 +35,5 @@ describe("slash commands", () => {
   test("commandInput is the line the harness echoes", () => {
     expect(commandInput("reflect")).toBe("/reflect");
     expect(commandInput("compact", "  all ")).toBe("/compact all");
-  });
-  test("/advisor asks this chat's advisor, in loki's chats and an ACP agent's, which cannot take it over with its own", () => {
-    const advisor = allCommands([], ["compact", "clear", "remember", "reflect", "doctor", "advisor"]).find((c) => c.id === "advisor");
-    expect(advisor).toMatchObject({ description: "ask this chat's advisor", where: "harness" });
-    const claude: ChatEngineView = {
-      agent: "claude-code",
-      name: "Claude Code",
-      model: "default",
-      modes: [],
-      commands: [{ name: "advisor", description: "Claude's own", hint: null }],
-    };
-    const acp = engineCommands(claude).filter((c) => c.id === "advisor");
-    expect(acp).toEqual([advisor]);
-  });
-  test("the phone runs a leading /advisor as a command, with what follows it as the question, and sends anything else as a message", () => {
-    expect(phoneCommand("/advisor is this migration safe?")).toEqual({ id: "advisor", args: "is this migration safe?" });
-    expect(phoneCommand("/advisor")).toEqual({ id: "advisor", args: "" });
-    expect(phoneCommand("/compact")).toBeNull();
-    expect(phoneCommand("ask /advisor later")).toBeNull();
   });
 });

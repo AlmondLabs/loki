@@ -26,7 +26,7 @@ import { ApprovalCard } from "./approval-card";
 import { QuestionCard } from "./question-card";
 import { LinkCard } from "./link-card";
 import { linkAskOf, type LinkSeen } from "../../../core/chat-links.ts";
-import type { AdvisorView } from "../../../core/advisor.ts";
+import type { SubagentView } from "../../../core/subagents.ts";
 import { QuickReplies, lastReplies } from "./quick-replies";
 import { SuggestionChip, type SuggestionsProps } from "./suggestion-card";
 import { ReplyProposalCards, type ReplySource } from "../workspace/reply-proposal-card";
@@ -70,7 +70,7 @@ export interface ConversationView {
   loadStep?: (row: number) => Promise<WholeRow | null>;
   home?: string | null;
   links?: LinkSeen[];
-  advisor?: AdvisorView | null;
+  subagents?: SubagentView[];
   blank?: boolean;
 }
 

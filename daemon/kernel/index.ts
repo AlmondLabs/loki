@@ -13,8 +13,8 @@ import {
   UsageDoc,
   type UsageState,
 } from "@earendil-works/pi-durable";
-import type { AdvisorConsult } from "../../core/advisor.ts";
 import type { SavedDraft, Suggestion } from "../../core/frame-types.ts";
+import type { SubagentStatus } from "../../core/subagents.ts";
 
 const smallDoc = (): boolean => true;
 
@@ -26,6 +26,22 @@ export const ChatIndex = defineDoc<{ chats: Record<string, number> }>({
   initial: () => ({ chats: {} }),
   checkpointWhen: smallDoc,
 });
+
+// oxlint-disable-next-line typescript/consistent-type-definitions -- part of ChatInfo, a pi-durable document
+export type SubagentMeta = {
+  id: string;
+  chat_id: string;
+  name: string;
+  description: string;
+  model: string | null;
+  status: SubagentStatus;
+  read_only?: boolean;
+  branch?: string | null;
+  worktree?: string | null;
+  started_at: string;
+  ended_at?: string | null;
+  error?: string | null;
+};
 
 // oxlint-disable-next-line typescript/consistent-type-definitions -- a pi-durable document must be a JsonObject, and an interface with optional fields cannot extend one
 export type ChatInfo = {
@@ -78,20 +94,13 @@ export type ChatInfo = {
    */
   helper_for?: ConversationId;
   /**
-   * An advisor chat's marker (daemon/advisor.ts): the id of the chat it advises. Such a chat only reads, and loki refuses
-   * every other call it makes (daemon/advisor-gate.ts), whatever its mode.
+   * Read-only guard marker (daemon/read-only-gate.ts): refuses edits, writes, and unsafe commands regardless of mode.
    */
-  advisor_for?: string;
-  /**
-   * The consults this chat sent its advisor (core/advisor.ts): those not yet ended, and the ended ones of the last hour,
-   * which the agent's hourly cap counts, with the newest ended one; absent, none.
-   */
-  advisor_consults?: AdvisorConsult[];
-  /**
-   * The paired Mac this chat moves to once its advisor's running consult has answered (daemon/advisor-consults.ts).
-   * While it is set, the consults still queued wait to travel with the chat. Absent or null, no move waits.
-   */
-  move_to?: string | null;
+  read_only?: boolean;
+  /** Parent chat ID for a helper subagent (daemon/subagents.ts), used to list workers in the UI. */
+  subagent_for?: string;
+  /** Persisted metadata for a helper subagent (status, name, model, worktree, error). */
+  subagent_meta?: SubagentMeta;
 };
 
 /**
@@ -152,8 +161,8 @@ export interface UsageAdd {
  */
 const AFTER_FAILED_RUN: HarnessSettings = { afterFailedRun: "continue" };
 
-export const ADVISOR_EXTENSION = "loki.advisor";
-const ADDED_ONLY: ReadonlySet<string> = new Set([ADVISOR_EXTENSION]);
+export const READ_ONLY_EXTENSION = "loki.read-only";
+const ADDED_ONLY: ReadonlySet<string> = new Set([READ_ONLY_EXTENSION]);
 
 const chosenByDefault = (registry: StoreOptions["registry"]): HarnessSettings["extensions"] =>
   registry
@@ -208,7 +217,7 @@ export class AgentStore {
     change: Partial<
       Pick<
         ChatInfo,
-        "title" | "archived" | "hidden" | "mode" | "turn_cap" | "engine" | "labels" | "purpose" | "draft" | "suggestions" | "placed" | "moved" | "move_to"
+        "title" | "archived" | "hidden" | "mode" | "turn_cap" | "engine" | "labels" | "purpose" | "draft" | "suggestions" | "placed" | "moved" | "subagent_meta"
       >
     >,
     context: Context,
@@ -229,26 +238,9 @@ export class AgentStore {
       if (change.suggestions !== undefined) info.suggestions = change.suggestions;
       if (change.placed !== undefined) info.placed = change.placed;
       if (change.moved !== undefined) info.moved = change.moved;
-      if (change.move_to !== undefined) info.move_to = change.move_to;
+      if (change.subagent_meta !== undefined) info.subagent_meta = change.subagent_meta;
     }, context);
     return true;
-  }
-
-  async updateConsults(
-    id: string,
-    change: (consults: readonly AdvisorConsult[]) => AdvisorConsult[] | null,
-    context: Context,
-  ): Promise<AdvisorConsult[] | undefined> {
-    const chat = await this.chat(id, context);
-    if (!chat) return undefined;
-    return chat.commit(async (tx) => {
-      const info = await tx.doc(ChatDoc, chat.id);
-      const was: AdvisorConsult[] = (info.advisor_consults ?? []).map((c) => ({ ...c }));
-      const next = change(was);
-      if (next === null) return was;
-      info.advisor_consults = next;
-      return next;
-    }, context);
   }
 
   async saveDraft(id: string, draft: SavedDraft, context: Context): Promise<"saved" | "held" | "missing"> {
@@ -301,7 +293,6 @@ export class AgentStore {
       agent?: Parameters<Harness["createConversation"]>[0]["agent"];
       createdAt?: string;
       mode?: string;
-      advisor_for?: string;
     },
     context: Context,
   ): Promise<Conversation> {
@@ -318,7 +309,6 @@ export class AgentStore {
           info.hidden = options.hidden ?? false;
           info.createdAt = options.createdAt ?? new Date().toISOString();
           if (options.mode !== undefined) info.mode = options.mode;
-          if (options.advisor_for !== undefined) info.advisor_for = options.advisor_for;
         },
       },
       context,

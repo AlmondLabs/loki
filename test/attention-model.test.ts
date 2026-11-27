@@ -146,13 +146,6 @@ describe("messages typed mid-turn", () => {
     l.engine = { agent: "claude", name: "Claude Code", model: "default", modes: [], commands: [] };
     expect(sendMode(l)).toBe("queue");
   });
-  test("a message to an advisor chat during its turn waits for the turn's end, never joining it", () => {
-    const l = emptyLive();
-    expect(sendMode(l, "advisor-c1")).toBe("now");
-    l.inTurn = true;
-    expect(sendMode(l, "advisor-c1")).toBe("queue");
-    expect(sendMode(l, "c1")).toBe("steer");
-  });
   test("cancel drops the message and its row; an unknown text changes nothing", () => {
     const l = emptyLive();
     l.inTurn = true;

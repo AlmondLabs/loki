@@ -1,4 +1,4 @@
-import { isAdvisorChat, type AdvisorView } from "../advisor.ts";
+import type { SubagentView } from "../subagents.ts";
 import { isMainChat } from "../canvas-core.ts";
 import { restState, type Rest } from "./rest.ts";
 import { isScheduledPrompt, looksLikeQuestion, stripHarnessMarkup } from "../harness.ts";
@@ -80,7 +80,7 @@ export interface Live {
   suggestions: Suggestion[];
   replyProposals: ReplyProposal[] | null;
   links?: ChatLink[];
-  advisor?: AdvisorView | null;
+  subagents?: SubagentView[];
 }
 
 import { askQuestions, type AskQuestion } from "./content.ts";
@@ -177,14 +177,14 @@ export function faceOf(l: Live): readonly unknown[] {
     l.suggestions,
     l.replyProposals,
     l.links,
-    l.advisor,
+    l.subagents,
     l.thread.streaming,
   ];
 }
 
-export function sendMode(l: Pick<Live, "inTurn" | "engine">, chatId = ""): "now" | "steer" | "queue" {
+export function sendMode(l: Pick<Live, "inTurn" | "engine">): "now" | "steer" | "queue" {
   if (!l.inTurn) return "now";
-  return l.engine || isAdvisorChat(chatId) ? "queue" : "steer";
+  return l.engine ? "queue" : "steer";
 }
 
 export function takeQueued(l: Live, now = new Date().toISOString()): QueuedSend | null {
@@ -230,8 +230,8 @@ export type ChatEvent =
   | { kind: "reply_proposals"; proposals: ReplyProposal[] }
   /** The chat's live links to other chats (plan 067), whole, on every change to any of them. */
   | { kind: "links"; links: ChatLink[] }
-  /** The chat's advisor as its strip shows it, whole, on every change; null when the chat has none. */
-  | { kind: "advisor"; advisor: AdvisorView | null };
+  /** This chat's helper subagents, whole, on every change. */
+  | { kind: "subagents"; subagents: SubagentView[] };
 
 export function applyChatEvent(l: Live, e: ChatEvent, now = new Date().toISOString()): { changed: boolean; userSpoke: boolean } {
   switch (e.kind) {
@@ -315,8 +315,8 @@ export function applyChatEvent(l: Live, e: ChatEvent, now = new Date().toISOStri
     case "links":
       l.links = e.links;
       return { changed: true, userSpoke: false };
-    case "advisor":
-      l.advisor = e.advisor;
+    case "subagents":
+      l.subagents = e.subagents;
       return { changed: true, userSpoke: false };
     case "turn_end":
       l.thread.settle(now);

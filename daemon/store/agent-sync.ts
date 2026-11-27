@@ -22,18 +22,7 @@ export interface Tombstone extends Stamp {
   id: string;
 }
 
-export const SYNCED_FIELDS = [
-  "name",
-  "description",
-  "system",
-  "model",
-  "model_settings",
-  "tags",
-  "hidden",
-  "home_mac",
-  "advisor_model",
-  "advisor_reasoning_effort",
-] as const;
+export const SYNCED_FIELDS = ["name", "description", "system", "model", "model_settings", "tags", "hidden", "home_mac"] as const;
 export type SyncedField = (typeof SYNCED_FIELDS)[number];
 
 const NEVER: Stamp = { at: "", mac: "" };

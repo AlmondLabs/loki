@@ -1,7 +1,7 @@
 import { LinkHeader } from "../chat/link-header";
-import { advisorTabStatus } from "../chat/advisor-header";
-import { AdvisorPanel } from "./advisor-pane";
-import type { AdvisorView } from "../../../core/advisor.ts";
+import { workersTabStatus } from "../chat/workers-header";
+import { WorkersPanel } from "./workers-pane";
+import type { SubagentView } from "../../../core/subagents.ts";
 import {
   useCallback,
   useEffect,
@@ -21,7 +21,7 @@ import { Icon } from "../shared/icons";
 import { draftKey, useDraft } from "../shared/drafts";
 import { dayLabel, unreadBoundary } from "../shared/thread";
 import { Conversation } from "../chat/conversation";
-import { OpenAdvisor, OpenChat, type MessageLayout, type TranscriptRow } from "../chat/transcript";
+import { OpenWorker, OpenChat, type MessageLayout, type TranscriptRow } from "../chat/transcript";
 import type { ChatPlacement, ChatWidth } from "../chat/chat-window";
 import type { ModelEntry } from "../chat/model-picker";
 import { keyFor, registerActions, runAction, specFor } from "../shell/keymap";
@@ -44,15 +44,16 @@ import { ToolbarGroup, ToolbarTitle } from "../item/toolbar";
 import { ArchiveIcon, LayoutGridIcon, MailOpenIcon, Maximize2Icon, PanelRightIcon, TagIcon, type LucideIcon } from "lucide-react";
 import { chatItem } from "../item/item-view";
 import { EMPTY_ROUTE, agentState, paneView, routeTick, tickFor, type CanvasTab, type FrameRequest, type PaneView, type TickRoute } from "./pane";
-import { isMainChat, scopeFor } from "../../../core/canvas-core.ts";
+import { isMainChat } from "../../../core/canvas-core.ts";
 
-export const paneTabs = (advisor: AdvisorView | null | undefined): ReadonlyArray<Tab<CanvasTab>> => [
+export const paneTabs = (subagents: readonly SubagentView[] | null | undefined): ReadonlyArray<Tab<CanvasTab>> => [
   { id: "messages", label: "Messages" },
-  ...(advisor ? [{ id: "advisor" as const, label: "Advisor", status: advisorTabStatus(advisor) }] : []),
+  ...(subagents && subagents.length > 0 ? [{ id: "workers" as const, label: "Workers", count: subagents.length, status: workersTabStatus(subagents) }] : []),
   { id: "canvas", label: "Canvas" },
 ];
 const panelId = (t: CanvasTab) => `loki-desk-panel-${t}`;
 const NO_ROWS: TranscriptRow[] = [];
+const NO_SUBAGENTS: SubagentView[] = [];
 
 export interface DeskPaneProps extends DeskConversationHandlers {
   desk: ReturnType<typeof useWorkspace>;
@@ -60,6 +61,8 @@ export interface DeskPaneProps extends DeskConversationHandlers {
   active: boolean;
   tab: CanvasTab;
   onTab: (t: CanvasTab) => void;
+  selectedWorker?: string | null;
+  onSelectWorker?: (chatId: string) => void;
   chatOpen: boolean;
   onChatOpen: (open: boolean) => void;
   chatWidth: ChatWidth;
@@ -87,7 +90,7 @@ function useRouted(value: number, visible: PaneView | null, chat: string): TickR
 }
 
 export function CanvasPane(props: DeskPaneProps) {
-  const { desk, catchUp, active, tab, onTab, chatOpen, models } = props;
+  const { desk, catchUp, active, tab, onTab, chatOpen, models, onSelectWorker } = props;
   const { scope, title, agentName, agentId, conversationId, attention } = desk;
   const visible = paneView(active, tab);
   const onMessages = visible === "messages";
@@ -108,7 +111,13 @@ export function CanvasPane(props: DeskPaneProps) {
   const [labeling, setLabeling] = useState(false);
   const [deskMounted, setDeskMounted] = useState(tab === "canvas");
   if (tab === "canvas" && !deskMounted) setDeskMounted(true);
-  const openAdvisor = useCallback(() => onTab("advisor"), [onTab]);
+  const openWorker = useCallback(
+    (workerChat?: string) => {
+      if (workerChat) onSelectWorker?.(workerChat);
+      onTab("workers");
+    },
+    [onSelectWorker, onTab],
+  );
   const row = desk.desks.list.find((d) => d.scope === scope);
   const chatLabels = row?.labels ?? [];
   const purpose = row?.purpose ?? null;
@@ -177,10 +186,9 @@ export function CanvasPane(props: DeskPaneProps) {
     </>
   ) : undefined;
 
-  const advisor = view.advisor;
-  const advisorScope = advisor && agentId ? scopeFor(advisor.advisor_chat, agentId) : null;
+  const subagents = view.subagents ?? NO_SUBAGENTS;
   return (
-    <OpenAdvisor.Provider value={openAdvisor}>
+    <OpenWorker.Provider value={openWorker}>
       <div className="loki-canvas-pane" ref={paneRef}>
         <PaneHeader
           title={name}
@@ -210,7 +218,7 @@ export function CanvasPane(props: DeskPaneProps) {
           actions={tab === "canvas" ? <DeskActions /> : undefined}
           line={itemLine}
           trailing={toolbarItems}
-          tabs={paneTabs(advisor)}
+          tabs={paneTabs(subagents)}
           tab={tab}
           onTab={onTab}
           tabsLabel={`${name} views`}
@@ -251,33 +259,32 @@ export function CanvasPane(props: DeskPaneProps) {
                 suggestions={runtime ? { source: catchUp, rt: runtime } : null}
               />
             </div>
-            {advisor && agentId && advisorScope && (
+            {subagents.length > 0 && agentId && (
               <div
-                id={panelId("advisor")}
+                id={panelId("workers")}
                 role="tabpanel"
-                aria-label="Advisor"
+                aria-label="Workers"
                 className="loki-canvas-pane-panel loki-canvas-pane-messages"
-                style={{ visibility: tab === "advisor" ? "inherit" : "hidden" }}
-                aria-hidden={tab !== "advisor"}
+                style={{ visibility: tab === "workers" ? "inherit" : "hidden" }}
+                aria-hidden={tab !== "workers"}
               >
-                {tab === "advisor" && (
-                  <AdvisorPanel
-                    key={advisor.advisor_chat}
+                {tab === "workers" && (
+                  <WorkersPanel
                     catchUp={catchUp}
                     agentId={agentId}
                     agentName={agentName}
-                    advisorChat={advisor.advisor_chat}
-                    advisor={advisor}
+                    subagents={subagents}
+                    selectedChat={props.selectedWorker ?? null}
+                    onSelectChat={(chatId) => props.onSelectWorker?.(chatId)}
+                    desk={desk}
                     models={{
                       entries: models,
-                      model: desk.modelOf(advisorScope),
-                      reasoningEffort: desk.reasoningEffortOf(advisorScope),
                       onLoad: props.onLoadModels,
                       onPick: props.onPickModel,
                     }}
-                    focusTick={tickFor(focus, "advisor")}
-                    findTick={tickFor(find, "advisor")}
-                    modelPickerTick={tickFor(model, "advisor")}
+                    focusTick={tickFor(focus, "workers")}
+                    findTick={tickFor(find, "workers")}
+                    modelPickerTick={tickFor(model, "workers")}
                   />
                 )}
               </div>
@@ -317,7 +324,7 @@ export function CanvasPane(props: DeskPaneProps) {
           />
         )}
       </div>
-    </OpenAdvisor.Provider>
+    </OpenWorker.Provider>
   );
 }
 
@@ -365,7 +372,7 @@ function DeskMessages({
   );
 }
 
-const TAB_OF: Record<PaneView, CanvasTab> = { messages: "messages", advisor: "advisor", inset: "canvas" };
+const TAB_OF: Record<PaneView, CanvasTab> = { messages: "messages", workers: "workers", inset: "canvas" };
 
 function useTabFocus(visible: PaneView | null, root: RefObject<HTMLDivElement | null>, last: RefObject<HTMLElement | null>) {
   const prev = useRef(visible);

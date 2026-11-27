@@ -119,7 +119,7 @@ describe("the phone's glass (U1)", () => {
     expect(screen).toMatch(/<header ref=\{top\} className="loki-phone-topbar loki-phone-convo-head">/);
     const header = must(/<header ref=\{top\}[\s\S]*?<\/header>/.exec(screen), "the header")[0];
     expect(header).toContain("{links}");
-    expect(screen).toMatch(/links=\{\s*view\.links\?\.length \|\| view\.advisor \? \(\s*<div className="loki-phone-links loki-chat-strips">/);
+    expect(screen).toMatch(/links=\{\s*view\.links\?\.length \|\| view\.subagents\?\.length \? \(\s*<div className="loki-phone-links loki-chat-strips">/);
     expect(ruleOf(".loki-phone-convo-head")).not.toMatch(/background|border-bottom/);
   });
 

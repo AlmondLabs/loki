@@ -73,7 +73,6 @@ const CATALOGUE: Readonly<Partial<Record<string, Entry>>> = {
   Task: AGENT,
   Agent: AGENT,
   SendAgentMessage: entry("Messaged an agent", "Agent", "bot", "agent"),
-  advisor_consult: entry("Asked the advisor", "Advisor", "bot", "tool", { untitled: "Review the changes" }),
   user_ask: ASKED,
   AskUserQuestion: ASKED,
   codemode: entry("Ran a script", "Script", "code", "tool", { untitled: "A script" }),

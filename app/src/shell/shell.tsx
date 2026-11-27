@@ -114,8 +114,8 @@ export function Shell() {
   const [prefsOpen, setPrefsOpen] = useState(false);
   const [newChat, setNewChat] = useState<{ agentId: string | null; n: number } | null>(null);
   const chat = useChatLayout(desk);
-  const hasAdvisor = !!(desk.agentId && desk.conversationId && catchUp.conversation(desk.agentId, desk.conversationId).advisor);
-  const pane = useCanvasPane(desk.scope, hasAdvisor);
+  const hasWorkers = !!(desk.agentId && desk.conversationId && (catchUp.conversation(desk.agentId, desk.conversationId).subagents?.length ?? 0) > 0);
+  const pane = useCanvasPane(desk.scope, hasWorkers);
   const { chatOpen, setChatOpen } = chat;
   const [focusChat, setFocusChat] = useState(0);
   const [findChat, setFindChat] = useState(0);
@@ -188,9 +188,9 @@ export function Shell() {
     },
     [setSegment, paneOpen, switchTo, chatSource, chatState, sidebarQuery, deskList, agentList, catchUp.items],
   );
-  const openAdvisor = (agentId: string, conversationId: string) => {
+  const openWorker = (agentId: string, conversationId: string, workerChat?: string) => {
     openChat(agentId, conversationId);
-    pane.showAdvisor(scopeFor(conversationId, agentId));
+    pane.showWorkers(scopeFor(conversationId, agentId), workerChat);
   };
   const beginLesson = (agentId: string, conversationId: string, brief: string, title: string) => {
     openChat(agentId, conversationId, { chat: true });
@@ -281,7 +281,7 @@ export function Shell() {
           onPickModel={pickModel}
           onPickMode={pickMode}
           onOpenChat={openChat}
-          onOpenAdvisor={openAdvisor}
+          onOpenWorker={openWorker}
           onClose={() => setSegment("chats")}
           kind={flowKind}
           onKind={setFlowKind}
@@ -630,6 +630,8 @@ export function Shell() {
               active={onChat && !unselected}
               tab={pane.tab}
               onTab={pane.setTab}
+              selectedWorker={pane.selectedWorker}
+              onSelectWorker={pane.selectWorker}
               frameRequest={pane.frameRequest}
               onFrameWidget={pane.frame}
               chatOpen={chatOpen}

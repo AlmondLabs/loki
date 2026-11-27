@@ -47,7 +47,7 @@ export interface FileRef {
  * (core/harness.ts, ThreadModel) and carried in history pages from the daemon; a row without it is drawn as a plain
  * event.
  */
-export type EventKind = "advisor" | "chat_message" | "canvas" | "moved" | "command";
+export type EventKind = "subagent" | "chat_message" | "canvas" | "moved" | "command";
 
 export interface TranscriptRow {
   role: "user" | "assistant" | "tool" | "event";
@@ -71,8 +71,8 @@ export interface TranscriptRow {
   queued?: boolean;
   /** On the event a message sent from a suggestion leaves (plan 049): the chat the suggestion was made in, which the row opens. */
   link?: { agent_id: string; conversation_id: string };
-  /** On the row an advisor's answer, or its failure, leaves: the advisor chat that answered, which the row opens. */
-  advisor_chat?: string;
+  /** On a subagent's finished notice: the helper chat that answered, which clicking the row opens in Workers. */
+  subagent_chat?: string;
   /** On an event row: what kind it is, when it is one drawn in a way of its own (EventKind). */
   event?: EventKind;
   /**

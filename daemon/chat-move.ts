@@ -1,10 +1,8 @@
 import type { Context } from "@earendil-works/chord";
 import type { Conversation, EntryRecord } from "@earendil-works/pi-durable";
 import { existsSync } from "node:fs";
-import { advisorChatId, type AdvisorConsult } from "../core/advisor.ts";
 import { contentText, messageFiles, movedMark } from "../core/harness.ts";
 import type { SavedDraft, Suggestion } from "../core/frame-types.ts";
-import { isReasoningEffort, type ReasoningEffort } from "../core/models.ts";
 import { BRANCH_KIND, type AgentStore, type ImportedEntry } from "./kernel/index.ts";
 import type { ScheduledTask } from "./schedule.ts";
 
@@ -23,8 +21,6 @@ export interface MovedChat {
     purpose?: string | null;
     draft?: SavedDraft | null;
     suggestions?: Suggestion[];
-    /** The consults the chat sent its advisor (core/advisor.ts); queued ones run on the Mac it lands on. Absent, none. */
-    advisor_consults?: AdvisorConsult[];
   };
   /** What the conversation ran with: its model and folder, when it had its own. */
   agent: { model?: { provider: string; modelId: string }; cwd?: string };
@@ -32,35 +28,18 @@ export interface MovedChat {
   schedules: ScheduledTask[];
   /** Where each background pass had read to (daemon/passes-state.ts), by job. */
   cursors: Record<string, number>;
-  /** The chat's advisor chat, when it has one. Absent, none. */
-  advisor?: MovedAdvisor;
-}
-
-/**
- * An advisor chat moving with its chat (daemon/advisor.ts): its history, its model and effort, and its folder. The
- * Mac it lands on gives it the advisor's tools, prompt and mode again, which the record does not carry.
- */
-export interface MovedAdvisor {
-  archived: boolean;
-  created_at: string;
-  agent: { model?: { provider: string; modelId: string }; effort?: ReasoningEffort; cwd?: string };
-  entries: ImportedEntry[];
 }
 
 async function settingsOf(store: AgentStore, chat: Conversation, context: Context) {
   // oxlint-disable-next-line typescript/no-unnecessary-type-assertion -- tsgolint 7.0.2005 calls this a no-op, but tsc needs it: agentSettings returns object, which has no fields to read.
-  const settings = (await store.agentSettings(chat.id, context)) as
-    | { model?: { provider?: unknown; modelId?: unknown }; cwd?: unknown; thinkingLevel?: unknown }
-    | undefined;
+  const settings = (await store.agentSettings(chat.id, context)) as { model?: { provider?: unknown; modelId?: unknown }; cwd?: unknown } | undefined;
   const model =
     typeof settings?.model?.provider === "string" && typeof settings.model.modelId === "string"
       ? { provider: settings.model.provider, modelId: settings.model.modelId }
       : undefined;
-  const level = settings?.thinkingLevel === "off" ? "none" : settings?.thinkingLevel;
   return {
     model,
     cwd: typeof settings?.cwd === "string" ? settings.cwd : undefined,
-    effort: typeof level === "string" && isReasoningEffort(level) ? level : undefined,
   };
 }
 
@@ -74,19 +53,6 @@ const movedEntries = (entries: readonly EntryRecord[]): ImportedEntry[] =>
     ...(e.head === undefined ? {} : { headSourceId: String(e.head) }),
   }));
 
-async function exportAdvisor(store: AgentStore, chatId: string, context: Context): Promise<MovedAdvisor | null> {
-  const advisor = await store.chat(advisorChatId(chatId), context);
-  if (!advisor) return null;
-  const info = await store.chatInfo(advisor.id, context);
-  const { model, effort, cwd } = await settingsOf(store, advisor, context);
-  return {
-    archived: info?.archived === true,
-    created_at: info?.createdAt ?? new Date().toISOString(),
-    agent: { ...(model ? { model } : {}), ...(effort ? { effort } : {}), ...(cwd ? { cwd } : {}) },
-    entries: movedEntries(await store.entries(advisor, context)),
-  };
-}
-
 export async function exportChat(
   store: AgentStore,
   agentId: string,
@@ -99,7 +65,6 @@ export async function exportChat(
   const info = await store.chatInfo(chat.id, context);
   const { model, cwd } = await settingsOf(store, chat, context);
   const entries = await store.entries(chat, context);
-  const advisor = await exportAdvisor(store, chatId, context);
   return {
     agent_id: agentId,
     conversation_id: chatId,
@@ -113,13 +78,11 @@ export async function exportChat(
       ...(info?.purpose ? { purpose: info.purpose } : {}),
       ...(info?.draft ? { draft: info.draft } : {}),
       ...(info?.suggestions?.length ? { suggestions: info.suggestions } : {}),
-      ...(info?.advisor_consults?.length ? { advisor_consults: info.advisor_consults } : {}),
     },
     agent: { ...(model ? { model } : {}), ...(cwd ? { cwd } : {}) },
     entries: movedEntries(entries),
     schedules: extras.schedules,
     cursors: extras.cursors,
-    ...(advisor ? { advisor } : {}),
   };
 }
 
@@ -155,8 +118,6 @@ export async function importChat(store: AgentStore, moved: MovedChat, context: C
       },
       context,
     );
-    const consults = moved.info.advisor_consults;
-    if (consults?.length) await store.updateConsults(moved.conversation_id, () => consults, context);
     if (names)
       await store.importEntries(
         conversation,

@@ -1,5 +1,5 @@
 import type { NewAgentOptions } from "../../../core/attention/chat-client.ts";
-import type { ModelEntry, ReasoningEffort } from "../../../core/models.ts";
+import type { ModelEntry } from "../../../core/models.ts";
 
 import type { PassSettings, PassSettingsChange, Runtime } from "../../../core/attention/protocol.ts";
 import type {
@@ -55,6 +55,4 @@ export interface AgentEdit {
   description?: string;
   model?: string;
   home_mac?: string;
-  advisor_model?: string | null;
-  advisor_reasoning_effort?: ReasoningEffort | null;
 }

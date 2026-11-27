@@ -8,7 +8,7 @@ import { modBase } from "../workspace/env";
 import { useWorkspace } from "../workspace/use-workspace";
 import { resolveLane, useActiveLaneId } from "../shared/active-lane";
 import { savePurpose } from "../workspace/rename-chat";
-import { lokiModels } from "../workspace/advisor-pane";
+import { lokiModels } from "../workspace/workers-pane";
 import { AgentPage, FilePage } from "./agent-page";
 import { Agents, knownDescription } from "./agents";
 import { ConversationScreen, type Thread } from "./conversation-screen";
@@ -48,7 +48,7 @@ import { useKeyboardInset } from "./viewport";
 import { useEdgeSwipe } from "./edge-swipe";
 import { useModelList } from "../shell/use-model-list";
 import { conversationDirName, isMainChat, scopeFor } from "../../../core/canvas-core.ts";
-import { advisedChat, isAdvisorChat } from "../../../core/advisor.ts";
+import { parentChatOfSubagent } from "../../../core/subagents.ts";
 import type { Runtime } from "../../../core/attention/protocol.ts";
 import type { ModelSelection } from "../../../core/models.ts";
 import type { ModelEntry } from "../chat/model-picker";
@@ -242,7 +242,7 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
   const onBack = () => back(route);
   const backTo = backTarget(route, from);
   const backLabel =
-    conv && isAdvisorChat(conv.conversationId) && backTo.kind === "conversation"
+    conv && parentChatOfSubagent(conv.conversationId) !== null && backTo.kind === "conversation"
       ? (threadFor(backTo, desk.desks.list, catchUp.items, catchUp.agents).title ?? "chat")
       : labelOf(backTo);
 
@@ -426,10 +426,12 @@ function ConversationPage({
   const item = catchUp.items.find((i) => i.agent_id === thread.agentId && i.id === thread.conversationId) ?? null;
   const scope = scopeFor(thread.conversationId, thread.agentId);
   const view = catchUp.conversation(thread.agentId, thread.conversationId);
-  const advisor = isAdvisorChat(thread.conversationId);
-  const advised = advisedChat(thread.conversationId);
-  const advisorModel = advised === null ? null : (catchUp.conversation(thread.agentId, advised).advisor?.model ?? null);
-  const advisorModels = useMemo(() => lokiModels(models), [models]);
+  const parentChat = parentChatOfSubagent(thread.conversationId);
+  const subagent =
+    parentChat === null ? null : (catchUp.conversation(thread.agentId, parentChat).subagents?.find((s) => s.chat_id === thread.conversationId) ?? null);
+  const isWorker = parentChat !== null;
+  const workerModel = subagent?.model ?? null;
+  const workerModels = useMemo(() => lokiModels(models), [models]);
   const [note, setNote] = useState<string | null>(null);
   useEffect(() => {
     if (!note) return;
@@ -444,12 +446,12 @@ function ConversationPage({
   };
   return (
     <ConversationScreen
-      thread={thread}
+      thread={subagent ? { ...thread, title: subagent.name } : thread}
       view={view}
       chats={catchUp}
-      model={desk.modelOf(scope) ?? advisorModel}
+      model={desk.modelOf(scope) ?? workerModel}
       reasoningEffort={desk.reasoningEffortOf(scope)}
-      models={advisor ? advisorModels : models}
+      models={isWorker ? workerModels : models}
       onLoadModels={onLoadModels}
       onPickModel={catchUp.status === "open" ? pickModel : undefined}
       item={item}
@@ -470,7 +472,7 @@ function ConversationPage({
           : null
       }
       labels={
-        !advisor && convDesk?.status !== "deleted"
+        !isWorker && convDesk?.status !== "deleted"
           ? {
               current: convDesk?.labels ?? [],
               list: catchUp.labels.list,
@@ -486,7 +488,7 @@ function ConversationPage({
           : null
       }
       archive={
-        !advisor && !isMainChat(thread.conversationId) && convDesk?.status !== "deleted"
+        !isWorker && !isMainChat(thread.conversationId) && convDesk?.status !== "deleted"
           ? {
               archived: convDesk?.status === "archived",
               onArchive: onArchive
@@ -500,7 +502,7 @@ function ConversationPage({
           : null
       }
       folder={
-        !advisor && attention.available && catchUp.status === "open" && convDesk?.status !== "deleted"
+        !isWorker && attention.available && catchUp.status === "open" && convDesk?.status !== "deleted"
           ? {
               load: async () => {
                 const r = await attention.folders.recent();

@@ -3,7 +3,6 @@ import { applyChatEvent, chatStatusOf, emptyLive } from "../core/attention/model
 import { commandIdOf, foldSteps, ownSendKey, ThreadModel, type HistoryRow, type Step } from "../core/attention/thread.ts";
 import { leanPage, LEAN_DETAIL_MAX, LEAN_LINE_MAX, type TranscriptRow } from "../core/attention/transcript.ts";
 import { suggestedMark } from "../core/harness.ts";
-import { answerBlock } from "../core/advisor.ts";
 import { approval, call, piece, push, result, said, user } from "./fixtures/chat-events.ts";
 import { must } from "./fixtures/must.ts";
 
@@ -476,20 +475,20 @@ describe("a message sent from a suggestion (plan 049, KTD6)", () => {
   });
 });
 
-describe("an advisor's answer (R16, R24)", () => {
+describe("a subagent completion row", () => {
   const long = `The test sleeps.\n\nIt waits for a lock.\nThe CI box is slower.\n\n${"More detail. ".repeat(100).trim()}`;
-  const answered = answerBlock({ from: "person", asked: "Is it flaky?", advisor_chat: "advisor-data", state: "answered", text: long });
+  const subagentNotif = `<task-notification>\n<kind>subagent</kind>\n<task-id>kestrel</task-id>\n<chat-id>data~subagent~kestrel</chat-id>\n<status>completed</status>\n<summary>The test sleeps.</summary>\n<result>${long}</result>\n</task-notification>`;
   const row = {
     role: "event",
-    text: "Advisor answered · you asked",
+    text: "subagent kestrel completed",
     summary: "The test sleeps.",
-    advisor_chat: "advisor-data",
-    event: "advisor",
+    subagent_chat: "data~subagent~kestrel",
+    event: "subagent",
   };
 
-  test("live, it is a row of its own from the advisor after the person's words, which are their bubble", () => {
+  test("live, it is a row of its own after the person's words, which stay their bubble", () => {
     const l = emptyLive();
-    push(l, user(`${answered}\n\nThen fix it.`));
+    push(l, user(`${subagentNotif}\n\nThen fix it.`));
     expect(l.thread.rows()).toMatchObject([
       { role: "user", text: "Then fix it." },
       { ...row, detail: long },
@@ -499,13 +498,13 @@ describe("an advisor's answer (R16, R24)", () => {
 
   test("alone, it leaves no bubble of the person's", () => {
     const l = emptyLive();
-    push(l, user(answered));
+    push(l, user(subagentNotif));
     expect(l.thread.rows()).toMatchObject([row]);
     expect(l.thread.rows()).toHaveLength(1);
   });
 
-  test("from a history page, the reloaded row keeps its advisor chat and loads its whole answer later", () => {
-    const page: HistoryRow[] = leanPage(foldSteps([user(answered, at0), said("Fixed.", at0)]), 0);
+  test("from a history page, the reloaded row keeps its subagent chat and loads its whole result later", () => {
+    const page: HistoryRow[] = leanPage(foldSteps([user(subagentNotif, at0), said("Fixed.", at0)]), 0);
     const t = new ThreadModel();
     t.load(page, 0);
     expect(rowsOf(t)).toMatchObject([
@@ -513,59 +512,45 @@ describe("an advisor's answer (R16, R24)", () => {
       { role: "assistant", text: "Fixed." },
     ]);
   });
-
-  test("a consult that ended without an answer is a row with the reason", () => {
-    const failed = answerBlock({ from: "agent", asked: "Is it flaky?", advisor_chat: "advisor-data", state: "stopped", reason: "it was stopped" });
-    expect(foldSteps([user(failed)])).toEqual([
-      {
-        role: "event",
-        text: "Advisor couldn't answer · the agent asked",
-        summary: "it was stopped",
-        detail: null,
-        advisor_chat: "advisor-data",
-        event: "advisor",
-      },
-    ]);
-  });
 });
 
 describe("rows from one message, placed by who they are for (plan 2026-11-24-1736, KTD2)", () => {
-  const advice = answerBlock({ from: "agent", asked: "Review", advisor_chat: "advisor-c", state: "answered", text: "Looks right." });
+  const workerDone = `<task-notification>\n<kind>subagent</kind>\n<task-id>kestrel</task-id>\n<chat-id>c~subagent~kestrel</chat-id>\n<status>completed</status>\n<summary>Looks right.</summary>\n<result>Looks right.</result>\n</task-notification>`;
   const gestures = '<loki-desk desk="c">\n- moved "A" (c/a) to (1, 2)\n</loki-desk>';
   const order = (rows: TranscriptRow[] | undefined) => (rows ?? []).map((r) => r.event ?? r.role);
 
   test("your canvas gestures, then your words, then what the agent was told", () => {
     const l = emptyLive();
-    push(l, user(`${advice}\n\nship it\n\n${gestures}`));
-    expect(order(l.thread.rows())).toEqual(["canvas", "user", "advisor"]);
+    push(l, user(`${workerDone}\n\nship it\n\n${gestures}`));
+    expect(order(l.thread.rows())).toEqual(["canvas", "user", "subagent"]);
   });
 
   test("the echo of your own send puts the gestures before the words already shown, and the rest after", () => {
     const l = emptyLive();
     l.thread.own({ role: "user", text: "ship it" }, ownSendKey("ship it"));
-    push(l, user(`${advice}\n\nship it\n\n${gestures}`));
-    expect(order(l.thread.rows())).toEqual(["canvas", "user", "advisor"]);
+    push(l, user(`${workerDone}\n\nship it\n\n${gestures}`));
+    expect(order(l.thread.rows())).toEqual(["canvas", "user", "subagent"]);
     expect(rowsOf(l.thread).filter((r) => r.role === "user")).toHaveLength(1);
   });
 
   test("an event-only message keeps gestures first, and a suggestion's chip comes before the words it was sent with", () => {
     const l = emptyLive();
-    push(l, user(`${advice}\n\n${gestures}`));
-    expect(order(l.thread.rows())).toEqual(["canvas", "advisor"]);
+    push(l, user(`${workerDone}\n\n${gestures}`));
+    expect(order(l.thread.rows())).toEqual(["canvas", "subagent"]);
     const s = emptyLive();
-    push(s, user(`${suggestedMark({ from_agent: "f", from_chat: "d", title: "T" })}\n\nship it\n\n${advice}`));
-    expect(rowsOf(s.thread).map((r) => r.event ?? r.text)).toEqual(["suggested in another chat", "ship it", "advisor"]);
+    push(s, user(`${suggestedMark({ from_agent: "f", from_chat: "d", title: "T" })}\n\nship it\n\n${workerDone}`));
+    expect(rowsOf(s.thread).map((r) => r.event ?? r.text)).toEqual(["suggested in another chat", "ship it", "subagent"]);
   });
 
   test("an echo with no row shown for it (a queued send) places its rows around the words it adds", () => {
     const l = emptyLive();
     l.thread.expectEcho(ownSendKey("ship it"));
-    push(l, user(`${advice}\n\nship it\n\n${gestures}`));
-    expect(order(l.thread.rows())).toEqual(["canvas", "advisor"]);
+    push(l, user(`${workerDone}\n\nship it\n\n${gestures}`));
+    expect(order(l.thread.rows())).toEqual(["canvas", "subagent"]);
   });
 
   test("history folds the same message to the same order", () => {
-    expect(order(foldSteps([user(`${advice}\n\nship it\n\n${gestures}`, at0)]))).toEqual(["canvas", "user", "advisor"]);
+    expect(order(foldSteps([user(`${workerDone}\n\nship it\n\n${gestures}`, at0)]))).toEqual(["canvas", "user", "subagent"]);
   });
 
   test("a command's row says it is one", () => {
