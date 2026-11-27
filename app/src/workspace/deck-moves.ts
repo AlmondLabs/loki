@@ -5,7 +5,7 @@ import { idOf, stampOf, type Decision } from "../../../core/attention/queue.ts";
 import type { MoveResult, OutsideReplyExtra, OutsideReplyResult } from "../../../core/attention/use-attention.ts";
 import type { MailAddressing, ReplyThen } from "../../../core/frame-types.ts";
 import { newId } from "../shared/new-id";
-import { isMainChat } from "../../../core/canvas-core.ts";
+import { isMainChat } from "../../../core/chat-scope.ts";
 
 export type PickerKind = "handoff" | "later" | "label";
 

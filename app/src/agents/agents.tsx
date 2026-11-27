@@ -1,7 +1,7 @@
 import { DownloadIcon, Undo2Icon } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { NewAgentOptions } from "../../../core/attention/chat-client.ts";
-import { MAIN_CHAT_ID } from "../../../core/canvas-core.ts";
+import { MAIN_CHAT_ID } from "../../../core/chat-scope.ts";
 import type { ChatSummary, MacIdentity } from "../../../core/frame-types.ts";
 import type { ModelEntry } from "../../../core/models.ts";
 import type { ItemProperty } from "../item/item-view";

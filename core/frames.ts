@@ -18,7 +18,6 @@ export {
   STATE_FOLDERS,
   frameEntry,
   isAgentId,
-  isGesture,
   isLanVia,
   parseSuggestionTarget,
   peerMeaning,

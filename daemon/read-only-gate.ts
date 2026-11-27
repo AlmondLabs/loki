@@ -28,7 +28,7 @@ export const READ_ONLY_TOOLS: readonly string[] = [
 const READ_ONLY_TOOL_SET: ReadonlySet<string> = new Set(READ_ONLY_TOOLS);
 
 const DIRECT_HISTORY = ["history_search", "history_read"];
-const LEFT_OUT_SECTIONS: readonly string[] = ["replies", "canvas", "accounts", "mcp"];
+const LEFT_OUT_SECTIONS: readonly string[] = ["replies", "accounts", "mcp"];
 
 const READ_ONLY_PROMPT = [
   "You are a read-only helper subagent. You read and never change anything: you may inspect files, run read-only shell commands, read git changes with changes_read, search the web, and read memory and history. Any call that modifies files or state is refused.",

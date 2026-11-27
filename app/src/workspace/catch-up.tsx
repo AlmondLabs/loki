@@ -10,8 +10,6 @@ import type { ModelEntry } from "../chat/model-picker";
 import { Conversation } from "../chat/conversation";
 import { OpenWorker, OpenChat } from "../chat/transcript";
 import { bumpTick, tickOf, waitingCount, type ChatTick, type SuggestionSource } from "../chat/suggestion-card";
-import { useInlineWidgets, type InlineWidgetSource } from "../chat/use-inline-widgets";
-import { scopeFor } from "../../../core/canvas-core.ts";
 import { draftKey, useDraft } from "../shared/drafts";
 import { useReplyHold, useTypedReplyOnCard } from "../shared/reply-hold";
 import type { ModelSelection, ReasoningEffort } from "../../../core/models.ts";
@@ -72,7 +70,6 @@ interface FlowPlaceProps {
   commands?: SlashCommand[];
   onCommand?: (item: AttentionItem, id: string, args: string) => void;
   onShown?: (item: AttentionItem) => void;
-  widgetSource?: InlineWidgetSource;
 }
 
 type DeckProps = FlowPlaceProps;
@@ -316,8 +313,6 @@ function Card({
   const thread = useConversation(deck.chats, agentId, id);
   const { onPickModel, onPickMode, modelFor, modeFor, reasoningEffortFor, onStop, onOpenWorker } = deck;
   const question = current.pendingQuestion;
-  const { widgets, inline } = useInlineWidgets(deck.widgetSource, scopeFor(id, agentId), thread.rows, current.agent_name ?? null);
-  const layout = useMemo(() => ({ widgets, inline }), [widgets, inline]);
   const [draft, setDraft] = useDraft(draftKey(agentId, id));
   const cameBack = cameBackIn(decided, current);
   const moves: ChatMoves = { current, typing, ...deckMoves, onOpenChat: deck.onOpenChat, onClose: deck.onClose };
@@ -358,7 +353,6 @@ function Card({
               onPickMode: onPickMode && modeFor ? (mode) => onPickMode(current, mode) : undefined,
             }}
             models={deck.models ?? null}
-            layout={layout}
             agentName={current.agent_name}
             header={
               <ChatItemHeader

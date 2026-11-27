@@ -2,13 +2,11 @@ import { useEffect, useState } from "react";
 import { inDesktop } from "../workspace/env";
 import { invoke } from "./desktop";
 
-/** What launch did about the mod, the skill and the phone canvas: the shell's `install_status` answer. */
+/** What launch did about the daemon and the web app: the shell's `install_status` answer. */
 export type InstallState = "installed" | "updated" | "current" | "custom" | "skipped" | "linked" | "error";
 export interface InstallReport {
   mod: InstallState;
   mod_path: string;
-  skill: InstallState;
-  skill_path: string;
   app: InstallState;
   app_path: string;
   error: string | null;

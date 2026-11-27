@@ -3,7 +3,6 @@
 @import "shadcn/tailwind.css";
 @import "streamdown/styles.css";
 @source "../../node_modules/streamdown/dist/*.js";
-@source "__LOKI_WIDGETS_DIR__";
 /* Tailwind writes a theme variable only when its sources use it. chat.css, shell/*.css and phone.css are imported from
    JS, outside those sources, and say var(--text-xs) … var(--text-2xl), so the four sizes are always generated. */
 @source inline("text-xs text-sm text-base text-2xl");
@@ -110,9 +109,6 @@
 
 @utility z-panel {
   z-index: var(--loki-layer-panel);
-}
-@utility z-bubble {
-  z-index: var(--loki-layer-bubble);
 }
 @utility z-rail {
   z-index: var(--loki-layer-rail);

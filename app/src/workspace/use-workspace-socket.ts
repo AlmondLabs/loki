@@ -1,13 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { Gesture, Scope, Size } from "../../../core/canvas-core.ts";
-import { scopeFor } from "../../../core/canvas-core.ts";
+import type { Scope } from "../../../core/chat-scope.ts";
+import { scopeFor } from "../../../core/chat-scope.ts";
 import { readSession, rememberDesk } from "./session";
 import { modWsBase } from "./env";
 import { tokenProtocols } from "../../../core/ws-auth.ts";
 import type { Connection } from "./use-workspace";
 import type { InputOf, PushFrame, Pushes, SendName } from "../../../core/frames.ts";
 import { Listeners } from "../../../core/listeners.ts";
-import { parseWidgetEntry } from "./widget-rows";
 import { EMPTY_DESK_SOCKET, PHONE_DEMO, STATE_PUSHES, applyPush, opened, type DeskSocketState } from "./workspace-pushes";
 import { RequestWaiters } from "./request-waiters";
 import { inDesktop, listen } from "../shell/desktop";
@@ -33,14 +32,12 @@ export function useWorkspaceSocket() {
           return next === s[key] ? s : { ...s, [key]: next };
         });
     return {
-      setDesks: part("desks"),
       setDeskList: part("deskList"),
       setTitles: part("titles"),
       setModels: part("models"),
       setReasoningEfforts: part("reasoningEfforts"),
       setModes: part("modes"),
       setLanStatus: part("lanStatus"),
-      setWidgetLogs: part("widgetLogs"),
     };
   });
   const [chatListeners] = useState(() => new Listeners<[p: Pushes["chat_event"]]>());
@@ -54,10 +51,6 @@ export function useWorkspaceSocket() {
   const [waiters] = useState(() => new RequestWaiters<WebSocket>());
 
   const wsRef = useRef<WebSocket | null>(null);
-  const lastInteractionRef = useRef(0);
-  const pendingRef = useRef<Gesture[]>([]);
-  const watchedRef = useRef(new Map<Scope, number>());
-  const pendingMeasures = useRef(new Map<string, Size>());
 
   const switchDesk = useCallback(
     (next: Scope) => {
@@ -92,7 +85,6 @@ export function useWorkspaceSocket() {
         setConnection("open");
         setState(opened);
         ws.send(JSON.stringify({ type: "seen_list" }));
-        for (const s of watchedRef.current.keys()) ws.send(JSON.stringify({ type: "canvas_get", scope: s }));
         waiters.flush(ws, (frame) => ws.send(JSON.stringify(frame)));
         if (dropped) {
           reconnectListeners.emit();
@@ -109,21 +101,11 @@ export function useWorkspaceSocket() {
         }
         const msg = raw as PushFrame;
         if (STATE_PUSHES.has(msg.type)) {
-          const ctx = { now: Date.now(), lastInteraction: lastInteractionRef.current, phoneDemo: PHONE_DEMO };
+          const ctx = { now: Date.now(), lastInteraction: 0, phoneDemo: PHONE_DEMO };
           setState((s) => applyPush(s, msg, ctx));
           if (msg.type === "chats") writeCachedDesks(msg.chats);
         }
         switch (msg.type) {
-          case "canvas": {
-            console.info(`desk frame: ${msg.scope} · ${(msg.widgets as unknown[] | undefined)?.length ?? 0} widgets`);
-            const pending = pendingRef.current;
-            pendingRef.current = [];
-            for (const g of pending) ws.send(JSON.stringify({ type: "gesture", gesture: g }));
-            const measures = pendingMeasures.current;
-            pendingMeasures.current = new Map();
-            for (const [id, size] of measures) ws.send(JSON.stringify({ type: "measure", id, size }));
-            break;
-          }
           case "switch_chat": {
             const next = msg.scope;
             if (next && next !== scope) switchDesk(next);
@@ -137,11 +119,6 @@ export function useWorkspaceSocket() {
           case "chat_changed":
             listsStale();
             break;
-          case "widget_change": {
-            const entry = parseWidgetEntry(msg.entry);
-            if (entry && watchedRef.current.has(entry.scope)) ws.send(JSON.stringify({ type: "canvas_get", scope: entry.scope }));
-            break;
-          }
           case "error":
             console.warn("loki:", msg.message);
             break;
@@ -223,37 +200,11 @@ export function useWorkspaceSocket() {
   );
   const send = useCallback(<N extends SendName>(frame: { type: N } & InputOf<N>): boolean => sendRaw(frame), [sendRaw]);
 
-  const reportWidgetError = useCallback(
-    (id: string, error: string | null) => {
-      send({ type: "widget_status", id, error });
-    },
-    [send],
-  );
-
-  const measure = useCallback(
-    (id: string, size: Size) => {
-      if (!send({ type: "measure", id, size })) pendingMeasures.current.set(id, size);
-    },
-    [send],
-  );
-
-  const watchDesk = (s: Scope): (() => void) => {
-    const count = watchedRef.current.get(s) ?? 0;
-    watchedRef.current.set(s, count + 1);
-    if (count === 0) send({ type: "canvas_get", scope: s });
-    return () => {
-      const next = (watchedRef.current.get(s) ?? 0) - 1;
-      if (next > 0) watchedRef.current.set(s, next);
-      else watchedRef.current.delete(s);
-    };
-  };
-
   return {
     ...state,
     ...updates,
     scope,
     switchDesk,
-    watchDesk,
     send,
     sendRaw,
     connection,
@@ -261,9 +212,5 @@ export function useWorkspaceSocket() {
     reconnectListeners,
     staleListeners,
     waiters,
-    lastInteractionRef,
-    pendingRef,
-    measure,
-    reportWidgetError,
   };
 }

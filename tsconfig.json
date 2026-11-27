@@ -12,7 +12,7 @@
     "verbatimModuleSyntax": true,
     "erasableSyntaxOnly": true,
     "allowImportingTsExtensions": true,
-    "paths": { "@/*": ["./app/src/*"], "@loki/kit": ["./app/src/kit/index.tsx"] },
+    "paths": { "@/*": ["./app/src/*"] },
     "types": ["node", "vite/client"]
   },
   "include": ["mod", "core", "daemon", "desktop", "app/src", "app/vite.config.ts", "site/src", "site/vite.config.ts", "scripts", "test", "test-node"]

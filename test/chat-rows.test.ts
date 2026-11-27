@@ -18,7 +18,6 @@ const desk = (over: Partial<ChatSummary> = {}): ChatSummary => ({
   conversation_id: "conv-1",
   model: null,
   reasoning_effort: null,
-  widgets: 0,
   active: false,
   last_active: new Date(Date.now() - 3 * 3_600_000).toISOString(),
   ...over,

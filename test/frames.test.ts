@@ -7,8 +7,7 @@ import type { FrameHandlers } from "../mod/frames/context.ts";
 import { SeenStore } from "../mod/seen.ts";
 import { RETURN_TIMES_DEFAULT } from "../core/attention/rest.ts";
 import { LearnStore } from "../mod/learn.ts";
-import { CanvasStore } from "../mod/canvas-store.ts";
-import { bridgeOf, client, fakeWidgets, settled } from "./fixtures/frames.ts";
+import { bridgeOf, client, settled } from "./fixtures/frames.ts";
 import {
   DOCTOR_WAIT_MS,
   FRAMES,
@@ -93,7 +92,6 @@ describe("the frame table", () => {
         "focus_add",
         "card_rest",
         "return_times_set",
-        "canvas_get",
         "suggestion_decide",
         "suggestion_retarget",
         "account_thread_archive",
@@ -255,9 +253,6 @@ describe("the frame table", () => {
     expect(FRAMES.memory_read.parse({ agent_id: "../etc" })).toBe("agent_id required");
     expect(FRAMES.lan_via_set.parse({ via: "bluetooth" })).toBe('via must be "tailscale" or "lan"');
     expect(FRAMES.focus_add.parse({ conversation_id: "c", action: "open" })).toBe("action must be answer or decide");
-    expect(FRAMES.gesture.parse({ gesture: { id: "d/w", kind: "move", position: { x: 1, y: 2 } } })).toEqual({
-      gesture: { id: "d/w", kind: "move", position: { x: 1, y: 2 } },
-    });
     expect(FRAMES.folder_complete.parse({})).toEqual({ prefix: null, home: null });
   });
 });
@@ -298,16 +293,12 @@ describe("every frame in the table, through the real router", () => {
     tailscale: null,
   };
   const deps: ModuleDeps = {
-    store: new CanvasStore(),
-    widgets: fakeWidgets([]),
     seen: new SeenStore(join(dir, "attention.json"), { debounceMs: 0 }),
     listChats: () => [],
     listFlow: () => [],
-    deleteWidgetFile: () => "gone",
     setPin: () => true,
     recentModels: { read: () => [], add: (h) => [h] },
     transcript: () => ({ rows: [], more: false, start: 0 }),
-    widgetLog: () => [],
     folders: {
       recent: () => ({ by_agent: {}, by_conversation: {} }),
       complete: () => [],
@@ -357,11 +348,6 @@ describe("every frame in the table, through the real router", () => {
     },
   };
   const sample: Partial<Record<FrameName, Record<string, unknown>>> = {
-    gesture: { gesture: { id: "d1/w", kind: "focus" } },
-    measure: { id: "d1/w", size: { w: 1, h: 1 } },
-    trash: { id: "d1/w" },
-    widget_status: { id: "d1/w", error: null },
-    canvas_get: { scope: "d1" },
     pin_set: { agent_id: "agent-1", conversation_id: "conv-1", pinned: true },
     models_recent_add: { handle: "m" },
     seen_mark: { conversation_id: "conv-1" },
@@ -650,34 +636,8 @@ describe("how each frame crosses between Macs (plan 023, addendum C)", () => {
       "suggestion_decide",
       "suggestion_retarget",
     ]);
-    expect(by("scope")).toEqual(["canvas_get", "gesture", "measure", "widget_status"]);
-    expect(by("home")).toEqual([
-      "account_emoji_search",
-      "account_labels_list",
-      "account_people_search",
-      "account_thread_archive",
-      "account_thread_compose",
-      "account_thread_discard",
-      "account_thread_handoff",
-      "account_thread_handoff_propose",
-      "account_thread_label",
-      "account_thread_mark_read",
-      "account_thread_mark_unread",
-      "account_thread_move",
-      "account_thread_react",
-      "account_thread_read",
-      "account_thread_reply",
-      "account_thread_resend",
-      "account_thread_restore",
-      "account_thread_unsend",
-      "chat_requirements",
-      "folder_check",
-      "folder_complete",
-      "folders_get",
-    ]);
     expect(by("new-chat")).toEqual(["chat_create"]);
     expect(names.filter((n) => pushMeaning(n)?.relay === "chat")).toEqual(["chat_event"]);
-    expect(names.filter((n) => pushMeaning(n)?.relay === "scope").sort()).toEqual(["canvas", "state", "widget_change", "widgets"]);
   });
 
   test("a frame only Macs send each other is a peer_ frame; the rest of those are Settings' own, never a Mac's", () => {

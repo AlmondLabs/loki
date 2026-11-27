@@ -17,7 +17,6 @@ import { AgentStore, ChatDoc } from "../daemon/kernel/index.ts";
 import { StoreManager } from "../daemon/kernel/stores.ts";
 import { ModRegistry } from "../daemon/mods/registry.ts";
 import type { Suggestion } from "../core/frame-types.ts";
-import { CanvasStore } from "../mod/canvas-store.ts";
 import { Suggestions } from "../mod/suggestions.ts";
 import { registerTools } from "../mod/tools.ts";
 import { sampleEntries } from "./fixtures/entries.ts";
@@ -283,11 +282,6 @@ describe("loki's tools for a chat on an ACP agent (plan 044)", () => {
       apiVersion: 1,
       activate: (api) =>
         registerTools(api, {
-          store: new CanvasStore(),
-          widgets: { entries: () => [], get: () => undefined, setRuntimeError: () => false, rescan: () => Promise.resolve(), close: () => {} },
-          widgetsDir: join(dir, "widgets"),
-          activeScope: () => "shared",
-          broadcast: () => {},
           chats: {
             suggestions,
             agents: () => [{ id: "agent-local-ira", name: "Ira", mac: "studio", reachable: true }],
@@ -302,7 +296,6 @@ describe("loki's tools for a chat on an ACP agent (plan 044)", () => {
                 model: null,
                 reasoning_effort: null,
                 cwd: "/work/site",
-                widgets: 0,
                 active: false,
                 last_active: null,
               },

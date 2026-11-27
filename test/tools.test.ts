@@ -1,37 +1,10 @@
 import { describe, expect, test } from "vitest";
 import { registerTools, type ToolDeps } from "../mod/tools.ts";
-import { CanvasStore } from "../mod/canvas-store.ts";
 import type { ModApi, ModTool } from "../daemon/mods/api.ts";
-import type { WidgetManifestEntry } from "../core/canvas-core.ts";
 import { must } from "./fixtures/must.ts";
 import type { ChatSummary, Suggestion } from "../core/frame-types.ts";
 import { Suggestions } from "../mod/suggestions.ts";
 import { asks, kindOf } from "../daemon/approvals.ts";
-
-const sleep: WidgetManifestEntry = {
-  id: "c1/sleep",
-  scope: "c1",
-  name: "sleep",
-  kind: "json",
-  file: "c1/sleep.json",
-  title: "Sleep",
-  type: "slider-control",
-  data: { value: 6 },
-  hash: "h",
-  updated_at: 0,
-  error: 'missing "title"',
-};
-const welcome: WidgetManifestEntry = {
-  ...sleep,
-  id: "shared/welcome",
-  scope: "shared",
-  name: "welcome",
-  file: "shared/welcome.json",
-  title: "loki",
-  type: "info-card",
-  data: { lines: ["a"] },
-  error: undefined,
-};
 
 interface Called {
   name: string;
@@ -71,114 +44,25 @@ function harness(deps?: Partial<ToolDeps>) {
       },
     },
   } as unknown as ModApi;
-  const store = new CanvasStore();
-  store.gesture("c1", { kind: "set", id: "c1/sleep", path: "value", value: 7 });
-  const broadcasts: Array<[unknown, string | undefined]> = [];
-  const entries = [sleep, welcome];
   registerTools(api, {
-    store,
-    widgets: {
-      entries: (s) => entries.filter((e) => !s || e.scope === s),
-      get: (id) => entries.find((e) => e.id === id),
-      setRuntimeError: () => false,
-      rescan: () => Promise.resolve(),
-      close: () => {},
-    },
-    widgetsDir: "/proj/app/src/widgets",
-    activeScope: () => "c1",
-    broadcast: (m, s) => broadcasts.push([m, s]),
     ...deps,
   });
-  return { tools, broadcasts, sections };
+  return { tools, sections };
 }
-
-interface CanvasState {
-  desk: string;
-  widgets_dir: string;
-  widgets: Array<{ id: string }>;
-  shared?: Array<{ error?: unknown }>;
-}
-const deskState = async (tools: Map<string, Called>, c: Parameters<Called["run"]>[0]) =>
-  JSON.parse((await must(tools.get("canvas_read"), "canvas_read").run(c)) as string) as CanvasState;
 
 describe("the mod's tools", () => {
-  test("canvas_read and canvas_focus always, and no task_* tool: Tasks is retired into suggestions (plan 049, U6)", () => {
+  test("no task_* tool and no canvas tools", () => {
     const names = [...harness().tools.keys()].sort();
-    expect(names).toEqual(["canvas_focus", "canvas_read"]);
-    expect(names.filter((n) => n.startsWith("task_"))).toEqual([]);
-  });
-});
-
-describe("canvas_read", () => {
-  test("returns own desk + shared, merged data, layout, and errors", async () => {
-    const { tools } = harness();
-    const out = await deskState(tools, { args: {} });
-    expect(out.desk).toBe("c1");
-    expect(out.widgets_dir).toBe("/proj/app/src/widgets/c1");
-    expect(out.widgets[0]).toMatchObject({ id: "c1/sleep", file: "/proj/app/src/widgets/c1/sleep.json", data: { value: 7 }, error: 'missing "title"' });
-    expect(must(out.shared, "the shared desk")[0]).toMatchObject({ id: "shared/welcome", data: { lines: ["a"] } });
-    expect(must(out.shared, "the shared desk")[0].error).toBeUndefined();
-  });
-  test("the desk comes from the calling conversation, not the mod's active desk", async () => {
-    const remembered: string[] = [];
-    const { tools } = harness({ remember: (id) => (remembered.push(id), id.replace(/[^a-zA-Z0-9_-]/g, "_")) });
-    const out = await deskState(tools, { args: {}, conversation: { id: "local-conv-1291" } });
-    expect(out.desk).toBe("local-conv-1291");
-    expect(remembered).toEqual(["local-conv-1291"]);
-    const explicit = await deskState(tools, { args: { desk: "shared" }, conversation: { id: "local-conv-1291" } });
-    expect(explicit.desk).toBe("shared");
+    expect(names).toEqual([]);
   });
 
-  test("an agent's main chat, whose id is `default`, reads its own desk, `default-<agent>`, not one named `default`", async () => {
-    const { tools } = harness();
-    const out = await deskState(tools, { args: {}, conversation: { id: "default" }, agent: { id: "agent-local-ada", name: "Ada" } });
-    expect(out.desk).toBe("default-agent-local-ada");
-  });
-
-  test("explicit desk=shared returns only the shared desk", async () => {
-    const { tools } = harness();
-    const out = await deskState(tools, { args: { desk: "shared" } });
-    expect(out.desk).toBe("shared");
-    expect(out.shared).toBeUndefined();
-    expect(out.widgets.map((w: { id: string }) => w.id)).toEqual(["shared/welcome"]);
-  });
-  test("the canvas section tells every chat to write files, not to look for a render tool, since canvas_read is a script's (plan 099)", () => {
-    const { tools, sections } = harness();
-    const section = must(sections.get("canvas"), "the canvas section")() ?? "";
-    expect(section).toMatch(/writing files, never through a tool/);
-    expect(section).toMatch(/@loki\/kit/);
-    expect(section).toContain("/proj/app/src/widgets/<desk>/<name>.json");
-    expect(must(tools.get("canvas_read"), "canvas_read").description).not.toMatch(/@loki\/kit/);
-  });
-
-  test("the canvas tools and chat_list are for scripts only; the tools whose card is the person's are the model's (plan 099)", () => {
+  test("chat_list is for scripts only; suggestion_create is for the model (plan 099)", () => {
     const { tools } = harness({
       chats: { suggestions: { add: () => Promise.reject(new Error("not called")) }, agents: () => [], chats: () => [], passChat: () => false },
     });
     const scriptOnly = [...tools.values()].filter((t) => t.callers?.includes("model") === false).map((t) => t.name);
-    expect(scriptOnly.sort()).toEqual(["canvas_focus", "canvas_read", "chat_list"]);
+    expect(scriptOnly.sort()).toEqual(["chat_list"]);
     expect(tools.get("suggestion_create")?.callers).toBeUndefined();
-  });
-});
-
-describe("canvas_focus", () => {
-  test("broadcasts to the widget's desk; shared goes to everyone; missing errors", async () => {
-    const { tools, broadcasts } = harness();
-    const cam = must(tools.get("canvas_focus"), "canvas_focus");
-    expect(await cam.run({ args: { widget_id: "c1/sleep" } })).toMatch(/gliding/);
-    expect(broadcasts[0]).toEqual([{ type: "camera", widget_id: "c1/sleep", widget_ids: ["c1/sleep"] }, "c1"]);
-    await cam.run({ args: { widget_id: "shared/welcome" } });
-    expect(broadcasts[1][1]).toBeUndefined();
-    await expect(cam.run({ args: { widget_id: "nope" } })).rejects.toThrow('no widget "nope" — check canvas_read');
-    await expect(cam.run({ args: {} })).rejects.toThrow("give widget_id or widget_ids");
-  });
-
-  test("frames several widgets immediately without blocking", async () => {
-    const { tools, broadcasts } = harness();
-    const cam = must(tools.get("canvas_focus"), "canvas_focus");
-    const out = await cam.run({ args: { widget_ids: ["c1/sleep", "shared/welcome"] } });
-    expect(out).toMatch(/framing 2 widgets/);
-    expect(broadcasts[0]).toEqual([{ type: "camera", widget_id: "c1/sleep", widget_ids: ["c1/sleep", "shared/welcome"] }, undefined]);
   });
 });
 
@@ -197,7 +81,6 @@ describe("chat_list and the suggestion tools", () => {
     purpose: null,
     cwd: null,
     pinned: false,
-    widgets: 0,
     active: false,
     last_active: null,
     ...d,
@@ -251,7 +134,7 @@ describe("chat_list and the suggestion tools", () => {
 
   test("suggestion_create comes with the chat listing, and nothing to list or take one back (plan 094); every name is <subject>_<verb>", () => {
     const names = [...suggesting().tools.keys()].sort();
-    expect(names).toEqual(["canvas_focus", "canvas_read", "chat_list", "suggestion_create"]);
+    expect(names).toEqual(["chat_list", "suggestion_create"]);
     expect(names.filter((n) => !/^[a-z][a-z0-9]*_[a-z0-9]+$/.test(n))).toEqual([]);
   });
 

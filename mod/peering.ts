@@ -1,6 +1,6 @@
 import { join } from "node:path";
-import type { Scope } from "../core/canvas-core.ts";
-import { scopeFor } from "../core/canvas-core.ts";
+import type { Scope } from "../core/chat-scope.ts";
+import { scopeFor } from "../core/chat-scope.ts";
 import type { ChatSummary, FlowRow, LanStatus, TailnetDevice } from "../core/frame-types.ts";
 import { stateFolders, type MacAccountView } from "../core/frames.ts";
 import { Awake } from "../daemon/awake.ts";
@@ -16,7 +16,7 @@ import { ChatRouter } from "./chat-router.ts";
 import type { ChatSource } from "./chat-source.ts";
 import type { ChatRegistry } from "./chats.ts";
 import type { ChatBackend } from "./frames/chat.ts";
-import { sortChats } from "./frames/canvas.ts";
+import { sortChats } from "./frames/chats.ts";
 import type { PeersDeps } from "./frames/peers.ts";
 import { seenFrame } from "./frames/seen.ts";
 import { log } from "./log.ts";
@@ -57,7 +57,7 @@ export interface PeeringDeps {
   tailscale: { devices(): TailnetDevice[] };
   broadcast: (msg: object, scope?: Scope) => void;
   local: { chats: () => ChatSummary[]; flow: () => FlowRow[] };
-  dirs: Pick<typeof paths, "peers" | "state" | "data" | "widgets" | "uploads">;
+  dirs: Pick<typeof paths, "peers" | "state" | "data" | "uploads">;
 }
 
 export interface Peering {
@@ -220,7 +220,6 @@ export function startPeering(deps: PeeringDeps): Peering {
     here: macId,
     chat: chatBackend,
     link: (id) => (links.reachable(id) ? links.get(id) : null),
-    widgetsDir: dirs.widgets,
     file: join(dirs.state, "chat-moves.json"),
     name: (id) => (id === null ? thisMacName : (peerStore.get(id)?.name ?? null)),
     done: (id) => peerStore.get(id)?.moves_done === true,

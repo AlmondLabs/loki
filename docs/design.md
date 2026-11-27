@@ -47,7 +47,7 @@ AA on every working surface. The roles:
   `--loki-bubble`, `--loki-user-bubble`, `--loki-code`) instead of borrowing selection or accent.
 - `--loki-label-0` … `--loki-label-7` — the eight chat-label colours, each a mark that reads at 3:1 or more on
   `--loki-bg`, `--loki-panel` and `--loki-well` on both sides (the tokens test checks).
-- `--loki-grid` is the canvas's dot grid, `--loki-veil` the dim behind a sheet, and `--loki-focus-flash` the colour
+- `--loki-veil` is the dim behind a sheet, and `--loki-focus-flash` the colour
   the focus ring flashes in where a surface sets one (the phone's link colour); unset, it is the accent.
 
 No literal colour appears in a component; even the agent chip takes the label colour nearest its name's hue. `data-theme`
@@ -58,7 +58,7 @@ the native window (`WINDOW_GROUND` in `desktop/windows.ts`).
 Type scale, Tailwind's own four sizes as Tailwind ships them, at the browser's default 16px root: **`text-xs` 12**
 meta, tags, labels (`.loki-label`) and fine print · **`text-sm` 14** body and list rows · **`text-base` 16** a window
 or section title · **`text-2xl` 24** a pane's large title. A stylesheet reads the same sizes as `var(--text-xs)` and so
-on. loki defines no sizes of its own, so the views and the agents' widgets share one vocabulary; a class also sets
+on. loki defines no sizes of its own, so the views share one vocabulary; a class also sets
 Tailwind's paired line height. Phone-only rules keep the phone's scale (`--phone-text-*`). One face: the system
 sans (`--loki-font`); `--loki-display` and `--loki-label` are aliases of it, kept so older call sites resolve. SF Mono (`--loki-mono`) only for code, data and key hints.
 Weight carries the hierarchy (400 reading, 600 labels and names, 700 titles); no tracking, no uppercase.
@@ -73,7 +73,7 @@ Preferences. Indentation that shows hierarchy, such as a mail body under its sen
 column is the exception: the transcript, the proposals, the composer, the new-chat notice and an outside item's thread
 and reply box keep their width (`max-w-3xl`) and are centred in the detail, never closer than 20px to its edges. They
 started at the edge from 2026-11-14 until 2026-11-15, when a wide window left most of the pane empty on their right.
-Focus and empty states are centred too: Learn's review deck and welcome card, the empty canvas hint and the
+Focus and empty states are centred too: Learn's review deck and welcome card, and the
 "No … Selected" panes. The list column's text starts 16px in, with its boxes (rows, search) 4px in. The list bar, the
 pane header and the card toolbar are each 52px with their title stacks top-aligned 6px down, so the list title and the
 detail title share one line; in the Mac app the bars sit on the traffic lights' row and the list's title is centred on
@@ -101,7 +101,7 @@ edge instead of a ring (plan 2026-11-15-2345), except the bare first line of a s
 sheet is open. The phone keeps its own in `phone.css`: a 2px ring that flashes and settles on the muted colour, and
 the caret alone for a field, as iOS does. Nothing sets `outline: none`, and a rule that turns a ring off also says `animation: none`. Reduced motion means less
 movement, not none: it zeroes every CSS duration *and delay*, then lets what appears (sheets, popovers, a chat's
-arriving rows and words, widgets, the phone's banner) fade in over 150 ms with no move or scale, so nothing cuts in
+arriving rows and words, the phone's banner) fade in over 150 ms with no move or scale, so nothing cuts in
 hard. JS-driven moves ask `prefersReducedMotion()` or `glide()` in `app/src/kit/motion.ts`.
 
 Hover belongs to a mouse: every `:hover` rule sits inside `@media (hover: hover) and (pointer: fine)`, so a tap on the
@@ -137,16 +137,14 @@ thrown right for Got it and left for Again, and the next rises into its place.
 The desktop is quieter than the phone. A button or chip gives to 97% under the pointer (not under a key: Space on
 a focused button is pressed too, and stays still). Popovers opened by a click grow from the corner they hang from, and sheets
 opened by a click fade and rise (search, the keys sheet and anything else a key opens are just there); a chat opened by a click fades in; a count badge springs in when its
-count goes up; the camera glides to a widget on the smooth spring, and a wheel, pinch or drag stops it
-(`desk/camera-glide.ts`); a widget its agent rewrites glows once, on a layer that fades rather than an animated
-shadow. The chip row, the switch's knob and the catch-up bar move by transform; the chat's width changes at once.
+count goes up. The chip row, the switch's knob and the catch-up bar move by transform.
 
 The agent's work reads the way Claude's apps show it (`chat/tool-steps.tsx`, wording in `shared/tool-steps.ts`): a
 stretch between two messages (tool calls, background-task notices, skills it loaded) is one quiet line in the thread,
 "Worked 14 min · 10 background tasks, 3 commands, 11 tools · 1 failed" ("Ran 3 commands" when the rows carry no
 times; "Working" breathing while the last step waits). When a step failed, its name sits under the closed line in red
-("✕ Deploy approved Dealshield image and ECS routing failed"), and a click opens the stretch at it. Canvas activity and
-compactions stay rows of their own. Opened (inline on the desktop, a bottom sheet on the phone), every step is a line
+("✕ Deploy approved Dealshield image and ECS routing failed"), and a click opens the stretch at it. Compactions
+stay rows of their own. Opened (inline on the desktop, a bottom sheet on the phone), every step is a line
 in one flat list, in order: background tasks, commands, agents and anything that failed in full, led by what the agent
 said they were for; reads, edits, searches and skills quieter. Past 8 steps, chips filter it: All, Failed, Steps,
 Files and search. A step opens its description, command
@@ -208,7 +206,7 @@ In a list with focus, the chosen row's fill is the focus mark; its ring goes tra
 stays mono. Selection and hover use distinct neutral steps; neither the accent nor the badge is spent on a
 selection. A one-off is `className`/`style` on the primitive; a one-off that repeats becomes a modifier.
 Button and Field share one height scale (sm 28 · md 36 · touch 44); a field and the button beside it always
-share a size. Widgets on the sheet keep `@loki/kit`; app chrome never ships into that surface. What stays
+share a size. What stays
 hand-built: the sidebar toggle (`.loki-rail`), the chat bubble, the phone's tab bar.
 The list-and-detail layout has its own blocks (2026-09-23): **ListRow** (a lead, the title bold when unread, a preview,
 the time or the count, hover actions; `aria-current` on the chosen one), **ListSection** (a folding
@@ -267,12 +265,11 @@ panes' 52px title bars and the sidebar's toggle on their row (`paneTop`); the ba
 window title is still set, for the Window menu, Mission Control and screen readers: the chat's name (with
 "· archived" or "· deleted"), "Inbox · n waiting", "Agents", or "Preferences" while Preferences
 is up. There is no top bar of search or history. Each pane draws its own header instead: a chat's is a Mac toolbar
-(plan 2026-11-12-1505, U13), its name over a grey line of its facts, Messages and Canvas (with Advisor between them once the chat has one,
-plan 2026-11-24-1641) as a glass segmented control centred in the toolbar and its moves as a glass group of symbols at the trailing edge (plan 2026-11-14-1330, KTD11: one
+(plan 2026-11-12-1505, U13), its name over a grey line of its facts, Messages and Workers (shown once the chat has workers)
+as a glass segmented control centred in the toolbar and its moves as a glass group of symbols at the trailing edge (plan 2026-11-14-1330, KTD11: one
 band, as Mail's; where the detail is too narrow to centre them, the tabs fall in line just before the symbols and the
 title gives way); other panes keep a name line with a quiet aside and a tab row. The name line drags the window too, so anything clickable in it is a real
-button. A chat's header carries its agent with the live word (working, writing, needs approval, asked you), and on the
-Canvas tab a "More chat actions" menu of the sheet's own actions with their keys (arrange, fit, the chat toggle).
+button. A chat's header carries its agent with the live word (working, writing, needs approval, asked you).
 What works on the chat as a whole (rename, folder, pin) lives on the sidebar row, with Label, Mark as Read and
 Archive also in the toolbar; model and mode are ⌘K's. Dropped on 2026-09-28 as copies: the header's pin and archive buttons, and from its
 menu Mark as read, Rename…, Change folder…, New chat…, Find (⌘F), Change model and Change permission mode (their
@@ -288,15 +285,7 @@ alone hovers red, because that is what close does on both systems. The strip sit
 up, as a system title bar would. The strip drags; double click maximises. The rest of the window is the Mac's.
 
 The conversation is the signature surface: see [the chat pane and Flow's cards](#the-chat-pane-and-flows-cards-shadcn-and-ai-elements-plans-096-and-097).
-**Widget rows** sit among the messages by time, one quiet line with a tile icon: "friday added Revenue chart · 14:49",
-the widget's title in the link blue while it is still on the canvas; choosing one opens the Canvas tab framed on that
-widget. Under a widget's latest row the widget itself is drawn, live (`chat/inline-widget.tsx`,
-`chat/use-inline-widgets.tsx`, 2026-10-09): the same kit component or module the canvas draws, in a card as wide as
-the thread allows, with "Show on canvas"; using it there is using it on the canvas (a `set` gesture on the widget's own
-desk, recorded for that desk's agent). Earlier rows for the same widget stay one line each, so a widget edited ten
-times is drawn once. Every chat surface draws them: the desk's chat, the Flow card (which asks the mod for that chat's
-widgets, `canvas_get`) and the phone, where kit widgets draw read only and a custom module says to open the chat on the
-Mac. While the agent works and the box is empty, send becomes **Stop** (a filled round with a square), which ends the
+While the agent works and the box is empty, send becomes **Stop** (a filled round with a square), which ends the
 turn where it is — an approval it waits on too — through the `chat_abort` frame; typing brings send back (it queues).
 **The model and permission mode** are changed in ⌘K (⌘⇧M, ⌘⇧P): its Models scope opens on the agent's Usual, filters
 every harness and provider as you type, and takes the effort with ←→; its Permissions scope lists the chat's modes.
@@ -308,8 +297,7 @@ mic and a round send, and Select model as a bottom sheet.
 List and detail, as Mail's: one **sidebar** on the Mac's material, inset from the window's edge, and the **pane** in
 the rest.
 
-Vocabulary (2026-09-27): a conversation in the list is a chat; the widget surface inside it is its Canvas tab.
-Internals keep the name desk.
+Vocabulary (2026-09-27): a conversation in the list is a chat.
 
 - **Places.** The sidebar's first rows (plan 2026-11-12-1505, U12) are Chats, Flow, Agents and Learn, each a symbol
   in the accent, its name and a grey count (what waits in Flow, the cards due in Learn), the one showing filled and
@@ -350,7 +338,7 @@ Internals keep the name desk.
   source, one roving tab stop on the selected row; the detail, the window's one `<main>`, its toolbar before its
   content. From the list, Return goes into the detail's content (the message box) and Tab to the first control in its
   toolbar (`content-list.tsx` `toolbarControl`), or into the content where the toolbar has none, as Learn's. Esc is the same in every place: in the detail (not typing, or in Flow's reply box) it moves focus to the
-  list's selected row; in the list it does nothing; it never changes the place. Chats' Canvas and Advisor tabs go
+  list's selected row; in the list it does nothing; it never changes the place. Chats' Workers tab goes
   back to Messages first. Until 2026-11-14 Esc in Agents and Learn went to Chats, and Flow's closed the deck.
 - **Chats list.** Chats on the three columns (plan 2026-11-14-1330, U3): the sidebar's source chosen, its chats in the
   list column on `ContentList`, the chat in the detail. The toolbar names the source, with New Chat (an agent's starts
@@ -370,12 +358,8 @@ Internals keep the name desk.
   while another place shows, so it keeps its scroll. The sidebar replaced the desks tree drawer (2026-09-23, approved by
   the user); the tree went with Tasks (plan 049), and the list column took the chats from the sidebar (2026-11-14).
 - **Chat pane.** A chat opens on **Messages** with the composer focused, from anywhere (the sidebar, search,
-  the Inbox's Enter or O, Agents, Learn). **Canvas** is the tab beside it: today's sheet edge to edge with the
-  chat as a viewport **inset** (framing centres in the uncovered part, toggling the chat slides the sheet by its
-  width), the camera, arranging and the widget keys unchanged. The Canvas tab keeps the sidebar, as Finder keeps its sidebar in every view; ⌃⌘S folds it for a wider canvas (it hid the sidebar until 2026-11-14). Esc, or the Messages tab, returns to the thread at the scroll it was left at, and focus to what it last
-  held there. Both views are one conversation with one draft: a half-written reply follows you across the tabs.
-  Only the view on screen draws the composer. Each chat remembers its tab for ⌘[ ⌘]; an open always lands on
-  Messages. The pane stays mounted, hidden, behind the other sections, so the mod link, the camera and the
+  the Inbox's Enter or O, Agents, Learn). When a chat has workers, **Workers** appears beside it as a segmented tab; Esc, or the Messages tab, returns to the thread at the scroll it was left at, and focus to what it last
+  held there. The pane stays mounted, hidden, behind the other sections, so the mod link and the
   thread's scroll keep their state; its panels inherit that hiding and never set themselves visible.
 - **Agents** on the three columns (plan 2026-11-14-1330, KTD9; redesigned 2026-11-28): the agents are the sidebar's sources
   with **New Agent** ("+") on the Agents heading (opening in a `Sheet`), the list column holds the chosen page's items
@@ -563,8 +547,7 @@ box is one for both, its sizes set by `touch`.
   centred list of every desk (waiting, pinned, recent, the rest), filtered by agent chips, with ⌘P pin, ⌘E
   archive and ⇧↵ open-with-chat. Replaced by the always-there sidebar, now Chats (grouped by agent, pinned on top) and
   ⌘K search; the tree survived as Tasks' picker until Tasks was retired (plan 049).
-- A desk that opened on its canvas (to 2026-09-23): the conversation floated on the widgets and switching
-  desks meant summoning the drawer. A chat now opens on Messages; the canvas is its Canvas tab (called the Desk tab until 2026-09-27).
+- A desk that opened on its canvas (to 2026-09-23): retired; chats now open directly on Messages, and the canvas and widget system have been removed.
 
 - The item's moves in its header (plan 097, U8, 2026-11-12): ItemHeader and ActionBar as one bar, the moves at the
   title's end. Moved back under the box the same day, by the user's decision: a reply and its move go together (⌘]
@@ -582,8 +565,7 @@ The review of 2026-09-08 (`docs/research/2026-09-08-ui-review.md`) scored 26/40 
 the code audit. Closed the same day: the primitive vocabulary; focus rings; contrast; reduced motion; the
 mod's desk block and the harness's skill bodies rendering as the user's words (they are event rows now); modal
 sheets (aria-modal, Tab loop, initial and return focus); the combobox pattern on the desks tree and the model
-picker; keyboard access to board cards (roving tabindex in per-column listboxes) and widget frames (arrows
-nudge, Alt-arrows resize, Enter frames the camera, a polite announcement). Left, in order: confirmations for
+picker; keyboard access to board cards (roving tabindex in per-column listboxes). Left, in order: confirmations for
 forget / remove / disable and an undo on archive; the jargon and error-string pass; the archive fold inside
 the Tasks picker's listbox was unreachable while its search box owned Tab, until Tasks was retired (plan 049). The
 desktop's 1100-wide floor (R31 of plan 013) holds: the Flow card fits beside the sidebar.

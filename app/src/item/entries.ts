@@ -1,12 +1,10 @@
 import type { TranscriptRow } from "../../../core/attention/transcript.ts";
 import { clockLabel, dayPills, timeOf } from "../shared/thread";
 import { isWorkRow, stepFailed, toolRuns, workDuration } from "../shared/tool-steps";
-import type { WidgetMark } from "../chat/transcript";
 
 export type ThreadEntry =
   | { kind: "day"; key: string; label: string }
   | { kind: "new"; key: string; day: string | null }
-  | { kind: "widget"; key: string; mark: WidgetMark; live: boolean }
   | { kind: "steps"; key: string; rows: TranscriptRow[]; running: boolean; arrived: boolean }
   | { kind: "event"; key: string; row: TranscriptRow; arrived: boolean }
   | { kind: "message"; key: string; row: TranscriptRow; last: boolean; first: boolean; arrived: boolean };
@@ -17,78 +15,50 @@ export interface EntryInput {
   above: number;
   dividerAt: number | null;
   dividerDay: string | null;
-  widgets: readonly WidgetMark[];
   busy: boolean;
   gaps?: number;
   arrivedFrom: number;
   now?: number;
 }
 
-export function threadEntries({ rows, from, above, dividerAt, dividerDay, widgets, busy, arrivedFrom, gaps, now = Date.now() }: EntryInput): ThreadEntry[] {
+export function threadEntries({ rows, from, above, dividerAt, dividerDay, busy, arrivedFrom, gaps, now = Date.now() }: EntryInput): ThreadEntry[] {
   let liveEnd = rows.length;
   while (liveEnd > 0 && rows[liveEnd - 1].event === "command") liveEnd--;
   const first = Math.max(0, Math.min(from, rows.length));
-  const marks = new Map<number, WidgetMark[]>();
-  for (const w of widgets) {
-    if (w.before < first) continue;
-    const list = marks.get(w.before);
-    if (list) list.push(w);
-    else marks.set(w.before, [w]);
-  }
-  const latest = new Map<string, string>();
-  for (const w of widgets) if (w.earlier === undefined) latest.set(w.widgetId, w.id);
-
-  const order: Array<{ i: number; row?: TranscriptRow; mark?: WidgetMark }> = [];
-  for (let i = first; i <= rows.length; i++) {
-    for (const mark of marks.get(i) ?? []) order.push({ i, mark });
-    if (i < rows.length) order.push({ i, row: rows[i] });
-  }
-  const timed = order.some((o) => o.row !== undefined && Number.isFinite(timeOf(o.row)));
-  const days = timed
-    ? dayPills(
-        order.map((o) => o.row ?? o.mark ?? {}),
-        now,
-      )
-    : order.map(() => null);
+  const shown = rows.slice(first);
+  const timed = shown.some((r) => Number.isFinite(timeOf(r)));
+  const days = timed ? dayPills(shown, now) : shown.map(() => null);
   const dayAt = new Set<number>();
-  order.forEach((o, k) => {
-    if (days[k] && o.row) dayAt.add(o.i);
+  days.forEach((label, k) => {
+    if (label) dayAt.add(first + k);
   });
-  const tools = toolRuns(rows, first, (k) => marks.has(k) || dayAt.has(k) || k === dividerAt);
+  const tools = toolRuns(rows, first, (k) => dayAt.has(k) || k === dividerAt);
 
   const timeAt = new Map<number, string>();
   if (gaps !== undefined && timed) {
     let before = Number.NaN;
-    order.forEach((o) => {
-      const t = o.row ? timeOf(o.row) : Number.NaN;
+    shown.forEach((row, k) => {
+      const t = timeOf(row);
       if (!Number.isFinite(t)) return;
-      const clock = o.row?.role === "user" ? clockLabel(o.row.at) : null;
-      if (clock && !(t - before < gaps)) timeAt.set(o.i, clock);
+      const clock = row.role === "user" ? clockLabel(row.at) : null;
+      if (clock && !(t - before < gaps)) timeAt.set(first + k, clock);
       before = t;
     });
   }
 
   const out: ThreadEntry[] = [];
   let author: TranscriptRow["role"] | null = null;
-  order.forEach((o, k) => {
+  shown.forEach((m, k) => {
+    const i = first + k;
     const label = days[k];
-    const clock = o.row ? timeAt.get(o.i) : undefined;
+    const clock = timeAt.get(i);
     if (label) {
       out.push({ kind: "day", key: `day-${label}`, label: clock ? `${label} ${clock}` : label });
       author = null;
     } else if (clock) {
-      out.push({ kind: "day", key: `at-${o.i - above}`, label: clock });
+      out.push({ kind: "day", key: `at-${i - above}`, label: clock });
       author = null;
     }
-    if (o.mark) {
-      const w = o.mark;
-      out.push({ kind: "widget", key: `w-${w.id}`, mark: w, live: !w.gone && latest.get(w.widgetId) === w.id });
-      author = null;
-      return;
-    }
-    const m = o.row;
-    if (!m) return;
-    const i = o.i;
     const key = `r-${i - above}`;
     if (dividerAt === i) {
       out.push({ kind: "new", key: `new-${key}`, day: timed ? null : dividerDay });
@@ -115,7 +85,7 @@ export function threadEntries({ rows, from, above, dividerAt, dividerDay, widget
   return out;
 }
 
-export type TurnPart = Extract<ThreadEntry, { kind: "message" | "steps" | "event" | "widget" | "day" | "new" }>;
+export type TurnPart = Extract<ThreadEntry, { kind: "message" | "steps" | "event" | "day" | "new" }>;
 
 export type TurnState = "working" | "needs you" | "failed" | "done";
 

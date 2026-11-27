@@ -1,7 +1,7 @@
 import type { Context } from "@earendil-works/chord/context";
 import { AgentDoc as PiAgentDoc, defineExtension, hook, ToolTask, type Extension, type HookApi } from "@earendil-works/pi-durable";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, isAbsolute, relative, resolve } from "node:path";
+import { dirname } from "node:path";
 import { NEVER_ALWAYS_TOOLS, type ChatEvent } from "../core/attention/model.ts";
 import { readOnlyRefusal, type ReadOnlyFolders } from "./read-only-gate.ts";
 import { AgentInfoDoc, ChatDoc, type ChatInfo } from "./kernel/index.ts";
@@ -21,10 +21,9 @@ export function kindOf(name: string, annotations?: { readOnly?: boolean; destruc
   return "command";
 }
 
-export function asks(mode: PermissionMode, name: string, args: Record<string, unknown>, opts: { cwd?: string; widgetsDir?: string; kind?: ToolKind }): boolean {
+export function asks(mode: PermissionMode, name: string, args: Record<string, unknown>, opts: { cwd?: string; kind?: ToolKind }): boolean {
   if (NEVER_ASK.has(name) || mode === "unrestricted") return false;
   const kind = callKind(name, args) ?? opts.kind ?? kindOf(name);
-  if (kind === "edit" && opts.widgetsDir && insideFolder(args.path ?? args.file_path, opts.widgetsDir, opts.cwd)) return false;
   if (mode === "strict") return true;
   if (kind === "read") return false;
   if (mode === "acceptEdits") return kind === "command";
@@ -40,13 +39,6 @@ function callKind(name: string, args: Record<string, unknown>): ToolKind | undef
 
 const scriptCode = (args: Record<string, unknown>): string => (typeof args.code === "string" ? args.code : "");
 
-function insideFolder(path: unknown, folder: string, cwd: string | undefined): boolean {
-  if (typeof path !== "string" || !path) return false;
-  const full = isAbsolute(path) ? path : resolve(cwd ?? folder, path);
-  const rel = relative(resolve(folder), full);
-  return rel !== "" && !rel.startsWith("..") && !isAbsolute(rel);
-}
-
 // oxlint-disable-next-line typescript/consistent-type-definitions -- a tool task's result must be a JsonValue, and an interface with an optional field cannot extend JsonObject
 type Decision = { allow: boolean; message?: string; always?: boolean };
 interface Pending {
@@ -60,7 +52,6 @@ interface Pending {
 export class Approvals {
   private readonly pending = new Map<string, Pending>();
   private push: (agentId: string, conversationId: string, events: ChatEvent[]) => void = () => {};
-  private readonly widgetsDir: string | undefined;
   private readonly kindOfTool: (name: string) => ToolKind;
   private readonly alwaysPath: string | null;
   private readonly alwaysAllowed: Set<string>;
@@ -71,14 +62,12 @@ export class Approvals {
 
   constructor(
     opts: {
-      widgetsDir?: string;
       kindOfTool?: (name: string) => ToolKind;
       alwaysPath?: string;
       scriptMayCall?: (name: string) => boolean;
       readOnlyFolders?: ReadOnlyFolders;
     } = {},
   ) {
-    this.widgetsDir = opts.widgetsDir;
     this.readOnlyFolders = opts.readOnlyFolders;
     this.scriptMayCall = opts.scriptMayCall;
     this.alwaysPath = opts.alwaysPath ?? null;
@@ -212,7 +201,7 @@ export class Approvals {
     const [agent, settings] = await Promise.all([api.snapshot(AgentInfoDoc, context), api.snapshot(PiAgentDoc, api.conversationId, context)]);
     const chat = own?.helper_for === undefined ? own : ((await api.snapshot(ChatDoc, own.helper_for, context)) ?? own);
     const mode = chat?.turn_cap ? stricterMode(modeOf(chat.mode), lokiModeOf(chat.turn_cap, false)) : modeOf(chat?.mode);
-    if (!asks(mode, name, args, { cwd: settings?.cwd, widgetsDir: this.widgetsDir, kind: this.kindOfTool(name) })) return null;
+    if (!asks(mode, name, args, { cwd: settings?.cwd, kind: this.kindOfTool(name) })) return null;
     if (mode !== "strict" && this.alwaysAllowed.has(name)) return null;
     const agentId = agent?.id ?? "";
     const conversationId = chat?.id || `conversation-${api.conversationId}`;

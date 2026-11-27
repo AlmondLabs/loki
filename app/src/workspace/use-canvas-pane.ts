@@ -1,10 +1,9 @@
 import { useCallback, useState } from "react";
-import { EMPTY_PANE, chooseTab, escapeTab, nextFrame, openTab, shownTab, tabOf, type CanvasTab, type FrameRequest, type PaneState } from "./pane";
+import { EMPTY_PANE, chooseTab, escapeTab, openTab, shownTab, tabOf, type CanvasTab, type PaneState } from "./pane";
 
 export function useCanvasPane(scope: string, hasWorkers: boolean) {
   const [state, setState] = useState<PaneState>(EMPTY_PANE);
   const [workerByScope, setWorkerByScope] = useState<Record<string, string>>({});
-  const [frameRequest, setFrameRequest] = useState<FrameRequest | null>(null);
   const tab = shownTab(tabOf(state, scope), hasWorkers);
   const setTab = useCallback((t: CanvasTab) => setState((s) => chooseTab(s, scope, t)), [scope]);
   const open = useCallback((target: string) => setState((s) => openTab(s, target)), []);
@@ -19,14 +18,7 @@ export function useCanvasPane(scope: string, hasWorkers: boolean) {
     setState(next);
     return true;
   };
-  const frame = useCallback(
-    (widgetId: string) => {
-      setState((s) => chooseTab(s, scope, "canvas"));
-      setFrameRequest((f) => nextFrame(f, widgetId));
-    },
-    [scope],
-  );
-  return { tab, setTab, open, showWorkers, selectedWorker: workerByScope[scope] ?? null, selectWorker, escape, frame, frameRequest };
+  return { tab, setTab, open, showWorkers, selectedWorker: workerByScope[scope] ?? null, selectWorker, escape };
 }
 
 export type DeskPaneModel = ReturnType<typeof useCanvasPane>;

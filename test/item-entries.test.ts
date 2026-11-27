@@ -5,11 +5,10 @@ import type { TranscriptRow } from "../core/attention/transcript.ts";
 import { COMPACTED_TEXT } from "../core/attention/thread.ts";
 import type { SlackReaction } from "../core/frame-types.ts";
 import { ChatMessage, FoldedEntry, MessageEntry } from "../app/src/item/message-entry.tsx";
-import { ContentParts, WidgetArtifact } from "../app/src/item/content-parts.tsx";
+import { ContentParts } from "../app/src/item/content-parts.tsx";
 import { Reactions } from "../app/src/item/reactions.tsx";
 import { ChangeEntry, EventEntry } from "../app/src/item/event-entry.tsx";
 import type { ItemEntry } from "../app/src/item/item-view.ts";
-import type { WidgetMark } from "../app/src/chat/transcript.tsx";
 
 const html = (el: ReturnType<typeof createElement>) => renderToStaticMarkup(el);
 
@@ -28,18 +27,6 @@ const message = (over: Partial<Extract<ItemEntry, { kind: "message" }>> = {}): E
 });
 
 const thumbs = (mine: boolean): SlackReaction => ({ name: "+1", count: 2, mine, emoji: { kind: "emoji", text: "👍" } });
-
-const widget = (over: Partial<WidgetMark> = {}): WidgetMark => ({
-  id: "w1",
-  before: 0,
-  at: "2026-11-11T14:49:00Z",
-  who: "friday",
-  change: "added",
-  title: "Signups chart",
-  widgetId: "chart",
-  gone: false,
-  ...over,
-});
 
 describe("MessageEntry", () => {
   test("a person's message has their initial, name and words, and no reactions footer when it has none", () => {
@@ -147,22 +134,6 @@ describe("ContentParts", () => {
       }),
     );
     expect(out).toMatch(/class="whitespace-pre-wrap"><div>1\. Ledger views\n2\. GST summary views/);
-  });
-});
-
-describe("WidgetArtifact", () => {
-  test("a widget is a framed artifact titled by the widget, with who changed it and a way to the canvas", () => {
-    const out = html(createElement(WidgetArtifact, { mark: widget(), live: false, onFrame: () => {} }));
-    expect(out).toContain("Signups chart");
-    expect(out).toContain("friday added");
-    expect(out).toContain("Show it on the canvas");
-  });
-
-  test("a removed widget says so and offers no way to it; earlier changes are one line", () => {
-    const gone = html(createElement(WidgetArtifact, { mark: widget({ gone: true }), live: false, onFrame: () => {} }));
-    expect(gone).toContain("since removed from the canvas");
-    expect(gone).not.toContain("Show it on the canvas");
-    expect(html(createElement(WidgetArtifact, { mark: widget({ earlier: 3 }), live: false }))).toContain("3 earlier widget changes");
   });
 });
 

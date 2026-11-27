@@ -1,7 +1,5 @@
 import { useMemo } from "react";
-import { scopeFor } from "../../../core/canvas-core.ts";
 import type { AttentionItem } from "../../../core/attention/model.ts";
-import { useInlineWidgets } from "../chat/use-inline-widgets";
 import type { MessageLayout, TranscriptRow } from "../chat/transcript";
 import { avatarUrl } from "../workspace/env";
 import { dayLabel, unreadBoundary } from "../shared/thread";
@@ -12,14 +10,10 @@ export function useThreadLayout(
   item: Pick<AttentionItem, "unread" | "seenAt" | "last_message_at"> | null,
   look: string | null | undefined,
 ): MessageLayout {
-  const { agentId, conversationId, agentName } = chat;
+  const { agentId, agentName } = chat;
   const people = useMemo(() => ({ assistant: { name: agentName ?? "agent", avatar: avatarUrl(agentId) }, user: { name: "You" } }), [agentName, agentId]);
   const dividerAt = unreadBoundary(rows, item?.unread ?? false, item?.seenAt, look);
-  const { widgets, inline } = useInlineWidgets(undefined, scopeFor(conversationId, agentId), rows, agentName ?? null, { readOnly: true });
-  return useMemo(
-    () => ({ people, dividerAt, dividerDay: dayLabel(item?.last_message_at), widgets, inline }),
-    [people, dividerAt, item?.last_message_at, widgets, inline],
-  );
+  return useMemo(() => ({ people, dividerAt, dividerDay: dayLabel(item?.last_message_at) }), [people, dividerAt, item?.last_message_at]);
 }
 
 export function ThreadNotice({ text, status = false }: { text: string; status?: boolean }) {

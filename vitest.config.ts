@@ -4,7 +4,7 @@ import { defineConfig } from "vitest/config";
 const here = (p: string) => fileURLToPath(new URL(p, import.meta.url));
 
 export default defineConfig({
-  resolve: { alias: { "@loki/kit": here("./app/src/kit/index.tsx"), "@": here("./app/src") } },
+  resolve: { alias: { "@": here("./app/src") } },
   test: {
     include: ["test/**/*.test.ts"],
     exclude: ["**/node_modules/**", ".claude/**"],

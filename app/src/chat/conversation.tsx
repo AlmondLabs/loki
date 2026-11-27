@@ -578,7 +578,6 @@ const PhoneThread = forwardRef<ThreadHandle, Omit<ThreadProps, "phone">>(functio
     list,
     status,
     layout?.dividerAt ?? null,
-    layout?.widgets,
     older,
   );
   useImperativeHandle(ref, () => ({ unpin, reveal }), [unpin, reveal]);
@@ -638,10 +637,6 @@ const PhoneThread = forwardRef<ThreadHandle, Omit<ThreadProps, "phone">>(functio
               people={layout?.people}
               dividerAt={layout?.dividerAt}
               dividerDay={layout?.dividerDay}
-              widgets={layout?.widgets}
-              onFrameWidget={layout?.onFrameWidget}
-              onShowDesk={layout?.onShowDesk}
-              inline={layout?.inline}
               from={start}
               above={above}
               arrivedFrom={arrivedFrom}

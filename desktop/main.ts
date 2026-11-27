@@ -26,7 +26,7 @@ import { handleInvokes, sendEvent, sendResizes, windowHandlers, type InvokeHandl
 import { machineNodeInstallHost, NodeInstalls } from "./node-install.ts";
 import { menuBarTemplate, popupTemplate, type MenuSpec, type PopupEntry } from "./menus.ts";
 import { watchPageBuild } from "./page-reload.ts";
-import { APP_ORIGIN, SCHEME, serveApp, serveWidget } from "./scheme.ts";
+import { APP_ORIGIN, SCHEME, serveApp } from "./scheme.ts";
 import { setCatchUpShortcut, trafficLights, waitingMarks } from "./tray.ts";
 import { createUpdater } from "./update/updater.ts";
 import { UPDATE_EVENT } from "./update/updates.ts";
@@ -49,7 +49,6 @@ if (!home) {
   process.exit(1);
 }
 const lokiDir = join(home, ".loki");
-const widgetsDir = process.env.LOKI_WIDGETS_DIR || join(lokiDir, "widgets");
 
 if (!app.isPackaged) {
   const key = createHash("sha256").update(checkout).digest("hex").slice(0, 12);
@@ -266,7 +265,7 @@ void app.whenReady().then(() => {
   protocol.handle(SCHEME, (request) => {
     const url = new URL(request.url);
     if (url.host !== "app") return new Response("not found", { status: 404 });
-    return url.pathname.startsWith("/widgets/") ? serveWidget(widgetsDir, url) : serveApp(pageRoot, url);
+    return serveApp(pageRoot, url);
   });
   handleInvokes<WebFrameMain, WebContents>({
     ipc: ipcMain,

@@ -43,10 +43,7 @@ const atlas: SubagentView = {
 
 describe("Workers UI helpers and views", () => {
   test("workersTabStatus and paneTabs reflect active, failed, and idle worker counts", () => {
-    expect(paneTabs([])).toEqual([
-      { id: "messages", label: "Messages" },
-      { id: "canvas", label: "Canvas" },
-    ]);
+    expect(paneTabs([])).toEqual([]);
 
     expect(workersTabStatus([kestrel])).toMatchObject({ words: "kestrel is working" });
     expect(workersTabStatus([kestrel, { ...ember, status: "running" }])).toMatchObject({ words: "2 workers active" });
@@ -57,7 +54,6 @@ describe("Workers UI helpers and views", () => {
     expect(tabs.map((t) => [t.id, t.label, t.count])).toEqual([
       ["messages", "Messages", undefined],
       ["workers", "Workers", 2],
-      ["canvas", "Canvas", undefined],
     ]);
   });
 

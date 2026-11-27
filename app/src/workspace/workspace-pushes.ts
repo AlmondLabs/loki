@@ -1,4 +1,4 @@
-import type { CanvasState, Scope, WidgetManifestEntry } from "../../../core/canvas-core.ts";
+import type { Scope } from "../../../core/chat-scope.ts";
 import type { FocusEntry } from "../../../core/attention/focus.ts";
 import { parseLanes, type Lane } from "../../../core/attention/lanes.ts";
 import { isReturnTimes, type Rest, type ReturnTimes } from "../../../core/attention/rest.ts";
@@ -7,13 +7,8 @@ import type { PushFrame, Pushes } from "../../../core/frames.ts";
 import { isReasoningEffort, type ReasoningEffort } from "../../../core/models.ts";
 import { keepSame } from "../../../core/same-data.ts";
 import { lanStatusFromFrame, type PairCode, type PairedDevice, type PhoneLanStatus } from "../shared/lan-model";
-import type { CameraTarget } from "./use-workspace";
-import { parseWidgetEntry, withEntry, type WidgetLogs } from "./widget-rows";
 
 export interface DeskSocketState {
-  desks: Partial<Record<Scope, CanvasState>>;
-  widgets: Partial<Record<Scope, WidgetManifestEntry[]>>;
-  cameraTarget: CameraTarget | null;
   deskList: ChatSummary[];
   desksLoaded: boolean;
   titles: Partial<Record<Scope, string>>;
@@ -40,13 +35,9 @@ export interface DeskSocketState {
   servedBuild: string | null;
   recentModels: string[];
   usualModels: Pushes["models_usual"]["usual"];
-  widgetLogs: WidgetLogs;
 }
 
 export const EMPTY_DESK_SOCKET: DeskSocketState = {
-  desks: {},
-  widgets: {},
-  cameraTarget: null,
   deskList: [],
   desksLoaded: false,
   titles: {},
@@ -73,14 +64,9 @@ export const EMPTY_DESK_SOCKET: DeskSocketState = {
   servedBuild: null,
   recentModels: [],
   usualModels: {},
-  widgetLogs: {},
 };
 
 export const STATE_PUSHES: ReadonlySet<PushFrame["type"]> = new Set<PushFrame["type"]>([
-  "canvas",
-  "state",
-  "widgets",
-  "camera",
   "chats",
   "learn_changed",
   "usage_changed",
@@ -93,7 +79,6 @@ export const STATE_PUSHES: ReadonlySet<PushFrame["type"]> = new Set<PushFrame["t
   "app_build",
   "models_recent",
   "models_usual",
-  "widget_change",
   "seen",
   "seen_chat",
   "chat_meta",
@@ -109,24 +94,6 @@ export const NO_YANK_MS = 2000;
 
 export function applyPush(state: DeskSocketState, msg: PushFrame, ctx: PushContext): DeskSocketState {
   switch (msg.type) {
-    case "canvas": {
-      const s = msg.scope;
-      return withParts(state, {
-        ...chatHeader(state, s, msg),
-        agentIds: typeof msg.agent_id === "string" && msg.agent_id ? withScope(state.agentIds, s, msg.agent_id) : state.agentIds,
-        desks: { ...state.desks, [s]: msg.state },
-        widgets: { ...state.widgets, [s]: msg.widgets },
-      });
-    }
-    case "state":
-      return withParts(state, { desks: { ...state.desks, [msg.scope]: msg.state } });
-    case "widgets":
-      return withParts(state, { widgets: { ...state.widgets, [msg.scope]: msg.widgets } });
-    case "camera": {
-      if (typeof msg.widget_id !== "string" || ctx.now - ctx.lastInteraction <= NO_YANK_MS) return state;
-      const widgetIds = Array.isArray(msg.widget_ids) && msg.widget_ids.length ? msg.widget_ids : [msg.widget_id];
-      return withParts(state, { cameraTarget: { widgetId: msg.widget_id, widgetIds, nonce: (state.cameraTarget?.nonce ?? 0) + 1 } });
-    }
     case "chats":
       return withParts(state, { deskList: keepSame(state.deskList, msg.chats), desksLoaded: true });
     case "learn_changed":
@@ -170,10 +137,6 @@ export function applyPush(state: DeskSocketState, msg: PushFrame, ctx: PushConte
       }
       return withParts(state, { usualModels: keepSame(state.usualModels, next) });
     }
-    case "widget_change": {
-      const entry = parseWidgetEntry(msg.entry);
-      return entry ? withParts(state, { widgetLogs: withEntry(state.widgetLogs, entry) }) : state;
-    }
     case "seen": {
       const { seen, viewed, focus, rests, return_times: times, lanes } = msg;
       return withParts(state, {
@@ -195,7 +158,10 @@ export function applyPush(state: DeskSocketState, msg: PushFrame, ctx: PushConte
       });
     }
     case "chat_meta":
-      return withParts(state, chatHeader(state, msg.scope, msg));
+      return withParts(state, {
+        ...chatHeader(state, msg.scope, msg),
+        agentIds: typeof msg.agent_id === "string" && msg.agent_id ? withScope(state.agentIds, msg.scope, msg.agent_id) : state.agentIds,
+      });
     default:
       return state;
   }

@@ -1,5 +1,5 @@
 import { describe, expect, test, vi } from "vitest";
-import { SHARED_SCOPE } from "../core/canvas-core.ts";
+import { SHARED_SCOPE } from "../core/chat-scope.ts";
 import type { ChatSummary, FlowRow } from "../core/frame-types.ts";
 import { RemoteChats, peerChatsReply } from "../mod/remote-chats.ts";
 
@@ -14,7 +14,6 @@ const desk = (conversationId: string, title: string, agentId = "agent-ira"): Cha
   model: null,
   reasoning_effort: null,
   conversation_id: conversationId,
-  widgets: 0,
   active: true,
   last_active: "2026-10-18T10:00:00Z",
 });

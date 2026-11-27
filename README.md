@@ -5,10 +5,9 @@
 <h1 align="center">loki</h1>
 
 <p align="center">
-  <b>A memory palace your agent builds.</b><br>
-  Your own AI agents on macOS, with Windows and Linux in preview, each chat with a canvas:
-  live widgets the agent writes as files, Flow: one deck of everything waiting on you, suggestions an agent writes for
-  your other chats, flashcards from your conversations, and your phone as a remote.
+  <b>Your own AI agents on your own machine.</b><br>
+  Multiple conversations on macOS, with Windows and Linux in preview — Flow: one deck of everything waiting on you,
+  suggestions an agent writes for your other chats, git-backed memory, flashcards from your conversations, and your phone as a remote.
 </p>
 
 <p align="center">
@@ -17,14 +16,6 @@
   <img src="https://img.shields.io/badge/Windows%20%C2%B7%20Linux-preview-1a1a20" alt="Windows and Linux: preview">
   <img src="https://img.shields.io/badge/licence-Apache--2.0-1a1a20" alt="Apache-2.0">
 </p>
-
-<p align="center">
-  <img src="docs/images/desk.png" width="900" alt="A chat's Canvas tab, beside its Messages tab: a plan for Saturday, last night's sleep, the week's runs as a bar chart, a packing list, a run streak, a thermostat slider">
-</p>
-
-Agents talk in text. loki gives yours a canvas. Ask for a chart, a checklist, a slider, a plan for the day, and
-the agent writes a small file; a second later it is on the canvas, and you can drag it, tick it, slide it. What
-you did rides along on your next message, so the agent sees the canvas the way you left it.
 
 > Not [Grafana Loki](https://grafana.com/oss/loki/), the log system.
 
@@ -51,7 +42,7 @@ and [Development](#development).
 
 | | | |
 |---|---|---|
-| **Chats** | ⌘1 | One chat per conversation, its canvas furnished by the agent: five kit widgets from a line of JSON, or any React component it cares to write. Chats sit in a Slack-style sidebar (Pinned, one section per agent, Archived) and open like a channel: **Messages** is the conversation, with a line each time a widget changes; **Canvas** holds the widgets, to pan, zoom, arrange, undo. ⌘K finds any chat, agent or page. |
+| **Chats** | ⌘1 | One chat per conversation, with its transcript and any subagent workers it started. Chats sit in a Slack-style sidebar (Pinned, one section per agent, Archived) and open directly to **Messages** (plus **Workers** when the chat has helpers). ⌘K finds any chat, agent or page. |
 | **Flow** | ⌘2 | Every chat you haven't archived, as cards, highest score first: blocked agents, then what's new, then the chats you have been working in, learned from what you do (a task you move on from fades on its own). Approve and reply inline; a reply keeps the card while the answer streams in. **Read** sets a card aside for a while, **Later** keeps it unread and brings it back in a day, and **Archive** is done. ⌥Space opens it from anywhere on the Mac. |
 | **Agents** | ⌘4 | Your agents listed like Slack's direct messages, with live state and what waits on you. Each has a profile and model, its memory files as a tree, what it learned as a timeline of commits, its reflection settings, and its skills with one-click refresh from upstream. |
 | **Learn** | ⌘5 | Spaced-repetition cards a background writer distils from quiet conversations — only concepts and knowledge that last, never the details of a task — and **leads**: concepts that went by without being understood, each one click from a `[Learn]` lesson the agent teaches in a chat of its own. Off until you switch it on; how many cards a day is yours to set. Deleting a card is the feedback. [How it works](docs/learn.md). |
@@ -160,26 +151,7 @@ a current 64-bit desktop Linux, and:
 On first launch loki asks for a model provider: an API key (Anthropic, OpenAI, Google, OpenRouter, Ollama and
 others) or signing in through the browser (ChatGPT, GitHub Copilot, OpenRouter and others). Anthropic's subscription sign-in is not offered; use an Anthropic API key. The
 key is checked with the provider and kept in your system's keychain, and you pay that provider for what you use.
-Then loki helps you name your first agent; ask it to put something on the canvas.
-
-## Your first widget
-
-Say, in the chat:
-
-> put my runs this week on the canvas as a bar chart
-
-The agent writes one file:
-
-```json
-// ~/.loki/widgets/<desk>/runs.json   (<desk> is the chat's id)
-{ "type": "chart-card", "title": "Runs this week",
-  "data": { "kind": "bar", "yLabel": "km", "points": [ { "x": "Mon", "y": 5.2 }, { "x": "Wed", "y": 8.1 } ] } }
-```
-
-and the chart is on the canvas before the reply finishes. Five kit widgets need only JSON (`stat`, `list-card`,
-`chart-card`, `slider-control`, `info-card`); anything else is a `.tsx` file with a default-exported React
-component. Editing the file changes the widget; deleting it removes it. The [skill](skills/loki/SKILL.md)
-the agent reads is the whole contract.
+Then loki helps you name your first agent and start your first chat.
 
 ## How it works
 
@@ -188,9 +160,6 @@ flowchart LR
   you([you]) <--> app[loki.app<br/>chats, flow, learn]
   app <-->|"/ws frames"| daemon[loki daemon<br/>agents, memory, tools, loki's mod]
   daemon <-->|HTTPS| provider[(model provider)]
-  daemon --> files[("~/.loki/widgets/<br/>.json and .tsx")]
-  files -->|"watched, hot-reloaded"| app
-  app -->|"what you did on the canvas<br/>rides on your next message"| daemon
 ```
 
 Three parts, one repo. An **Electron shell** opens the window and keeps loki's **daemon** running: one process on
@@ -198,8 +167,7 @@ your machine's Node,
 built on Earendil's Pi libraries (pi-durable for the agent loop, pi-ai for the models), that holds every agent's
 chats in a SQLite store per agent, runs the tools under your permission mode, keeps memory as git repos, and saves
 each step before it shows it, so a turn cut off by a crash picks up where it stopped. Inside the daemon runs
-**loki's mod**, which owns the canvas, suggestions and Learn and serves the **React app** over one WebSocket. The app
-watches the widget files, and your gestures on the canvas go back to the agent as context on the next turn.
+**loki's mod**, which owns suggestions, Learn and chat metadata and serves the **React app** over one WebSocket.
 Your messages go to the provider you chose; [SECURITY.md](docs/SECURITY.md#what-leaves-the-machine) lists everything
 else that reaches the network (web search, the update check, MCP servers, an ACP agent).
 [docs/architecture.md](docs/architecture.md) has the long version.
@@ -209,14 +177,12 @@ else that reaches the network (web search, the update check, MCP servers, an ACP
 ```text
 daemon/         loki's daemon (Node): the agent stores on pi-durable, providers and keychain, approvals, tools, memory,
                 reflection, skills, subagents, background and scheduled tasks, the mod registry, ACP agents, MCP
-mod/            loki's own mod, run inside the daemon: canvas, gestures, suggestions, Learn, the sockets for app and phone;
+mod/            loki's own mod, run inside the daemon: suggestions, Learn, the sockets for app and phone;
                 boot.ts re-bundles it on each change in a checkout (no manual build)
-core/           desk-core (types + the pure gesture reducer both halves use), the frame table, attention, recall —
-                portable, no browser globals
-app/            Vite + React: the desktop views, the canvas and the phone
-skills/loki/    the vocabulary the agent reads (kit types, .tsx contract, rules)
+core/           chat scope helpers, the frame table, attention, recall — portable, no browser globals
+app/            Vite + React: the desktop views and the phone
 desktop/        the desktop shell (Electron, TypeScript; macOS, Windows, Linux): finds Node, starts and supervises
-                the daemon, hosts the canvas, updates the app
+                the daemon, hosts the web app, updates the app
 scripts/        dev (`bun run start`), build-desktop (the shell's bundle), build-mod (the daemon and mod bundles the app
                 ships), trial (the timing trial), cask (Homebrew), release (date versions, notes)
 test/           vitest tests, on Node; test-node/ the tests that need Node's own runner (SQLite stores, resuming after a crash)
@@ -228,8 +194,7 @@ docs/           the manual, learn (the mental model), architecture, design direc
 You need Node 22.19 or newer (`brew install node`: it runs Vite, the tests and loki's daemon), bun
 (`brew install oven-sh/bun/bun`: it installs the packages and runs package.json's scripts, each on Node) and Xcode's
 command line tools (`xcode-select --install`, for git). A development window runs the checkout's own daemon,
-`daemon/main.ts`, which hosts the built-in mod directly. On a machine that has never run loki,
-it also links `~/.agents/skills/loki` to `skills/loki`, and leaves anything already there alone.
+`daemon/main.ts`, which hosts the built-in mod directly.
 
 ```bash
 bun install
@@ -260,10 +225,8 @@ release's files included.
 - [Design](docs/design.md): Slack's look on the desktop and the phone, and the token contract that keeps it so.
 - [Contributing](docs/CONTRIBUTING.md), [Security](docs/SECURITY.md), [Releasing](docs/releasing.md).
 
-Two rules hold everywhere: no real money amounts on screen, in the repo or in recordings, ever (the usage page's
-estimate of what your agents spent is the one exception, and its fixtures are made up); and widget code
-runs in a sandboxed frame that cannot reach the network or the daemon, but treat it like the agent's own commands:
-an agent that may write files may do much more.
+One rule holds everywhere: no real money amounts on screen, in the repo or in recordings, ever (the usage page's
+estimate of what your agents spent is the one exception, and its fixtures are made up). Treat agent actions like your own commands: an agent that may write files or run commands can touch anything you can.
 
 ## Licence
 

@@ -1,7 +1,6 @@
 import { createHash } from "node:crypto";
 import { readFile, stat } from "node:fs/promises";
 import { extname, join } from "node:path";
-import { widgetModule } from "../app/src/frame/widget-module.ts";
 
 export const SCHEME = "loki";
 export const APP_ORIGIN = `${SCHEME}://app`;
@@ -59,7 +58,6 @@ export function pageCsp(scriptHashes: string[]): string {
     "font-src 'self' data:",
     "connect-src 'self' http://127.0.0.1:* ws://127.0.0.1:* https: wss:",
     "media-src 'self' blob: data:",
-    `frame-src ${APP_ORIGIN}/widget-frame.html`,
     "object-src 'none'",
     "base-uri 'none'",
   ].join("; ");
@@ -79,7 +77,7 @@ export async function serveApp(root: string, url: URL): Promise<Response> {
   }
   const cacheControl = file.startsWith("assets/") ? "public, max-age=31536000, immutable" : "no-cache";
   const headers: Record<string, string> = { "content-type": contentType(file), "cache-control": cacheControl };
-  if (file.endsWith(".html") && file !== "widget-frame.html") {
+  if (file.endsWith(".html")) {
     let csp: string | null = null;
     try {
       const st = await stat(full);
@@ -95,19 +93,4 @@ export async function serveApp(root: string, url: URL): Promise<Response> {
     headers["content-security-policy"] = csp;
   }
   return new Response(new Uint8Array(body.buffer as ArrayBuffer, body.byteOffset, body.byteLength), { headers });
-}
-
-export async function serveWidget(widgetsDir: string, url: URL): Promise<Response> {
-  let rel: string;
-  try {
-    rel = decodeURIComponent(url.pathname.replace(/^\/widgets\//, ""));
-  } catch {
-    return new Response("not found", { status: 404 });
-  }
-  const code = url.pathname.startsWith("/widgets/") ? await widgetModule(widgetsDir, rel) : null;
-  if (code === null) return new Response("not found", { status: 404 });
-  const cacheControl = url.searchParams.has("v") ? "public, max-age=31536000, immutable" : "no-store";
-  return new Response(code, {
-    headers: { "content-type": "text/javascript; charset=utf-8", "access-control-allow-origin": "*", "cache-control": cacheControl },
-  });
 }

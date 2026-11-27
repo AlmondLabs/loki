@@ -1,4 +1,4 @@
-import { SHARED_SCOPE, type Scope } from "../core/canvas-core.ts";
+import { SHARED_SCOPE, type Scope } from "../core/chat-scope.ts";
 import type { ChatSummary, FlowRow } from "../core/frame-types.ts";
 import { pushMeaning } from "../core/frames.ts";
 import { messageOf } from "../core/errors.ts";

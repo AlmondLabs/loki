@@ -29,7 +29,7 @@ when you ask loki to install Node, npm for an ACP adapter) is listed under
 - **The page** (`app/`, React) runs in Electron's Chromium, from loki's own `loki://app` scheme, with context
   isolation and the renderer sandbox on and no Node in the page. It reaches the shell only through
   `window.lokiDesktop`, which the preload (`desktop/preload.ts`) defines, and main answers a call only when it comes
-  from a top frame on loki's own page (`desktop/ipc.ts`): a widget's frame, or any other page, gets nothing. What it
+  from a top frame on loki's own page (`desktop/ipc.ts`): any other page gets nothing. What it
   can ask for is a fixed list: set the window's title and theme, hide, minimise, maximise and close it (the window
   buttons loki draws on Windows and Linux), the system's file or folder dialog (which hands back only what you pick),
   hand an `http`, `https`, `mailto` or `tel` link to the app your system opens it with (anything else opens nothing),
@@ -69,7 +69,7 @@ Agents and chats). The model:
   choice is persisted (`~/.loki/state/lan.json`) and the rail shows a green dot on the settings
   icon while it is on.
 - **The page's code is public while it is on.** The listener (`0.0.0.0:41415`, `LOKI_LAN_PORT`) serves the
-  canvas build to anyone on the same network, unauthenticated: that is the app's JavaScript and a `/health` answer
+  web app build to anyone on the same network, unauthenticated: that is the app's JavaScript and a `/health` answer
   (the build id and the number of connected phones), nothing else. Every
   *action* — the `/ws` socket, uploads, agent faces — needs a paired device.
 - **Pairing.** "pair a phone" mints a six-character code (alphabet without 0/O/1/I) that lives ten minutes
@@ -119,7 +119,7 @@ server or account is involved.
   answered only for requests that arrive over Tailscale (a `100.64.0.0/10` peer that reached this Mac's own tailnet
   address, or `tailscale serve`); over the Wi‑Fi they get 403, also on a Wi‑Fi that hands out `100.x` addresses of
   its own. They use the phone listener's port, which stays up while any Mac is paired even with the
-  phone switch off; the phone's routes and the canvas then answer 404 and no phone's cookie opens anything.
+  phone switch off; the phone's routes and the web app then answer 404 and no phone's cookie opens anything.
 - **Pairing is mutual and needs a code.** A Mac shows a six-character code that lives ten minutes, separate from the
   phone's codes, with the same wrong-code limit, and pairs one Mac: its first use spends it, since a paired Mac
   receives this Mac's mods and MCP servers. Each Mac mints a 32-byte token for the other: it keeps only the
@@ -133,7 +133,7 @@ server or account is involved.
   every chat). A Mac you forgot on purpose is kept in `~/.loki/state/peers-forgotten.json` and never invited back;
   pairing it again by code clears that.
 - **A paired Mac is not the desktop.** Its socket may send only the frames marked for Macs (`PEER_FRAMES`): chat,
-  history, canvas and folder frames for chats that live on this Mac, and the sync frames. Never pairing, device or
+  history and folder frames for chats that live on this Mac, and the sync frames. Never pairing, device or
   phone settings. A phone's frame is checked against the phone's own limits on its own Mac before it is passed on.
 - **What travels.** Over WireGuard, between your Macs: chats you open on the other Mac, agent records and memory
   (as git bundles), Inbox marks, pins, label colours, Learn's files, your MCP server entries and your mods, and files
@@ -227,7 +227,7 @@ mode would not have asked.
 - **Slack, Jira and Flow.** `slack_read`, `jira_read`, `flow_list` and `people_find` (`mod/account-ops/script-tools.ts`,
   plans 097 and 2026-11-14-1530) only read, with the readers a hand-off uses, for accounts the chat's agent owns, checked at every call; a call naming
   another agent's account is refused without saying whose it is.
-- **loki's own tools.** The history, schedule, canvas and `chat_list` tools are script-only (plan 099). Their reads
+- **loki's own tools.** The history, schedule and `chat_list` tools are script-only (plan 099). Their reads
   run without a card in standard mode, as they did as the model's tools; creating or cancelling a scheduled task asks
   once a script, at that call, where it asked once a call before. A chat on an ACP agent runs loki's `script` tool
   without the agent asking first, as it ran the history tools before.
@@ -375,21 +375,11 @@ emoji per mail (plan 2026-11-23-1800).
   secrets share the keychain service "loki" with provider keys, so anything that may read one of loki's keychain
   entries may read the others.
 
-## Agent-written code
-
-The point of loki is that your agent writes widgets: files under `~/.loki/widgets/<chat>/`. A `.tsx` widget is
-compiled by the shell on request (`loki://app/widgets/…`) and runs in its own sandboxed iframe
-(`sandbox="allow-scripts"`, an opaque origin). The frame's policy allows no fetch, XHR, WebSocket or EventSource
-(`connect-src 'none'`), no frames, workers or forms, and images only from `data:`, `blob:` and `https:`; the frame
-never sees the daemon token, and talks to the page only by `postMessage`, which the page checks
-(`app/src/workspace/widget-bridge.ts`). A widget can still show an `https:` image, which tells that server the widget was
-shown. Treat widgets the way you treat the agent's shell commands: the permission mode you choose per chat (strict,
-standard, accept edits, unrestricted) governs whether the agent may write files at all, and an agent that may run
-commands can do anything you can.
+## Page security policy
 
 The page's Content Security Policy, which the shell sends with the page as a header (`pageCsp` in
-`desktop/scheme.ts`), allows scripts only from the app itself, its own inline scripts by their hashes, and the
-`loki://app/widgets/` compiler: no remote scripts, no `eval`.
+`desktop/scheme.ts`), allows scripts only from `loki://app` and its own inline scripts by their hashes: no remote
+scripts, no `eval`.
 
 ## Secrets
 
@@ -422,7 +412,8 @@ The page's Content Security Policy, which the shell sends with the page as a hea
   installer asks for your administrator password itself. loki never updates or removes that Node. On Linux, Welcome
   shows the commands for you to run instead. On a Mac without Apple's command line tools, Welcome's Install Command
   Line Tools runs `xcode-select --install`, which only shows macOS's own installer for you to accept; on Linux without
-  git, Welcome names the package command for you to run. The daemon, the mod and the phone's canvas come inside the
+Line 425 -> line after refactor:
+  git, Welcome names the package command for you to run. The daemon, the mod and the web app come inside the
   app and are copied to `~/.loki` on launch.
 - **Updates, signed and checked before they install.** A release build asks GitHub for its channel's `desktop.json`
   (the newest stable's, or the rolling nightly's, as you chose in About) over HTTPS, at launch and every six hours.
@@ -464,7 +455,7 @@ The page's Content Security Policy, which the shell sends with the page as a hea
 ## Where data lives
 
 - Everything loki keeps is under `~/.loki` (`LOKI_DIR` overrides it): each agent's chats in a SQLite store
-  (`stores/`), agent records and memory repos (`backend/`), widgets, small state files (`state/`, the usage ledger
+  (`stores/`), agent records and memory repos (`backend/`), small state files (`state/`, the usage ledger
   `state/usage.json` among them), your mods (`mods/`), Learn's cards, files you attach (`uploads/`), the pictures in
   messages (`chat-images/`), and logs (`logs/daemon.log`, `mod.log`). The beads store of the retired Tasks (`tasks/`)
   stays where it was; loki reads it only to move each open task into a suggestion once, and never writes it.
@@ -493,7 +484,7 @@ The page's Content Security Policy, which the shell sends with the page as a hea
     and your workspaces' `*.slack.com` addresses) and to your Jira sites (the address you typed, once, then the site's
     API host), as [Accounts](#accounts-gmail-slack-and-jira) describes; mail, Slack and Jira text then goes to your
     model provider only through a hand-off or the owner's account tools.
-11. Whatever your agent's own commands, its ACP agent and your widgets' images reach.
+11. Whatever your agent's own commands and its ACP agent reach.
 
 ## Reporting
 

@@ -1,6 +1,6 @@
 import { createServer } from "node:http";
 import { describe, expect, test } from "vitest";
-import type { Scope } from "../core/canvas-core.ts";
+import type { Scope } from "../core/chat-scope.ts";
 import type { Audience, LokiServer, WsBridge } from "../mod/server.ts";
 import { Sockets, type PhoneListener } from "../mod/sockets.ts";
 

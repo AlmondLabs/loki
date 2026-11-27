@@ -1,4 +1,4 @@
-import type { Scope } from "../core/canvas-core.ts";
+import type { Scope } from "../core/chat-scope.ts";
 import type { Audience, LokiServer, WsBridge } from "./server.ts";
 
 export type PushTo = "everyone" | "desktop" | "macs";

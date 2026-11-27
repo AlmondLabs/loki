@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, renameSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
-import type { Scope } from "../core/canvas-core.ts";
-import { MAIN_CHAT_ID, mainChatAgent, scopeFor, SHARED_SCOPE } from "../core/canvas-core.ts";
+import type { Scope } from "../core/chat-scope.ts";
+import { MAIN_CHAT_ID, mainChatAgent, scopeFor, SHARED_SCOPE } from "../core/chat-scope.ts";
 import { backendDir as defaultBackendDir } from "./agents.ts";
 import type { ReasoningEffort } from "../core/models.ts";
 import { writeJsonAtomic } from "./json-file.ts";

@@ -1,7 +1,7 @@
 import { modeOf } from "../core/chat-links.ts";
 import type { Context } from "@earendil-works/chord/context";
 import type { CommitPublication, ConversationId, EntryRecord } from "@earendil-works/pi-durable";
-import { conversationDirName, isMainChat, scopeFor, type Scope } from "../core/canvas-core.ts";
+import { conversationDirName, isMainChat, scopeFor, type Scope } from "../core/chat-scope.ts";
 import { contentText, isScheduledPrompt, ownText, stripHarnessMarkup } from "../core/harness.ts";
 import { COMPACTION, entrySteps, messageAt, type ImageNamer, type PiMessage } from "../core/attention/pi-steps.ts";
 import { foldSteps, ThreadModel, type StoredStep } from "../core/attention/thread.ts";

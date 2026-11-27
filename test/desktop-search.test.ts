@@ -27,7 +27,6 @@ const desk = (scope: string, over: Partial<ChatSummary> = {}): ChatSummary => ({
   model: null,
   reasoning_effort: null,
   pinned: false,
-  widgets: 0,
   active: false,
   last_active: "2026-09-08T10:00:00Z",
   ...over,

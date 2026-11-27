@@ -24,13 +24,11 @@
   --loki-mark-jira: #8ab4f8;
   --loki-mention: oklch(27% 0.03 85);
   --loki-mention-bar: #ffd60a;
-  --loki-grid: #2c2c2e;
   --loki-well: #1c1c1e;
   --loki-bubble: #1c1c1e;
   --loki-user-bubble: #2c2c2e;
   --loki-code: #2c2c2e;
   --loki-veil: rgba(0, 0, 0, 0.5);
-  --loki-brass-glow: rgba(61, 155, 255, 0.25);
   --loki-shadow-sheet: 0 -4px 24px rgba(0, 0, 0, 0.45);
   --loki-shadow-float: 0 10px 28px rgba(0, 0, 0, 0.35);
   --loki-shadow-panel: 0 4px 12px rgba(0, 0, 0, 0.28);
@@ -127,13 +125,11 @@
   --loki-mark-jira: #1558bc;
   --loki-mention: #fff8e0;
   --loki-mention-bar: #e8a33a;
-  --loki-grid: #e5e5ea;
   --loki-well: #ffffff;
   --loki-bubble: #ffffff;
   --loki-user-bubble: #eef4fd;
   --loki-code: #f2f2f4;
   --loki-veil: rgba(0, 0, 0, 0.25);
-  --loki-brass-glow: rgba(0, 100, 214, 0.16);
   --loki-shadow-sheet: 0 -4px 24px rgba(0, 0, 0, 0.14);
   --loki-shadow-float: 0 8px 24px rgba(0, 0, 0, 0.12);
   --loki-shadow-panel: 0 4px 12px rgba(0, 0, 0, 0.09);
@@ -3243,17 +3239,6 @@ html[data-nav="fade"]:has(.loki-phone-shell)::view-transition-new(root) {
   .loki-phone {
     --phone-dur-fast: 0ms;
   }
-}
-.loki-phone .loki-inline-widget {
-  margin: var(--phone-space-1) 0 var(--phone-space-3) 44px;
-  max-width: calc(100% - 44px);
-  border-radius: var(--phone-radius-md);
-}
-.loki-phone .loki-inline-widget-head {
-  font-size: var(--phone-text-meta);
-}
-.loki-phone .loki-inline-widget-note {
-  font-size: var(--phone-text-body);
 }
 
 .loki-phone-row-agent {

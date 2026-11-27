@@ -1,6 +1,6 @@
 import type { AttentionItem } from "../../../core/attention/model.ts";
 import { catchUpQueue } from "../../../core/attention/queue.ts";
-import { isMainChat, scopeFor } from "../../../core/canvas-core.ts";
+import { isMainChat, scopeFor } from "../../../core/chat-scope.ts";
 
 import {
   GROUP_MAX,
@@ -76,7 +76,7 @@ export const DESTINATIONS: readonly Page[] = [
     icon: "desk",
     label: "Chats",
     line: "The chat you were on",
-    keywords: ["chats", "desks", "desk", "canvas", "home"],
+    keywords: ["chats", "desks", "desk", "home"],
   },
   {
     key: "page:inbox",

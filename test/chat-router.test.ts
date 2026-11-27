@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { ChatDirectory } from "../mod/chat-directory.ts";
-import { ChatRouter, scopeOfFrame } from "../mod/chat-router.ts";
+import { ChatRouter } from "../mod/chat-router.ts";
 import { PeerRefusal } from "../mod/peer-link.ts";
 
 const BOOK = "aaaaaaaa-1111-4111-8111-111111111111";
@@ -30,20 +30,11 @@ const router = () =>
   });
 
 describe("which frames go to another Mac", () => {
-  test("a chat frame naming its chat, and a canvas frame naming its desk or widget, go to the Mac they live on", async () => {
+  test("a chat frame naming its chat goes to the Mac it lives on", async () => {
     const r = router();
     expect(r.target({ type: "chat_send", conversation_id: "conv-1", agent_id: "a" })).toEqual({ mac: MINI, reachable: true });
     expect(await r.target({ type: "chat_send", conversation_id: "conv-2" })).toBeNull();
-    expect(r.target({ type: "gesture", gesture: { id: "conv-1/w", kind: "focus" } })).toEqual({ mac: MINI, reachable: true });
-    expect(r.target({ type: "canvas_get", scope: "conv-1" })).toEqual({ mac: MINI, reachable: true });
     expect(r.target({ type: "seen_mark", conversation_id: "conv-1" })).toBeNull();
-  });
-
-  test("the desk a canvas frame names", () => {
-    expect(scopeOfFrame({ scope: "d1" })).toBe("d1");
-    expect(scopeOfFrame({ id: "d1/w" })).toBe("d1");
-    expect(scopeOfFrame({ gesture: { id: "d2/chart" } })).toBe("d2");
-    expect(scopeOfFrame({ id: "no-slash" })).toBeNull();
   });
 
   test("an unreachable home is not asked: the client hears that the chat waits for it", async () => {
@@ -92,12 +83,11 @@ describe("a change to another Mac's chat", () => {
 });
 
 describe("which pushes from another Mac are passed on here", () => {
-  test("only those about its own chats and desks, so three Macs never echo each other", () => {
+  test("only those about its own chats, so three Macs never echo each other", () => {
     const r = router();
     expect(r.relay(MINI, { type: "chat_event", conversation_id: "conv-1", agent_id: "a", events: [] })).toEqual({});
     expect(r.relay(THIRD, { type: "chat_event", conversation_id: "conv-1", events: [] })).toBe(false);
     expect(r.relay(MINI, { type: "chat_event", conversation_id: "conv-2", events: [] })).toBe(false);
-    expect(r.relay(MINI, { type: "state", scope: "conv-1", state: {} })).toEqual({ scope: "conv-1" });
     expect(r.relay(MINI, { type: "peers" })).toBe(false);
   });
 });

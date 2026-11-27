@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ChatRegistry, hiddenScopes } from "../mod/chats.ts";
-import { scopeFor } from "../core/canvas-core.ts";
+import { scopeFor } from "../core/chat-scope.ts";
 
 describe("desk registry", () => {
   test("remembers, persists, reloads; scope is the sanitized conversation id", () => {

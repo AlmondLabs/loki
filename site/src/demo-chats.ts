@@ -86,13 +86,13 @@ function startingChats(): DemoChat[] {
       rows: [
         user("Find me a flat in Lisbon for the second weekend of March, walkable to the old town, under €140 a night."),
         agent(
-          "Three fit:\n\n1. **Alfama, top floor**: €118 a night, river view, 4 minutes to the cathedral.\n2. **Graça, with a terrace**: €132, quiet street, the 28 tram at the corner.\n3. **Mouraria, two rooms**: €109, the cheapest, but no lift and four floors.\n\nShould I put them on the canvas side by side, with the walk to each?",
+          "Three fit:\n\n1. **Alfama, top floor**: €118 a night, river view, 4 minutes to the cathedral.\n2. **Graça, with a terrace**: €132, quiet street, the 28 tram at the corner.\n3. **Mouraria, two rooms**: €109, the cheapest, but no lift and four floors.\n\nShould I compare them side by side with the walk to each?",
         ),
       ],
       answer: (text) =>
         /no|not/i.test(text)
           ? "Understood. I'll keep looking and come back with others by tonight."
-          : "Done: the three are on the canvas with prices, the walk from each and a map. The Alfama one has two other enquiries this week, so I'd decide soon.",
+          : "Done: the three are compared with prices and the walk from each. The Alfama one has two other enquiries this week, so I'd decide soon.",
     },
     {
       id: "groceries",
@@ -101,7 +101,7 @@ function startingChats(): DemoChat[] {
       minutesAgo: 24,
       rows: [
         user("Plan dinners for this week, nothing that takes more than 30 minutes."),
-        agent("Five dinners are on the canvas. One thing before I write the list:"),
+        agent("I've planned five dinners. One thing before I write the list:"),
       ],
       question: {
         questions: [
@@ -136,7 +136,7 @@ function startingChats(): DemoChat[] {
       minutesAgo: 180,
       rows: [
         user("Draft the release notes from the merged pull requests."),
-        agent("A draft is on the canvas: 4 features, 9 fixes, grouped for people who use it rather than by folder."),
+        agent("I've drafted the release notes: 4 features, 9 fixes, grouped for people who use it rather than by folder."),
       ],
       answer: () => "Changed. I've tightened the wording and moved the fixes under the features.",
     },

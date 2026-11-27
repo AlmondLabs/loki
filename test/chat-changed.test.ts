@@ -25,6 +25,7 @@ const title = (conversationId: string): ChatMetaFrame => ({
   scope: conversationId,
   title: "renamed",
   status: "archived",
+  agent_id: null,
   agent_name: null,
   model: null,
   reasoning_effort: null,

@@ -47,7 +47,7 @@ describe("the demo's Inbox", () => {
     timers.flush();
     const rows = chats.threadRows("ira", "lisbon") ?? [];
     expect(rows.at(-2)).toEqual({ role: "user", text: "yes please" });
-    expect(rows.at(-1)?.text).toContain("on the canvas");
+    expect(rows.at(-1)?.text).toContain("Done: the three are compared");
     expect(chats.conversation("ira", "lisbon").status).toBe("idle");
     expect(chats.items().find((i) => i.id === "lisbon")?.unread).toBe(true);
     expect(heard).toBeGreaterThan(3);

@@ -86,10 +86,6 @@ body {
 }
 
 .site-hero {
-  display: grid;
-  grid-template-columns: minmax(0, 5fr) minmax(0, 8fr);
-  gap: 48px;
-  align-items: start;
   max-width: var(--site-max);
   margin: 0 auto;
   padding: 56px var(--site-gutter) 96px;
@@ -220,16 +216,6 @@ body {
   color: var(--loki-muted);
 }
 
-.site-canvas {
-  position: relative;
-  overflow: hidden;
-  background-image: radial-gradient(circle, var(--loki-grid) 1.2px, transparent 1.5px);
-  background-size: 22px 22px;
-}
-.site-canvas-plane {
-  position: relative;
-  transform-origin: 0 0;
-}
 .site-told {
   margin-top: 14px;
   border: 1px solid var(--loki-border);

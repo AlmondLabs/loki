@@ -1,6 +1,6 @@
 import type { ChatLink, LinkDuration } from "../chat-links.ts";
 import type { AppliedModel, ModelSelection } from "../models.ts";
-import { isMainChat } from "../canvas-core.ts";
+import { isMainChat } from "../chat-scope.ts";
 import { keepSame } from "../same-data.ts";
 import type { ChatClient, NewAgentOptions } from "./chat-client.ts";
 import { buildQuestionAnswer, environmentNote, type Attachment, type EnvNoteTold } from "./content.ts";

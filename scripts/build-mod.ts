@@ -94,7 +94,6 @@ for (const { name, dir } of [{ name: "@napi-rs/keyring", dir: keyring }, ...bina
   cpSync(dir, `${out}/daemon/node_modules/${name}`, { recursive: true, dereference: true });
 }
 for (const file of ["package.json", "quickjs.wasm"]) cpSync(join(quickjs, file), `${out}/daemon/node_modules/quickjs-wasi/${file}`);
-cpSync(here("../skills/loki"), `${out}/skills/loki`, { recursive: true });
 
 if (hasApp) {
   cpSync(appDist, `${out}/app`, { recursive: true });
@@ -110,5 +109,5 @@ if (hasApp) {
   console.log("mod bundled → desktop/resources/ (with app/dist for phones)");
 } else {
   console.log("mod bundled → desktop/resources/");
-  console.log("note: app/dist not found — phones get a 'run bun run build:app' page until the canvas is built and build:mod runs again");
+  console.log("note: app/dist not found — phones get a 'run bun run build:app' page until the web app is built and build:mod runs again");
 }

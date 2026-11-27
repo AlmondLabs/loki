@@ -20,7 +20,7 @@ gap from a tool result to the next model request was 1 ms against 23 ms.
 
 ## The four responsibilities
 
-Picture the agent as a worker with a brain, a memory, a pair of hands and a canvas. Each is a separate job, and
+Picture the agent as a worker with a brain, a memory, a pair of hands and an interface. Each is a separate job, and
 knowing which job a piece of code does tells you where it runs.
 
 1. **The model: the thinking.** A provider's language model (Anthropic, OpenAI, Google, OpenRouter, a local
@@ -32,11 +32,11 @@ knowing which job a piece of code does tells you where it runs.
 3. **The hands: the tools.** Shell commands, file reads and edits, search, web search, subagents, background and
    scheduled tasks. They run inside the daemon (or as its child processes) on your machine, under the chat's
    permission mode, because this is the machine that has your files.
-4. **The canvas: what you see.** loki's own mod, running inside the daemon, owns each chat's widgets, gestures,
-   suggestions, Learn and the sockets the app connects to. The React app renders it in three clients: the desktop window, a
-   browser tab on the same machine, and a paired phone.
+4. **The app and mod: what you see.** loki's own mod, running inside the daemon, owns Flow, suggestions, Learn and the
+   sockets the app connects to. The React app renders it in three clients: the desktop window, a browser tab on the
+   same machine, and a paired phone.
 
-Only the first lives elsewhere. The memory, the hands and the canvas are all on your machine, in one process.
+Only the first lives elsewhere. The memory, the hands and the mod are all on your machine, in one process.
 
 ## Which of these are processes
 
@@ -47,7 +47,7 @@ loki (Electron main process, desktop/main.ts)     windows, loki:// scheme, menus
       --dir ~/.loki --mod …/loki-mod.mjs
       --token-file ~/.loki/token --parent-pid <loki's pid>
     ├── pi-durable Harness per agent              ~/.loki/stores/<agentId>.sqlite
-    ├── loki's mod (canvas, Learn, /ws)           listens on 127.0.0.1:41414, and 0.0.0.0:41415 when the phone is on
+    ├── loki's mod (Flow, Learn, /ws)             listens on 127.0.0.1:41414, and 0.0.0.0:41415 when the phone is on
     └── children: bash commands, background tasks, git, ripgrep
 ```
 
@@ -93,24 +93,20 @@ The model is a remote service, not a process on your machine.
 
 ## The shell and the page
 
-1. **One scheme serves the page and the widgets.** Main registers `loki` as a privileged scheme (`desktop/scheme.ts`).
+1. **One scheme serves the page.** Main registers `loki` as a privileged scheme (`desktop/scheme.ts`).
    `loki://app/` serves `app/dist` (from the app's resources in a release, the checkout's in development), each HTML
-   page with its Content Security Policy as a response header, the hashes of its inline scripts included; the widget
-   frame's document keeps its own, stricter policy in a meta tag.
-   `loki://app/widgets/<chat>/<name>.js` compiles that chat's `.tsx` or `.jsx` widget under `~/.loki/widgets` with
-   esbuild and the import rewrite the Vite tab uses too (`app/src/frame/widget-module.ts`), served with `no-store`; a
-   path with `..`, `\` or `:` answers 404, and a widget that does not compile is a module that throws its file name and
-   the error. Under `bun run dev` the window loads Vite's URL instead, and under `bun run start` main reloads the
+   page with its Content Security Policy as a response header, the hashes of its inline scripts included.
+   Under `bun run dev` the window loads Vite's URL instead, and under `bun run start` main reloads the
    windows when the page build replaces `app/dist/index.html` (`desktop/page-reload.ts`).
 2. **One bridge, checked on every call.** The windows run with context isolation and the renderer sandbox on, and no
    Node. The preload (`desktop/preload.ts`) gives the page `window.lokiDesktop`, with `invoke` and `listen`; the
    page's side is `app/src/shell/desktop.ts`, and `inDesktop` gates every call, so a browser tab and the phone never
-   make one. Main answers a command only when it comes from a top frame on the page's own origin (`desktop/ipc.ts`),
-   so a widget's frame gets nothing. The preload asks main for `window.__LOKI__` (the token, the mod's port, the chat
+   make one. Main answers a command only when it comes from a top frame on the page's own origin (`desktop/ipc.ts`).
+   The preload asks main for `window.__LOKI__` (the token, the mod's port, the chat
    to open, the system, and for the Settings window which page) over that same check, so the token is never on a
    command line, in a URL or in the environment. Commands, events and their payloads keep the names the Tauri shell
    had (`daemon_status`, `loki:runtime`, `loki:update`). A link leaves loki only for `http`, `https`, `mailto` and
-   `tel` (`open_url`); a window the page or a frame opens is never created, its address handed to the browser when it
+   `tel` (`open_url`); a window the page opens is never created, its address handed to the browser when it
    is a web or mail address, and navigation away from the page's origin is refused.
 3. **Two windows.** The main window opens at 1440 × 900 (at least 900 × 600) and Settings at 820 × 600 (at least
    680 × 460), one of each (`desktop/windows.ts`). On the Mac the title bar is hidden, the traffic lights sit where
@@ -174,7 +170,7 @@ every chat gets, the chats, then the mods.
    when the store reopens. One file per agent spreads the writes, and a storage failure closes only that agent's chats;
    the store manager (`StoreManager`, `kernel/stores.ts`) reopens it. pi-durable numbers its own conversations, so a
    document in each store maps loki's chat ids (`local-conv-…`, and `default` for an agent's main chat) to them. A chat
-   keeps its id for life, and its widgets, Inbox marks, pins and suggestions are keyed by it. An update that changes
+   keeps its id for life, and its Inbox marks, pins and suggestions are keyed by it. An update that changes
    what pi-durable's schema holds migrates it on open, after a whole copy to `stores/backup-schema-<version>-<date>/`
    (`daemon/store-backup.ts`).
 2. **Agent records and memory (`daemon/store/agents.ts`, `daemon/memory.ts`, `daemon/memory-search.ts`).** Under `~/.loki/backend`:
@@ -228,7 +224,7 @@ every chat gets, the chats, then the mods.
    `loki.scripts` extension wraps the `codemode` tool so a script sees only the script-only tools (`callers:
    ["tools"]`) and the file tools, runs one at a time in a round, and always has a deadline; its section shows only
    where the tool is offered. Every chat that does not name its tools outright is offered `codemode` (plan 099), whose
-   description is loki's own, shorter than Code Mode's; the history, schedule, canvas and `chat_list` tools are
+   description is loki's own, shorter than Code Mode's; the history, schedule and `chat_list` tools are
    script-only, so every agent has tools for it. The release
    bundle carries the sandbox's worker (`codemode-worker.mjs`) and the QuickJS wasm beside `daemon.mjs`, and
    `daemon.mjs --check-scripts` runs one script for the smoke test.
@@ -327,7 +323,7 @@ every chat gets, the chats, then the mods.
       `advisorModel`'s choice (the agent's `advisor_model`, else its own model when that is loki's, else a refusal),
       in the chat's folder, in standard mode, with the tool list below and the `loki.advisor` extension, which only
       a chat that adds it gets (`ADDED_ONLY` in `daemon/kernel/`). The extension adds the advisor's prompt section,
-      reads memory as read-only, drops the replies, canvas, accounts and MCP sections, and gives the advisor
+      reads memory as read-only, drops the replies, accounts and MCP sections, and gives the advisor
       model-callable `ls`, `find` and `grep` that never follow links and history tools it calls without a script,
       since its list has no `codemode`. `followFolder` moves the advisor to its chat's folder before each consult;
       `adopt` remakes it from a moved record, re-applying what the record does not carry.
@@ -364,24 +360,13 @@ hands it the memory repos and their queue (`memory`, plan 046), this Mac's insta
 (`macId`), the keychain (`secrets`), the suggestions on each chat's record (`suggestions`), the link card (`askLink`), the dev reload's restart
 and build (`daemon`) and the usage ledger (`usage`). Built-in product code and the daemon share the `daemon/daemon.mjs` bundle.
 
-1. **The canvas.** Widget files in `~/.loki/widgets/<desk>/` (`.json` kit widgets and `.tsx` React components),
-   watched and pushed to the app; each chat's geometry and widget change log. A `.tsx` widget is agent-written code,
-   so the app runs each in its own sandboxed iframe (`sandbox="allow-scripts"`, an opaque origin, `connect-src
-   'none'`): it never sees the daemon token, the page or the network, and talks to the page only by `postMessage`,
-   which `app/src/workspace/widget-bridge.ts` checks (its data, `onSet`, its size, focus, and http(s) links). The frame
-   document is `app/src/frame/`, served as `/widget-frame.html`; main hands `__LOKI__` and its token only to the
-   top-level page, and the frame deletes `__LOKI__` and `lokiDesktop` before a widget runs, should either be there.
-2. **Gestures.** What you did on the canvas since the last turn, appended to your next message by the mod's message
-   transform.
-3. **The agent's tools.** `canvas_read` (the canvas as you left it), `canvas_focus` (move your view to a widget),
-   `chat_list` (the agents and open chats on this Mac and the paired Macs, with each chat's purpose line and its
-   links), `suggestion_create`, `chat_message` and `advisor_consult` (item 9). The first three are scripts' only (plan
-   099); a `canvas` prompt
-   section tells every chat that widgets are files it writes. These are marked
+1. **The agent's tools.** `chat_list` (the agents and open chats on this Mac and the paired Macs, with each chat's purpose line and its
+   links), `suggestion_create`, `chat_message` and `advisor_consult` (item 7). `chat_list` is scripts' only (plan
+   099). These are marked
    read-only and listed in `NEVER_ASK` (`daemon/approvals.ts`), so no mode asks about them, and a call from a
    background pass fails, as does `advisor_consult` from an advisor chat; `chat_message` asks on its own link card
    instead.
-4. **Suggestions** (`mod/suggestions.ts`). A chat's suggestions live on its own record, in its store on its home Mac,
+2. **Suggestions** (`mod/suggestions.ts`). A chat's suggestions live on its own record, in its store on its home Mac,
    so they persist with no file of their own and move with the chat. That Mac carries out every action: a client
    sends `suggestion_decide` (send, draft, reject) or `suggestion_retarget`, routed by the chat like any chat frame;
    the mod moves the suggestion from pending to sending to its end in one step under the chat's lock, so the first
@@ -403,10 +388,10 @@ and build (`daemon`) and the usage ledger (`usage`). Built-in product code and t
    names who it is for: everyone, this Mac's tabs, or the paired Macs only (plan 052).
 8. **The chat list and the inbox** (`mod/chat-listing.ts`). Which of this Mac's chats show, and what each row says.
    One rule decides which chats are the person's own: not hidden, not a background pass's, of an agent the person
-   has, never a helper agent's. The chat list also shows archived chats, lessons and canvases with no chat; the
+   has, never a helper agent's. The chat list also shows archived chats and lessons; the
    inbox shows only open chats. Both lists, a paired Mac's view of this one and the `chat_meta` push read their
    rows here.
-9. **The advisor** (`mod/advisor.ts`, `mod/chat-advisor.ts`; the daemon's side is item 15 above). `advisor_consult`
+7. **The advisor** (`mod/advisor.ts`, `mod/chat-advisor.ts`; the daemon's side is item 15 above). `advisor_consult`
    (`mod/tools.ts`) is a mod tool, so a chat on an ACP agent reaches it through loki's tool server; it refuses in an
    advisor or pass chat, builds the change list for a call with no text, and hands the consult to the host's
    `ChatBackend.consult`. `mod/advisor.ts` holds the `advisor_consult` prompt section every other chat gets (when to
@@ -425,7 +410,7 @@ Both listeners belong to loki's mod inside the daemon. Each is guarded.
 | port | listener | trusts | serves |
 | --- | --- | --- | --- |
 | 41414 | loopback (`mod/server.ts`) | the token in `~/.loki/token`: in the WebSocket subprotocol on `/ws` (`loki.t.<token>`, `core/ws-auth.ts`), as `?t=` only for the GETs an `<img>` makes | `/ws` (every frame), `/health` (no token), `/uploads`, `/chat-images/`, agent faces, the MCP sign-in's return |
-| 41415 | LAN, off by default (`mod/lan.ts`) | a per-device `HttpOnly` cookie from pairing; a paired Mac's bearer token on `/peer/*` | the built canvas as a single-page app, `/health`, `/pair`, `/me`, `/unpair`, and the same `/ws`, `/uploads`, `/chat-images/` and faces; for paired Macs, over the tailnet only, `/peer/pair`, `/peer/hello`, `/peer/unpair`, `/peer/uploads` and `/peer/chat-images/` |
+| 41415 | LAN, off by default (`mod/lan.ts`) | a per-device `HttpOnly` cookie from pairing; a paired Mac's bearer token on `/peer/*` | the built web app as a single-page app, `/health`, `/pair`, `/me`, `/unpair`, and the same `/ws`, `/uploads`, `/chat-images/` and faces; for paired Macs, over the tailnet only, `/peer/pair`, `/peer/hello`, `/peer/unpair`, `/peer/uploads` and `/peer/chat-images/` |
 
 1. **Why a socket at all.** The daemon runs in Node and the app runs in a browser context (the desktop window, a tab or a
    phone). A socket is the only bridge between them. Every client speaks the same protocol over it, chats included.
@@ -434,7 +419,7 @@ Both listeners belong to loki's mod inside the daemon. Each is guarded.
 3. **Why a second port for the phone.** A token the shell hands the page is fine on one machine and useless on a
    network. The LAN listener serves the page to anyone (it is public code) but lets a device in only after `POST /pair`
    with a code from Settings › Phone, answered by a cookie the page's JavaScript never sees. The desktop token is
-   refused there. From the canvas's side the difference is one flag: the served page carries
+   refused there. From the app's side the difference is one flag: the served page carries
    `window.__LOKI__ = {lan: true}`, `boot.tsx` mounts `<Phone/>` instead of `<Shell/>`, and the same hooks connect to
    `/ws` with the cookie.
 4. **Tailscale.** When Tailscale runs on the machine, the same 41415 listener is reached by the tailnet name, and
@@ -447,8 +432,8 @@ Every client speaks loki's frame protocol on `/ws`, and every frame is declared 
 
 1. **Requests** (`history_get`, `chat_send`, `chat_approve`, `learn_grade` …) carry a `request_id` and are answered by
    their reply or by one `error`.
-2. **Sends** (`gesture`, `seen_mark`, `lan_set` …) are answered by the pushes they cause.
-3. **Pushes** (`desk`, `widgets`, `seen`, `chat_event`, `learn_changed` …) arrive unasked.
+2. **Sends** (`seen_mark`, `lan_set` …) are answered by the pushes they cause.
+3. **Pushes** (`chats`, `seen`, `chat_event`, `learn_changed` …) arrive unasked.
 
 The table also says which frames a paired phone may send, and parses each frame before its handler sees it.
 `mod/bridge.ts` routes a frame to its handler under `mod/frames/`; the chat frames' handler (`mod/frames/chat.ts`)
@@ -456,8 +441,7 @@ passes them to the daemon's `DaemonChats`. On the app's side, `FrameChatClient` 
 is the chat half of `useAttention`. One protocol replaced two: the desktop shell no longer relays anything, and a
 browser tab and the phone no longer need a tunnel.
 
-The UI calls a desk a chat and its widget surface the Canvas tab; the code and the wire keep the name desk. The
-Inbox's marks live here too: `seen_mark` and `seen_unmark` are done and not done, `viewed_mark` is a look, and
+The Inbox's marks live here too: `seen_mark` and `seen_unmark` are done and not done, `viewed_mark` is a look, and
 `focus_add` reports engagement the mod cannot see. Each change pushes `seen`, so the desktop and a phone read the
 same marks from the mod's `attention.json`.
 
@@ -469,8 +453,7 @@ You type in the chat box and press Enter.
 2. It sends a `chat_send` request on `/ws` with your text, any images, and a context note with the local time and
    working folder.
 3. The mod's router hands it to `DaemonChats.send`, which hands it to the chat's engine. On loki's own (`LokiEngine`),
-   every mod's message transform runs; loki's own appends what you
-   did on the canvas since the last turn.
+   every mod's message transform runs.
 4. The kernel submits the message to the agent's Harness. pi-durable saves it, renders the prompt sections in the
    order their extensions were installed (MCP's `mcp`; the built-ins' `memory`, `skills`, `project` and, once the
    chat has been compacted, `history`; then each mod's own; and last the chat's `instructions`, which only a pass's
@@ -512,7 +495,7 @@ bridge, Preferences › Macs' frames, and the lists with the paired Macs' chats 
    Inbox rows); the lists are for showing only. Where a chat lives is the chat directory's: this Mac's chats from its
    store, each paired Mac's from its own word (its list, its `chat_left`), and a chat no one claimed asked for
    (`peer_where`). A Mac that let a chat go keeps a forwarding note and answers a stale frame with an error carrying
-   `moved_to`, which the asking Mac follows once. The bridge sends a chat or canvas frame about another Mac's chat
+   `moved_to`, which the asking Mac follows once. The bridge sends a chat frame about another Mac's chat
    there as it is (`route`) and passes back the pushes of the Mac the directory names for that chat, so Macs never
    echo each other. A new chat's home is its agent's while that Mac is in reach (`chat_create`'s `home`). Files
    attached here go to the home's uploads first. An advisor chat lives where its chat does: the directory answers for
@@ -553,13 +536,12 @@ Everything is under `~/.loki` (`LOKI_DIR` overrides it, for tests and a second l
 
 1. `token`: the capability token the shell, the page and the daemon share.
 2. `daemon.lock`: the pid of the daemon serving this folder.
-3. `daemon/`, `mod/`, `app/`: the installed daemon bundle, mod bundle and phone canvas (release builds).
+3. `daemon/`, `mod/`, `app/`: the installed daemon bundle, mod bundle and phone web app (release builds).
 4. `stores/<agentId>.sqlite`: each agent's chats, in pi-durable's SQLite format; and `stores/backup-…/`, whole copies
    made before a migration.
 5. `backend/`: agent records (`agents/`, each file named by the agent's id in base64) and memory repos
    (`memfs/<id>/memory/`).
-6. `widgets/<desk>/`: the files agents write onto the canvas.
-7. `uploads/<date>/`: files attached to messages; `chat-images/`: the pictures in your messages, named by their
+6. `uploads/<date>/`: files attached to messages; `chat-images/`: the pictures in your messages, named by their
    content; `tool-results/<chat>/`: tool output too big for the chat, saved whole.
 8. `recall/`: Learn's cards, leads and lessons; `scratch/`: where a pass on an ACP agent runs before the agent has a
    memory folder.
@@ -570,7 +552,7 @@ Everything is under `~/.loki` (`LOKI_DIR` overrides it, for tests and a second l
     `acp-offered.json`), the LAN switch (`lan.json`), paired phones
     (`devices.json`), paired Macs (`peers.json`), this install's id (`device-id`), recent models for the picker
     (`recent-models.json`), the chats held for a move to another Mac (`chat-moves.json`, plan 096), each agent's
-    switched-off MCP servers (`mcp-agents.json`) and each chat's canvas. For email and Slack (plan 067): the connected accounts and their owners (`accounts.json`), each
+    switched-off MCP servers (`mcp-agents.json`). For email and Slack (plan 067): the connected accounts and their owners (`accounts.json`), each
     account's thread records (`account-threads/<account id>.json`), the chats hand-offs made (`handoffs.json`),
     each chat's reply proposals (`reply-proposals.json`), the people each mailbox has mail with (`mail-people.json`,
     plan 076), and mail replies held for their undo (`outbox.json`).
@@ -586,7 +568,7 @@ Everything is under `~/.loki` (`LOKI_DIR` overrides it, for tests and a second l
 14. `updates.json`: the update channel, Stable or Nightly, and the last install that failed as loki quit, which the
     shell keeps (`desktop/update/updates.ts`).
 
-Outside it: the global skills in `~/.agents/skills` (loki's own skill is installed at `~/.agents/skills/loki`),
+Outside it: the global skills in `~/.agents/skills`,
 and provider credentials in the OS keychain. An account's Gmail tokens (and own Google app, if any) live only in the
 keychain, under `account:<account id>`, never in a file, since agents can read `~/.loki`; so does a Jira site's, as
 JSON of the site's API host, the person's email, the API token and, for a site on its own domain, the host its links
@@ -620,14 +602,13 @@ timer written by hand stays a convention, as its shape is also ordinary code:
    the advisor).
 2. `mod/`: loki's own mod. `index.ts` wires it, and `peering.ts` the paired Macs; `server.ts` and `lan.ts` hold the
    ports, and `sockets.ts` pushes to them; `bridge.ts` routes each frame to its handler under `frames/` (one module per
-   feature: chats, desks, seen marks, history, folders, Learn, suggestions, agents, the phone listener, the paired Macs,
+   feature: chats, seen marks, history, folders, Learn, suggestions, agents, the phone listener, the paired Macs,
    the daemon's restart and build, and usage; `context.ts` is what every handler works
-   with); `desk-store.ts`, `persist.ts` and `widgets-fs.ts` keep each chat's canvas and watch widget files;
-   `widget-log.ts` keeps each chat's widget change log; `chat-source.ts` reads chats from the daemon's projection;
+   with); `chat-source.ts` reads chats from the daemon's projection;
    `seen.ts` keeps the done and viewed marks and the focus weights; `suggestions.ts` keeps the suggestions; `pins.ts`,
    `folders.ts`, `agents.ts`, `reflection.ts`, `skills.ts` and `recall.ts` back pins, folders, the Agents pages and
    Learn; `skill-sources.ts` says where each skill came from and refreshes the installed ones; `models.ts` keeps the
-   recent models for the picker; `tools.ts` holds the canvas, `chat_list`, suggestion, `chat_message` and
+   recent models for the picker; `tools.ts` holds `chat_list`, suggestion, `chat_message` and
    `advisor_consult` tools; `advisor.ts` and `chat-advisor.ts` the advisor's prompt and strip; `requirements.ts` says
    what this Mac lacks to run a chat; `uploads.ts` and `chat-images.ts` serve attached files and the pictures in
    messages; `pairing.ts`, `devices.ts`, `tailscale.ts` and `static.ts` are the phone listener; `peer-group.ts` pairs
@@ -673,7 +654,7 @@ timer written by hand stays a convention, as its shape is also ordinary code:
    and the prompt's list of the owner's accounts (plan 097, which removed `account_list`, `account_read` and
    `account_search`); and
    `reply-proposals.ts` holds `reply_propose`, and on the person's Send hands the reply to `outside-threads.ts`, whose outbox holds it 10 seconds and sends it.
-3. `core/`: pure TypeScript both halves import (no I/O, no framework). `desk-core.ts` (the shared vocabulary),
+3. `core/`: pure TypeScript both halves import (no I/O, no framework). `chat-scope.ts` (the shared vocabulary),
    `frames.ts` (the frame table) with `frame-types.ts`, `daemon-calls.ts` (the settings and agent calls over it),
    `harness.ts` (recognising harness markup in transcripts), `ws-auth.ts` (the token in the socket's subprotocol),
    `usage.ts` (the ledger's rows), `labels.ts` (the rules for a label's name),
@@ -684,30 +665,29 @@ timer written by hand stays a convention, as its shape is also ordinary code:
    as its steps, `transcript.ts` is one row as loki shows it, `content.ts` an outgoing message's attachments, and
    `commands.ts` the slash commands), `recall/` (Learn's cards and scheduling), and for email and Slack
    `mail-filter.ts` (whether an email is from a person, to you) and `account-refill.ts` (the most older items an account keeps open).
-4. `app/src/`: the canvas. `boot.tsx` picks the surface; `shell/` is the desktop frame (the sidebar with its places, ⌘K,
-   keymap, Welcome, Preferences host); `desk/` a chat's pane (Messages, Advisor and Canvas tabs, widget frames) and the
+4. `app/src/`: the UI. `boot.tsx` picks the surface; `shell/` is the desktop frame (the sidebar with its places, ⌘K,
+   keymap, Welcome, Preferences host); `workspace/` a chat's pane (Messages and Workers tabs) and the
    Inbox deck, whose `deck-moves.ts` makes read, later, archive, label and undo the same on every card and sends a
    typed reply with the key's move, beside `return-picker.tsx` and `label-picker.tsx`; `chat/` the
    thread, composer and suggestion cards; `agents/`, `recall/` (Learn) and `settings/` the other sections; `phone/` the
-   phone; `frame/` the sandboxed widget frame's document; `shared/` logic both surfaces share; `components/` the chrome
+   phone; `shared/` logic both surfaces share; `components/` the chrome
    primitives (on the desktop, wrappers over `ui/`'s shadcn components, plan 2026-11-15-1035; the phone keeps their own
-   markup); `kit/` the tokens (Liquid Glass, plan 2026-11-12-1505: one look, day and night) and the widget kit
-   (`@loki/kit`). The desktop's chat pane and Flow's cards (plans 096 and 097) add three: `ui/` holds shadcn's components on Base UI and, in
+   markup); `kit/` the tokens (Liquid Glass, plan 2026-11-12-1505: one look, day and night). The desktop's chat pane and Flow's cards (plans 096 and 097) add three: `ui/` holds shadcn's components on Base UI and, in
    `ui/ai-elements/`, Vercel's AI Elements, both copied in and bent to loki's rules, imported as `@/ui/…`; `lib/utils.ts`
    is the one `cn`, which knows loki's type sizes and shadows; `item/` draws one item (a chat, a Slack thread, an email,
    a Jira ticket) from the `ItemView` its pure adapter `item-view.ts` builds, with the header, the moves, the timeline,
    the agent's turns, work, plan and thoughts, proposals and the Composer. The phone keeps its own thread and cards:
-   `chat/conversation.tsx` draws the Timeline and the Composer unless it is given `touch`, and `desk/outside-card.tsx`
+   `chat/conversation.tsx` draws the Timeline and the Composer unless it is given `touch`, and `workspace/outside-card.tsx`
    draws an outside thread with the item components only when asked (`items`).
 5. `desktop/`: the Electron shell, TypeScript that `scripts/build-desktop.ts` bundles with esbuild into
    `desktop/dist` (main and preload; `bun run start` and `bun run dev` rebuild it on every launch). Its modules take
    Electron's API as a parameter, so vitest tests them without Electron. `main.ts` wires it: the windows, the
    single-instance lock, the scheme, the commands the page calls, the tray and the updater; `windows.ts` the two
-   windows and which links leave loki; `scheme.ts` serves the page and compiles widgets; `preload.ts` and `ipc.ts` the
+   windows and which links leave loki; `scheme.ts` serves the page; `preload.ts` and `ipc.ts` the
    page's bridge and main's checked side of it; `env.ts` the token file and `__LOKI__`'s values; `daemon.ts` starts,
    supervises and stops the daemon, writing its log through `daemon-log.ts`; `node-search.ts` finds the machine's Node
    and `node-install.ts` runs nodejs.org's installer; `tools.ts` fetches PortableGit on Windows (pinned in
-   `runtime.json`) and checks for git; `procs.ts` finds a leftover daemon; `install.ts` puts the bundles and the skill
+   `runtime.json`) and checks for git; `procs.ts` finds a leftover daemon; `install.ts` puts the bundles
    in place; `menus.ts` the Mac's menu bar and pop-up menus, where an action's Lucide icon, drawn by the page as a PNG,
    shows as a template image that follows dark mode and the highlight (the page sends the menu as data,
    `shell/native-menu.ts`, and gets back the index of the item chosen); `tray.ts` the tray, the dock badge, the
@@ -786,4 +766,4 @@ place, and the Mac's side of it is what shipped first.
    title and `react-doctor.yml`, advisory, scans a PR that touches `app/`. A release builds with electron-builder
    (`electron-builder.yml`) the `.dmg`, signed ad hoc, the per-user NSIS `-setup.exe`, and the AppImage and `.deb` on
    one runner each ([releasing.md](releasing.md)). The packaged app switches off Electron's fuses that would let it run
-   as plain Node (`RunAsNode`, `NODE_OPTIONS`, `--inspect`), and keeps esbuild's binary outside the asar for widgets.
+   as plain Node (`RunAsNode`, `NODE_OPTIONS`, `--inspect`).

@@ -8,7 +8,7 @@ import type { ChatEngineView } from "../core/models.ts";
 import type { OutsideChange, OutsideWrite } from "../core/frame-types.ts";
 import { call, piece } from "./fixtures/chat-events.ts";
 import { must } from "./fixtures/must.ts";
-import { MAIN_CHAT_ID } from "../core/canvas-core.ts";
+import { MAIN_CHAT_ID } from "../core/chat-scope.ts";
 
 const ADA: Runtime = { agent_id: "ada", conversation_id: "c1" };
 const ENGINE: ChatEngineView = { agent: "claude", name: "Claude Code", model: "sonnet", modes: [], commands: [] };

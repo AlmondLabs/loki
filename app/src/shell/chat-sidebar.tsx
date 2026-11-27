@@ -40,7 +40,7 @@ import {
 import type { CatchUp, Workspace } from "./types";
 import { NO_RENAME_REASON, RenameChat, renameChat, savePurpose } from "../workspace/rename-chat";
 import { ChangeFolder, type FolderApi } from "../workspace/new-workspace";
-import { conversationDirName } from "../../../core/canvas-core.ts";
+import { conversationDirName } from "../../../core/chat-scope.ts";
 import { HomeMark } from "./home-mark";
 import { prefersReducedMotion } from "../kit/motion";
 import "./chat-sidebar.css";

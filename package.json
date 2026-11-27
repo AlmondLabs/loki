@@ -5,7 +5,7 @@
   "license": "Apache-2.0",
   "repository": "github:AlmondLabs/loki",
   "type": "module",
-  "description": "A memory palace your agent builds — a desktop app running its own agent daemon on Pi, with a live widget canvas the agent writes files into",
+  "description": "A desktop app running its own AI agent daemon on Pi, with one flow, your chats and recall cards",
   "scripts": {
     "start": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/dev.ts",
     "dev": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/dev.ts --hot",
@@ -57,8 +57,6 @@
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-markdown": "^10.1.0",
-    "react-zoom-pan-pinch": "^4.1.1",
-    "recharts": "^3.1.0",
     "remark-gfm": "^4.0.1",
     "sonner": "2.0.8",
     "streamdown": "2.7.1",

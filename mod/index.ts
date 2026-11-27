@@ -1,16 +1,11 @@
-import { existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import { homedir } from "node:os";
-import type { Scope, WidgetChange } from "../core/canvas-core.ts";
-import { SHARED_SCOPE } from "../core/canvas-core.ts";
+import { SHARED_SCOPE, scopeFor, type Scope } from "../core/chat-scope.ts";
 import type { ChatRef, ModApi } from "../daemon/mods/api.ts";
 import { ScopeDebouncer } from "./lifecycle-events.ts";
 import { appVersion, DEFAULT_LAN_PORT, DEFAULT_MOD_PORT, MCP_OAUTH_CALLBACK, lokiDir, paths } from "./paths.ts";
 import { registerGoogleTools } from "./google-tools/index.ts";
-import { CanvasStore } from "./canvas-store.ts";
-import { loadCanvases, persistCanvases } from "./persist.ts";
-import { watchWidgets } from "./widgets-fs.ts";
-import { WidgetLog, broadcastWidgetChanges } from "./widget-log.ts";
 import { checkFolder, completeFolder, pickFolder } from "./folders.ts";
 import { ChatRegistry } from "./chats.ts";
 import { ChatListing } from "./chat-listing.ts";
@@ -28,7 +23,6 @@ import { installSkill, listGlobalSkills } from "./skills.ts";
 import { SkillSources } from "./skill-sources.ts";
 import { reflectionState } from "./reflection.ts";
 import { memoryDiff, memoryLog, memorySkills, memoryTree, profilePath, readLocalAgent, readMemoryFile } from "./agents.ts";
-import { scopeFor } from "../core/canvas-core.ts";
 
 import { frameModules, welcomeFrames, type ModuleDeps } from "./frames/index.ts";
 import type { UsageDeps } from "./frames/usage.ts";
@@ -40,7 +34,6 @@ import { OutsidePreviews, slackPreviews } from "./outside-previews.ts";
 import { ChannelMembers, SlackPeople } from "./slack-people.ts";
 import { createBridge } from "./bridge.ts";
 import { seenChatFrame } from "./frames/seen.ts";
-import { scopeOfId } from "../core/canvas-core.ts";
 import { DeviceStore } from "./devices.ts";
 import type { SecretBackend } from "../daemon/credentials.ts";
 import type { MemoryRepos } from "../daemon/memory-sync.ts";
@@ -123,9 +116,6 @@ export function activateLoki(api: ModApi, host: Host): () => void {
   const modPort = Number(process.env.LOKI_PORT ?? DEFAULT_MOD_PORT);
   const token = loadOrCreateToken();
 
-  const store = new CanvasStore();
-  loadCanvases(store, paths.state);
-  const stopPersist = persistCanvases(store, paths.state);
   const learnStore = new LearnStore();
   const passChat = isPassChat;
 
@@ -138,25 +128,6 @@ export function activateLoki(api: ModApi, host: Host): () => void {
     sockets.push(msg, { scope });
     peering?.pushed((msg as { type?: string }).type ?? "");
   };
-
-  store.subscribe((scope, state) => broadcast({ type: "state", scope, state }, scope === SHARED_SCOPE ? undefined : scope));
-
-  mkdirSync(paths.widgets, { recursive: true });
-  const widgetLog = new WidgetLog(join(paths.state, "widget-log"));
-  const widgets = watchWidgets(paths.widgets, (diff) => {
-    log("widgets:diff", { added: diff.added.map((e) => e.id), changed: diff.changed.map((e) => e.id), removed: diff.removed });
-    for (const e of [...diff.added].sort((a, b) => Number(b.scope === SHARED_SCOPE) - Number(a.scope === SHARED_SCOPE))) store.seen(e.scope, e.id);
-    for (const e of diff.changed) store.fileChanged(e.scope, e.id);
-    const scopes = new Set<Scope>([...diff.added.map((e) => e.scope), ...diff.changed.map((e) => e.scope), ...diff.removed.map(scopeOfId)]);
-    for (const scope of scopes) {
-      broadcast({ type: "widgets", scope, widgets: widgets.entries(scope) }, scope === SHARED_SCOPE ? undefined : scope);
-    }
-    const landed = diff.added.at(-1);
-    if (landed && !landed.error) {
-      broadcast({ type: "camera", widget_id: landed.id }, landed.scope === SHARED_SCOPE ? undefined : landed.scope);
-    }
-    broadcastWidgetChanges(widgetLog, diff, broadcast);
-  });
 
   const { chats, chat: chatBackend } = host;
   const chatEvents = (agentId: string, conversationId: string, events: ChatEvent[]) =>
@@ -180,8 +151,6 @@ export function activateLoki(api: ModApi, host: Host): () => void {
   const listing = new ChatListing({
     chats,
     desks,
-    layouts: () => store.scopes(),
-    widgets,
     pins: () => readPins(),
     passChats: () => isPassChat,
     activeScope: () => activeScope,
@@ -191,21 +160,6 @@ export function activateLoki(api: ModApi, host: Host): () => void {
   const chatMeta = (scope: Scope) => listing.info(scope);
   const listLocalDesks = () => listing.summaries();
   const listLocalFlow = () => listing.flow();
-  const deleteWidgetFile = (id: string): string | null => {
-    const entry = widgets.get(id);
-    if (!entry) return null;
-    const abs = join(paths.widgets, entry.file);
-    try {
-      widgetLog.expect(id, "removed", "you");
-      unlinkSync(abs);
-      log("widget:trashed", { id, file: abs });
-      void widgets.rescan();
-      return abs;
-    } catch (err) {
-      log.error("widget:trash-failed", { id, error: messageOf(err) });
-      return null;
-    }
-  };
   const devices = new DeviceStore(paths.devices);
   const codes = new PairingCodes();
   const tailscale = new Tailscale({ port: Number(process.env.LOKI_LAN_PORT ?? DEFAULT_LAN_PORT) });
@@ -451,14 +405,13 @@ export function activateLoki(api: ModApi, host: Host): () => void {
       written_today: passes.writtenOn(isoDay(Date.now())),
     };
   };
-  const lessons = { store: learnStore, widgetsDir: paths.widgets, expect: (id: string, change: WidgetChange) => widgetLog.expect(id, change, "loki") };
+  const lessons = { store: learnStore };
 
   const usagePush = coalesce(() => broadcast({ type: "usage_changed" }), 2000);
   const stopRestartDue = host.daemon?.onRestartDue((file) => sockets.push({ type: "restart_due", file }, { to: "desktop" }));
   const stopUsage = host.usage?.onChange(() => usagePush.schedule());
 
   const moduleDeps: ModuleDeps = {
-    store,
     accounts,
     threads,
     handoff,
@@ -466,7 +419,6 @@ export function activateLoki(api: ModApi, host: Host): () => void {
     ledger,
     connect: { agentExists: (id) => readLocalAgent(id) !== null, googleSignIn, slackSessions },
     otherMacs: () => macs.accountsElsewhere(),
-    widgets,
     listChats: () => macs.summaries(),
     listFlow: () => macs.flow(),
     learn: {
@@ -483,12 +435,10 @@ export function activateLoki(api: ModApi, host: Host): () => void {
       lessonEmpty: (l) => chats.info(l.conversation_id, l.agent_id)?.lastMessageAt == null,
     },
     chatMeta,
-    deleteWidgetFile,
     seen,
     ensureTranscript: (agentId, conversationId) => chats.ensureLoaded?.(conversationId, agentId),
     transcript: (agentId, conversationId, limit, before) => chats.page(conversationId, agentId, limit, before),
     row: (agentId, conversationId, row) => chats.row(conversationId, agentId, row),
-    widgetLog: (agentId, conversationId) => widgetLog.read(scopeFor(conversationId, agentId)),
     folders: { recent: () => chats.folders(), complete: completeFolder, check: checkFolder, pick: pickFolder },
     setPin: (agentId, conversationId, pinned) => setPin(agentId, conversationId, pinned),
     recentModels: { read: () => readRecentModels(), add: (handle) => addRecentModel(handle) },
@@ -554,7 +504,7 @@ export function activateLoki(api: ModApi, host: Host): () => void {
           oauthCallbackRoute(MCP_OAUTH_CALLBACK, (params) => host.chat.mcpOauthCallback(params)),
           chatImageRoute({ prefix: "/chat-images/", dir: paths.chatImages, authorize: tokenAuth(token), denied: 403, fetchRemote: chatImageFromPeers }),
         ],
-        health: () => ({ desks: store.scopes(), widgets: widgets.entries().length, tabs: sockets.tabs() }),
+        health: () => ({ tabs: sockets.tabs() }),
         googleSignIn: (params) => googleSignIn.finish(params),
       });
     try {
@@ -657,12 +607,6 @@ export function activateLoki(api: ModApi, host: Host): () => void {
   );
 
   const toolDisposers = registerTools(api, {
-    store,
-    widgets,
-    widgetsDir: paths.widgets,
-    activeScope: () => activeScope,
-    remember: (conversationId, agentId) => desks.remember(conversationId, agentId ?? null),
-    broadcast,
     chats: suggestions
       ? {
           suggestions,
@@ -696,7 +640,6 @@ export function activateLoki(api: ModApi, host: Host): () => void {
     replies.stop();
     sockets.stop();
     macs.stop();
-    widgets.close();
     titleRefreshes.clear();
     seen.flush();
   };
@@ -708,7 +651,6 @@ export function activateLoki(api: ModApi, host: Host): () => void {
     usagePush.cancel();
     for (const d of eventDisposers) d();
     for (const d of toolDisposers) d();
-    stopPersist();
     shutdown();
   };
 }

@@ -1,6 +1,6 @@
 import type { ChatSummary, MacIdentity, McpServerView, McpView } from "../../../core/frame-types.ts";
 import type { ModelEntry } from "../../../core/models.ts";
-import { MAIN_CHAT_ID } from "../../../core/canvas-core.ts";
+import { MAIN_CHAT_ID } from "../../../core/chat-scope.ts";
 import { StarIcon } from "lucide-react";
 import { useEffect, useEffectEvent, useMemo, useState } from "react";
 

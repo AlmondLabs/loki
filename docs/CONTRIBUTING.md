@@ -60,7 +60,7 @@ bun run test:node                                 # the tests that need Node's o
 bun run typecheck                                 # bun check: TypeScript 7's checker, the whole project in about a second
 bun run format:check                              # bun fmt; bun run format fixes it
 bun run lint                                      # uncached; bun run lint:fast caches results while you work
-bun run build:app && bun run build:mod            # the canvas build and the daemon and mod bundles the app ships
+bun run build:app && bun run build:mod            # the web app build and the daemon and mod bundles the app ships
 bun run smoke                                     # the bundle build:mod made, started in a scratch home: sign-in, agents across a restart
 bun run doctor                                    # optional: react-doctor's report on the React code (not in CI)
 ```
@@ -89,16 +89,15 @@ another bun version may not match, so upgrade bun there and in `devDependencies`
 
 - `daemon/` loki's daemon, on Earendil's Pi libraries: agents, chats, tools, approvals, MCP, background passes.
   `scripts/build-mod.ts` bundles it for the app.
-- `mod/` the canvas mod the daemon hosts: widgets, gestures, suggestions, Learn, the phone and
+- `mod/` the mod the daemon hosts: suggestions, Learn, the phone and
   Mac listener and `/ws`. Plain
   TypeScript, no build step in development; `scripts/build-mod.ts` bundles it too.
-- `core/` types, the pure gesture reducer, harness parsing and the attention model all three clients use; no browser or desktop shell imports.
-- `app/` the React canvas: `app/src/shell/` and the section folders are the desktop, `app/src/phone/` the
+- `core/` types, chat scope helpers, harness parsing and the attention model all clients use; no browser or desktop shell imports.
+- `app/` the React app: `app/src/shell/` and the section folders are the desktop, `app/src/phone/` the
   phone, `app/src/shared/` what both use, `app/src/components/` the chrome primitives
   ([architecture](architecture.md#where-the-code-lives) has the full map). Every desktop shortcut lives in
   `app/src/shell/keymap.ts`.
-- `desktop/` the shell, on Electron: finding (`node-search.ts`) and installing (`node-install.ts`) Node, starting, supervising and stopping the daemon (`daemon.ts`), installing the bundled daemon, mod and skill into `~/.loki` (`install.ts`), the `loki://` scheme and widget compiling (`scheme.ts`), the page's bridge (`preload.ts`, `ipc.ts`), the windows, tray, menus and updates. Mac-only parts (tray, badge, global key, menu bar) are set up only on the Mac. `scripts/build-desktop.ts` bundles it into `desktop/dist`.
-- `skills/loki/SKILL.md` what the agent reads; keep it in step with `mod/tools.ts`.
+- `desktop/` the shell, on Electron: finding (`node-search.ts`) and installing (`node-install.ts`) Node, starting, supervising and stopping the daemon (`daemon.ts`), installing the bundled daemon, mod and web app into `~/.loki` (`install.ts`), the `loki://` scheme (`scheme.ts`), the page's bridge (`preload.ts`, `ipc.ts`), the windows, tray, menus and updates. Mac-only parts (tray, badge, global key, menu bar) are set up only on the Mac. `scripts/build-desktop.ts` bundles it into `desktop/dist`.
 - `test/` the vitest suite, `test-node/` the tests that need Node's own runner, `test/fixtures/` fake servers and logs.
 - `docs/plans/` design history, dated. New behaviour gets a short plan there first.
 

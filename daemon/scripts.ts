@@ -44,7 +44,6 @@ export const SCRIPT_NAMESPACES: readonly ScriptNamespace[] = [
   { name: "flow", prefix: "flow_", description: "The threads waiting in Flow for this agent's accounts." },
   { name: "history", prefix: "history_", description: "Search and read this chat's whole history, compacted turns included." },
   { name: "schedule", prefix: "schedule_", description: "List, create and cancel this chat's scheduled prompts." },
-  { name: "canvas", prefix: "canvas_", description: "Read the canvas beside this chat, and move the person's view to widgets." },
   { name: "chat", prefix: "chat_", description: "List the person's agents and open chats." },
 ];
 

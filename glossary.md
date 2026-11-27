@@ -43,7 +43,7 @@ history page. An approval request for the same tool attaches to it instead of ad
 1. **Request**: the app asks and waits; it carries a `request_id` and is answered by exactly one reply frame or one
    `error` frame.
 2. **Send**: the app tells the mod something and does not wait; any effect comes back as a push (a mark → `seen`).
-3. **Push**: the mod tells the app or every socket something unasked (`desk`, `widgets`, `learn_changed`).
+3. **Push**: the mod tells the app or every socket something unasked (`chat_meta`, `chats`, `learn_changed`).
 
 **Frame table** (`core/frames.ts`, `FRAMES`): every frame declared once — its kind, its reply, whether a paired
 phone may send it, its **peer meaning** (how it crosses to another paired Mac: routed by the chat, desk or home it
@@ -133,12 +133,6 @@ beads-backed task list, in October 2026. _Avoid_: task, proposal, recommendation
 **History tools** (`daemon/history-tools.ts`, plans 062 and 063): `history_search` and `history_read`, which let an
 agent find and read the turns of its own chat that a compaction summarized away. They read the ChatProjection, and
 number rows as the thread does. They are script-only tools (plan 099), in every chat, ACP chats included.
-
-**Canvas** and **widget** (`mod/widgets-fs.ts`): the canvas is the space beside a chat where its widgets sit, plus a
-shared canvas every chat sees. A widget is one file under `~/.loki/widgets/<desk>/` (`shared/` for the shared one):
-a kit widget is `<name>.json` (`type`, `title`, `data`) drawn by loki's kit, a custom one is `<name>.tsx`, a React
-component. The agent writes the files and reads them back with `canvas_read`. _Avoid_: desk (for the canvas; the
-code's desk is the chat).
 
 **Flow** (`app/src/workspace/catch-up.tsx`; Inbox in older code and words, Catch Up before that): the chats, mail, Slack
 messages and Jira tickets that wait on you, highest score first (`core/attention/priority.ts`): on the Mac a list
@@ -232,7 +226,7 @@ execution, exec.
 
 **Script-only tool** (`callers: ["tools"]` on a tool, `ModTool.callers`): a tool only scripts call, never offered to the
 model or to an ACP chat, grouped under a namespace the script section names (the `google_*` tools in `google`;
-loki's own history, schedule, canvas and `chat_list` tools in `history`, `schedule`, `canvas` and `chat`, plan 099). A
+loki's own history, schedule and `chat_list` tools in `history`, `schedule` and `chat`, plan 099). A
 script finds one with `searchTools()` and reads it with `describeTool()`. _Avoid_: hidden tool, internal tool.
 
 **Item** (`app/src/item/`, plan 097): one thing the new chat pane draws, whatever its source: a chat, a Slack thread,
@@ -320,11 +314,11 @@ others are files in `~/.loki/mods`.
 Each of loki's tools declares its kind on its own definition (`withKind`, or `kind` on a `ChatTool`); a mod's tool
 or an MCP server's says so with a `readOnly` annotation, and `daemon/tool-kinds.ts` names only pi-durable's coding
 tools, which loki cannot annotate. A tool that says nothing is a command. Reads are `read`, scripts' `grep`, `find`
-and `ls`, `canvas_read`, `canvas_focus`, `web_search`, `background_watch` (but one that types into its task or stops it is a command),
+and `ls`, `web_search`, `background_watch` (but one that types into its task or stops it is a command),
 `schedule_list`, `history_search`, `history_read`, `user_ask`, `mcp_search`, and a mod's or an MCP server's tools
 marked read-only; the memory tools and `subagent` (a helper, whose own calls are asked about) count as reads too.
 Edits are `write` and `edit`; anything else is a command, but a `bash` command made only of read-only programs
 (`ls`, `find`, `rg`, `grep`, `cat`, `head`, `tail`, `wc`, `pwd`, perhaps piped, with no flag that writes or runs
-another program) is a read (`daemon/read-only-command.ts`). An edit inside loki's widget folder never asks, and
+another program) is a read (`daemon/read-only-command.ts`).
 `user_ask`, `chat_list`, `suggestion_create`, `chat_message` and `reply_propose` never ask in any mode (`NEVER_ASK`): a question card is not a
 permission, and what you do with a suggestion is already your decision.

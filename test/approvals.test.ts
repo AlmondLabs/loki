@@ -38,10 +38,9 @@ describe("the permission modes", () => {
     subagentInherit: asks(mode, "subagent", { prompt: "inspect" }, { kind: "read" }),
     subagentWorktree: asks(mode, "subagent", { prompt: "edit", workspace: "worktree" }, { kind: "read" }),
     subagentStop: asks(mode, "subagent_stop", { subagent_id: "sub-1" }, { kind: "command" }),
-    widget: asks(mode, "write", { path: "/home/x/.loki/widgets/c/w.json" }, { cwd: "/work", widgetsDir: "/home/x/.loki/widgets" }),
   });
 
-  test("each mode asks as the app describes it, a read-only shell command is a read, and loki's widget folder never asks", () => {
+  test("each mode asks as the app describes it, and a read-only shell command is a read", () => {
     expect(table("strict")).toEqual({
       plan: false,
       read: true,
@@ -56,7 +55,6 @@ describe("the permission modes", () => {
       subagentInherit: true,
       subagentWorktree: true,
       subagentStop: true,
-      widget: false,
     });
     expect(table("standard")).toEqual({
       plan: false,
@@ -72,7 +70,6 @@ describe("the permission modes", () => {
       subagentInherit: false,
       subagentWorktree: true,
       subagentStop: true,
-      widget: false,
     });
     expect(table("acceptEdits")).toEqual({
       plan: false,
@@ -88,7 +85,6 @@ describe("the permission modes", () => {
       subagentInherit: false,
       subagentWorktree: true,
       subagentStop: true,
-      widget: false,
     });
     expect(table("unrestricted")).toEqual({
       plan: false,
@@ -104,15 +100,13 @@ describe("the permission modes", () => {
       subagentInherit: false,
       subagentWorktree: false,
       subagentStop: false,
-      widget: false,
     });
   });
 
-  test("a question card is never a permission, and a path that climbs out of the widget folder is not inside it", () => {
+  test("a question card or message tool is never a permission", () => {
     expect(asks("strict", "user_ask", {}, {})).toBe(false);
     for (const name of ["chat_list", "suggestion_create", "message_propose", "ticket_propose"]) expect(asks("strict", name, {}, {})).toBe(false);
     expect(asks("strict", "chat_message", {}, {})).toBe(false);
-    expect(asks("standard", "write", { path: "/home/x/.loki/widgets/../secrets" }, { widgetsDir: "/home/x/.loki/widgets" })).toBe(true);
   });
 });
 

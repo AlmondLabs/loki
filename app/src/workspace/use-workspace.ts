@@ -1,13 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import type { Gesture, Scope } from "../../../core/canvas-core.ts";
-import { applyGesture, MAIN_CHAT_ID, mainChatAgent, emptyCanvas, scopeFor, scopeOfId, SHARED_SCOPE } from "../../../core/canvas-core.ts";
+import type { Scope } from "../../../core/chat-scope.ts";
+import { MAIN_CHAT_ID, mainChatAgent, scopeFor, SHARED_SCOPE } from "../../../core/chat-scope.ts";
 import { openExternal } from "./env";
 import { useWorkspaceSocket } from "./use-workspace-socket";
 import { PHONE_DEMO, phoneDemo, withReasoningEffort } from "./workspace-pushes";
 import { FrameChatClient } from "../../../core/attention/chat-client.ts";
 import { daemonCalls } from "../../../core/daemon-calls.ts";
-import { canvasView } from "./view";
-import { withHistoryLog } from "./widget-rows";
 
 import type { CardWithSchedule, LearnReply, LearnSnapshot } from "../../../core/learn/model.ts";
 import type { UsageReply } from "../../../core/usage.ts";
@@ -25,14 +23,6 @@ import type { InputOf, Replies, ReplyOf, RequestName, RequestResult } from "../.
 import type { ChatStatus, GlobalSkill, FlowRow as FlowConversation, LanVia, MemoryCommit, ReflectionState, RefreshOutcome } from "../../../core/frame-types.ts";
 
 export type Connection = "connecting" | "open" | "closed";
-
-export interface CameraTarget {
-  widgetId: string;
-  widgetIds: string[];
-  nonce: number;
-}
-
-export type { VisibleWidget } from "./view";
 
 const learnSnapshot = (r: RequestResult<LearnReply>): LearnSnapshot | null => {
   if (!r.ok) return null;
@@ -55,11 +45,7 @@ export function useWorkspace() {
     switchDesk,
     send,
     sendRaw,
-    desks,
-    setDesks,
-    widgets,
     connection,
-    cameraTarget,
     deskList,
     desksLoaded,
     setDeskList,
@@ -95,30 +81,8 @@ export function useWorkspace() {
     servedBuild,
     recentModels,
     usualModels,
-    widgetLogs,
-    setWidgetLogs,
-    watchDesk,
     waiters,
-    lastInteractionRef,
-    pendingRef,
-    measure,
-    reportWidgetError,
   } = useWorkspaceSocket();
-
-  useEffect(() => {
-    const hot = import.meta.hot;
-    if (!hot) return;
-    // Outside (Vite): it types this callback loosely; the payload is an ErrorPayload at runtime.
-    const onError = (payload?: { err?: { message?: string; id?: string; loc?: { file?: string } } }) => {
-      const err = payload?.err;
-      if (!err) return;
-      const file = err.id ?? err.loc?.file ?? "";
-      const m = /\/widgets\/([^/]+)\/([^/.]+)\.(tsx|jsx)/.exec(file);
-      if (m) reportWidgetError(`${m[1]}/${m[2]}`, err.message ?? "compile error");
-    };
-    hot.on("vite:error", onError);
-    return () => hot.off("vite:error", onError);
-  }, [reportWidgetError]);
 
   const requestDesks = () => {
     send({ type: "chats_list" });
@@ -137,51 +101,6 @@ export function useWorkspace() {
       const frame = { type, request_id: requestId, ...payload };
       if (!sendRaw(frame)) waiters.hold(requestId, frame);
     });
-
-  const undoStack = useRef<Gesture[]>([]);
-  const desksRef = useRef(desks);
-  useEffect(() => {
-    desksRef.current = desks;
-  });
-  const inverseOf = (g: Gesture): Gesture | null => {
-    const s = scopeOfId(g.id);
-    const l = desksRef.current[s]?.layout[g.id];
-    switch (g.kind) {
-      case "move":
-        return l ? { kind: "move", id: g.id, position: l.position } : null;
-      case "resize":
-        return l?.size ? { kind: "resize", id: g.id, size: l.size } : null;
-      case "close":
-        return { kind: "open", id: g.id };
-      case "open":
-        return { kind: "close", id: g.id };
-      case "set":
-        return g.prev === undefined ? null : { kind: "set", id: g.id, path: g.path, value: g.prev, prev: g.value };
-      default:
-        return null;
-    }
-  };
-  const apply = (g: Gesture) => {
-    lastInteractionRef.current = Date.now();
-    const s = scopeOfId(g.id);
-    setDesks((d) => ({ ...d, [s]: applyGesture(d[s] ?? emptyCanvas(s), g) }));
-    if (!send({ type: "gesture", gesture: g })) pendingRef.current.push(g);
-  };
-  const gesture = (g: Gesture) => {
-    const inv = inverseOf(g);
-    if (inv) {
-      const top = undoStack.current.at(-1);
-      if (!(top?.kind === inv.kind && top.id === inv.id && Date.now() - lastInteractionRef.current < 400)) undoStack.current.push(inv);
-      if (undoStack.current.length > 60) undoStack.current.shift();
-    }
-    apply(g);
-  };
-  const undo = (): boolean => {
-    const inv = takeUndo(undoStack.current, scope);
-    if (!inv) return false;
-    apply(inv);
-    return true;
-  };
 
   const recallCall = <N extends "learn_grade" | "learn_edit" | "learn_reject" | "learn_restore" | "learn_forget">(
     type: N,
@@ -292,11 +211,7 @@ export function useWorkspace() {
         "history_get",
         { agent_id: agentId, conversation_id: conversationId, ...(limit ? { limit } : {}), ...(before !== undefined ? { before } : {}) },
         HISTORY_WAIT_MS,
-      ).then((r) => {
-        if (!r.ok) return null;
-        setWidgetLogs((s) => withHistoryLog(s, scopeFor(conversationId, agentId), r.reply.widget_log));
-        return { rows: r.reply.messages, more: r.reply.more, start: r.reply.start };
-      }),
+      ).then((r) => (r.ok ? { rows: r.reply.messages, more: r.reply.more, start: r.reply.start } : null)),
     loadStep: (agentId: string, conversationId: string, row: number): Promise<WholeRow | null> =>
       request("history_step_get", { agent_id: agentId, conversation_id: conversationId, row }, HISTORY_WAIT_MS).then((r) =>
         r.ok ? { step: r.reply.step, detail: r.reply.detail ?? null } : null,
@@ -353,18 +268,6 @@ export function useWorkspace() {
       ),
   };
 
-  const trash = (id: string) => {
-    lastInteractionRef.current = Date.now();
-    send({ type: "trash", id });
-  };
-
-  const arrange = () => {
-    lastInteractionRef.current = 0;
-    send({ type: "arrange" });
-  };
-
-  const { visible, closed, ownCount, loaded } = canvasView(scope, desks, widgets);
-
   const listed = deskList.find((d) => d.scope === scope);
   const title = titles[scope] ?? listed?.title ?? null;
   const status: ChatStatus = statuses[scope] ?? "none";
@@ -408,10 +311,6 @@ export function useWorkspace() {
     setDeskMode,
     setDeskTitle,
     connection,
-    visible,
-    closed,
-    ownCount,
-    loaded,
     desks: {
       list: deskList,
       loaded: desksLoaded,
@@ -445,26 +344,7 @@ export function useWorkspace() {
       get: (since: string, until: string) => request("usage_get", { since, until }, 15_000).then((r): UsageReply | null => (r.ok ? r.reply : null)),
       version: usageVersion,
     },
-    undo,
     agents,
     calls,
-    gesture,
-    measure,
-    arrange,
-    trash,
-    reportWidgetError,
-    cameraTarget,
-    widgetLog: widgetLogs[scope],
-    widgetLogOf: (s: Scope) => widgetLogs[s],
-    widgetsOf: (s: Scope) => (widgets[s] ? { entries: widgets[s], overlay: desks[s]?.overlay ?? {} } : undefined),
-    watchDesk,
   };
-}
-
-export function takeUndo(stack: Gesture[], scope: Scope): Gesture | null {
-  for (let at = stack.length - 1; at >= 0; at--) {
-    const s = scopeOfId(stack[at].id);
-    if (s === scope || s === SHARED_SCOPE) return stack.splice(at, 1)[0];
-  }
-  return null;
 }

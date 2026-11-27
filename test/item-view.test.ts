@@ -9,7 +9,7 @@ import { attentionItem } from "./fixtures/attention.ts";
 const NOW = Date.parse("2026-11-11T15:00:00Z");
 
 const turnsOf = (rows: TranscriptRow[]) =>
-  threadTurns(threadEntries({ rows, from: 0, above: 0, dividerAt: null, dividerDay: null, widgets: [], busy: false, arrivedFrom: rows.length, now: NOW }), {
+  threadTurns(threadEntries({ rows, from: 0, above: 0, dividerAt: null, dividerDay: null, busy: false, arrivedFrom: rows.length, now: NOW }), {
     busy: false,
     waiting: false,
   });
@@ -95,13 +95,10 @@ describe("an agent chat", () => {
       { role: "event", text: "subagent kestrel completed", event: "subagent", at },
       { role: "assistant", text: "Read it.", at },
     ];
-    const turns = threadTurns(
-      threadEntries({ rows, from: 0, above: 0, dividerAt: 2, dividerDay: null, widgets: [], busy: false, arrivedFrom: rows.length, now: NOW }),
-      {
-        busy: false,
-        waiting: false,
-      },
-    );
+    const turns = threadTurns(threadEntries({ rows, from: 0, above: 0, dividerAt: 2, dividerDay: null, busy: false, arrivedFrom: rows.length, now: NOW }), {
+      busy: false,
+      waiting: false,
+    });
     expect(turns.map((t) => t.kind).filter((k) => k !== "day")).toEqual(["message", "turn", "new", "turn"]);
   });
 
@@ -127,16 +124,16 @@ describe("an agent chat", () => {
       [true, false, "working"],
       [false, true, "needs you"],
     ] as const) {
-      const turns = threadTurns(
-        threadEntries({ rows, from: 0, above: 0, dividerAt: null, dividerDay: null, widgets: [], busy, arrivedFrom: rows.length, now: NOW }),
-        { busy, waiting },
-      );
+      const turns = threadTurns(threadEntries({ rows, from: 0, above: 0, dividerAt: null, dividerDay: null, busy, arrivedFrom: rows.length, now: NOW }), {
+        busy,
+        waiting,
+      });
       const turn = turns.find((t) => t.kind === "turn");
       expect(turn?.kind === "turn" && turn.state).toBe(state);
       expect(turns.at(-1)?.kind).toBe("command");
     }
     const busyTurn = threadTurns(
-      threadEntries({ rows, from: 0, above: 0, dividerAt: null, dividerDay: null, widgets: [], busy: true, arrivedFrom: rows.length, now: NOW }),
+      threadEntries({ rows, from: 0, above: 0, dividerAt: null, dividerDay: null, busy: true, arrivedFrom: rows.length, now: NOW }),
       {
         busy: true,
         waiting: false,

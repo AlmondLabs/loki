@@ -1,4 +1,4 @@
-import { SHARED_SCOPE } from "../../../core/canvas-core.ts";
+import { SHARED_SCOPE } from "../../../core/chat-scope.ts";
 import type { ChatSummary } from "../../../core/frame-types.ts";
 import { sourceFor } from "./sidebar-model";
 

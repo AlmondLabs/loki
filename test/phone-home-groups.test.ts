@@ -15,7 +15,6 @@ describe("Home's desks group as the desktop sidebar's (homeChatSections)", () =>
     model: null,
     reasoning_effort: null,
     pinned: false,
-    widgets: 0,
     active: false,
     last_active: lastActive,
     ...extra,
@@ -73,7 +72,6 @@ describe("Home under the phone's lane (plan 087, R15, R16)", () => {
     model: null,
     reasoning_effort: null,
     pinned: false,
-    widgets: 0,
     active: false,
     last_active: "2026-09-25T10:00:00Z",
   });

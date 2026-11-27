@@ -26,13 +26,11 @@
   --loki-mark-jira: #8ab4f8;
   --loki-mention: oklch(27% 0.03 85);
   --loki-mention-bar: #ffd60a;
-  --loki-grid: #2c2c2e;
   --loki-well: #161618;
   --loki-bubble: #232325;
   --loki-user-bubble: #2c2c2e;
   --loki-code: #2c2c2e;
   --loki-veil: rgba(0, 0, 0, 0.5);
-  --loki-brass-glow: rgba(61, 155, 255, 0.25);
   --loki-shadow-sheet: 0 12px 32px rgba(0, 0, 0, 0.45);
   --loki-shadow-float: 0 8px 24px rgba(0, 0, 0, 0.35);
   --loki-shadow-panel: 0 4px 12px rgba(0, 0, 0, 0.28);
@@ -105,13 +103,11 @@
   --loki-mark-jira: #1558bc;
   --loki-mention: #fff8e0;
   --loki-mention-bar: #e8a33a;
-  --loki-grid: #ebebed;
   --loki-well: #ffffff;
   --loki-bubble: #f5f5f7;
   --loki-user-bubble: #eef4fd;
   --loki-code: #f2f2f4;
   --loki-veil: rgba(0, 0, 0, 0.25);
-  --loki-brass-glow: rgba(0, 100, 214, 0.16);
   --loki-shadow-sheet: 0 12px 32px rgba(0, 0, 0, 0.16);
   --loki-shadow-float: 0 8px 24px rgba(0, 0, 0, 0.12);
   --loki-shadow-panel: 0 4px 12px rgba(0, 0, 0, 0.09);
@@ -194,7 +190,6 @@
 }
 :root {
   --loki-layer-panel: 100;
-  --loki-layer-bubble: 101;
   --loki-layer-rail: 110;
   --loki-layer-modal: 200;
   --loki-layer-strip: 250;
@@ -270,49 +265,6 @@ a:focus-visible {
     transform: none;
   }
 }
-.loki-frame-controls {
-  opacity: 0.35;
-  transition: opacity 160ms ease-out;
-}
-.loki-frame-body img,
-.loki-frame-body svg,
-.loki-frame-body video,
-.loki-frame-body canvas {
-  max-width: 100%;
-  height: auto;
-}
-.loki-frame-body pre {
-  max-width: 100%;
-  overflow-x: auto;
-}
-.loki-frame-body table {
-  display: block;
-  max-width: 100%;
-  overflow-x: auto;
-}
-.loki-frame-resize {
-  opacity: 0;
-  transition: opacity 160ms ease-out;
-}
-.loki-frame:focus-within .loki-frame-resize {
-  opacity: 0.5;
-}
-@media (hover: hover) and (pointer: fine) {
-  .loki-frame:hover .loki-frame-resize {
-    opacity: 0.5;
-  }
-  .loki-frame-resize:hover {
-    opacity: 1 !important;
-  }
-}
-.loki-frame:focus-within .loki-frame-controls {
-  opacity: 1;
-}
-@media (hover: hover) and (pointer: fine) {
-  .loki-frame:hover .loki-frame-controls {
-    opacity: 1;
-  }
-}
 
 @keyframes loki-veil {
   from {
@@ -382,7 +334,6 @@ a:focus-visible {
     .loki-sheet-veil[data-grow],
     .loki-sheet[data-grow],
     .loki-popover[data-grow],
-    .loki-frame,
     .loki-phone .loki-veil--bottom,
     .loki-phone .loki-sheet-card--bottom,
     .loki-phone .loki-md--live .loki-word,
@@ -393,21 +344,11 @@ a:focus-visible {
     animation-duration: 150ms !important;
     animation-timing-function: ease-out !important;
   }
-  :is(.loki-frame-controls, .loki-frame-resize, .loki-frame-glow) {
-    transition-duration: 150ms !important;
-  }
 }
 @keyframes loki-fade {
   from {
     opacity: 0;
   }
-}
-
-.loki-widget-body {
-  font-family: var(--loki-font);
-  color: var(--loki-fg);
-  font-size: var(--text-sm);
-  line-height: 1.45;
 }
 
 .loki-muted {

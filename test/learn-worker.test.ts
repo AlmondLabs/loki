@@ -1,11 +1,10 @@
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import type { ChatBackend } from "../mod/frames/chat.ts";
-import { scopeFor } from "../core/canvas-core.ts";
 import { join } from "node:path";
 import { LearnStore } from "../mod/learn.ts";
-import { formatTranscript, isPassChat, lessonCard, overlappingCards, ownsLearnChat, startLessonViaChats } from "../mod/learn-worker.ts";
+import { formatTranscript, isPassChat, overlappingCards, ownsLearnChat, startLessonViaChats } from "../mod/learn-worker.ts";
 
 let dir: string;
 let store: LearnStore;
@@ -51,39 +50,8 @@ describe("Learn's shared pieces", () => {
   });
 });
 
-describe("a lesson's first widget", () => {
-  test("the info card carries the lead: depth, where it came up, the moment, and who lays the lesson out", () => {
-    const card = lessonCard({
-      id: "l1",
-      title: "Envelope encryption",
-      why: "you asked what a data key was",
-      depth: "primer",
-      source: { agent_id: "a1", agent_name: "ira", conversation_id: "c1", title: "[Long] - KMS", at: null },
-      created_at: "2026-09-13T00:00:00Z",
-    });
-    expect(card.type).toBe("info-card");
-    expect(card.title).toBe("Envelope encryption");
-    expect(card.data.lines).toEqual([
-      "a primer — one sitting",
-      'it came up in "[Long] - KMS" with ira',
-      "you asked what a data key was",
-      "ira lays the lesson out here; the chat opens with the brief",
-    ]);
-    expect(
-      lessonCard({
-        id: "l2",
-        title: "T",
-        why: "w",
-        depth: "course",
-        source: { agent_id: "a1", agent_name: null, conversation_id: "c1", title: null, at: null },
-        created_at: "2026-09-13T00:00:00Z",
-      }).data.lines.slice(0, 2),
-    ).toEqual(["a course — a few sittings", "it came up in a conversation with the agent"]);
-  });
-});
-
 describe("a lesson on loki's daemon", () => {
-  test("starting one makes its [Learn] chat in the home folder, furnishes its desk with the card, and records the lesson", async () => {
+  test("starting one makes its [Learn] chat in the home folder and records the lesson", async () => {
     store.addLead({
       id: "l1",
       title: "Envelope encryption",
@@ -99,11 +67,9 @@ describe("a lesson on loki's daemon", () => {
         Promise.resolve({ agentId, conversationId: "conv-7" })
       ),
     } as unknown as ChatBackend;
-    const widgets = join(dir, "widgets");
-    const started = await startLessonViaChats(chats, { store, widgetsDir: widgets })("l1");
+    const started = await startLessonViaChats(chats, { store })("l1");
     expect(started).toEqual({ agent_id: "a1", conversation_id: "conv-7" });
     expect(made).toEqual([`a1 ${homedir()} [Learn] · Envelope encryption`]);
-    expect((JSON.parse(readFileSync(join(widgets, scopeFor("conv-7", "a1"), "lesson.json"), "utf8")) as { title: unknown }).title).toBe("Envelope encryption");
     expect(store.lessons()[0]).toMatchObject({ agent_id: "a1", conversation_id: "conv-7" });
   });
 });

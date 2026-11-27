@@ -1,4 +1,4 @@
-import type { Scope } from "../core/canvas-core.ts";
+import type { Scope } from "../core/chat-scope.ts";
 import type { LocalDigest, RecentFolders } from "../core/frame-types.ts";
 import type { TranscriptRow } from "../core/attention/transcript.ts";
 import type { LocalConversationInfo, LocalConversationRow } from "./chats.ts";

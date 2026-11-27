@@ -1,5 +1,5 @@
 import { PEER_FRAMES, PHONE_FRAMES, frameEntry, type FrameName, type PushFrame } from "../core/frames.ts";
-import type { Scope } from "../core/canvas-core.ts";
+import type { Scope } from "../core/chat-scope.ts";
 import { errorMessage, fail, type FrameContext, type FrameHandlers, type Outcome } from "./frames/context.ts";
 import type { Client, WsHandlers } from "./server.ts";
 import type { Forwarded, Target } from "./chat-router.ts";
@@ -38,20 +38,9 @@ export function createBridge(deps: BridgeDeps): WsHandlers {
 
   return {
     onConnect(client: Client) {
-      const ask = { type: "canvas_get", scope: client.scope };
-      const known = !client.peerId && deps.route ? deps.route.target(ask) : null;
-      const home = known instanceof Promise ? null : known;
       for (const frame of deps.welcome?.(client.scope) ?? []) {
-        if (home && frame.type === "canvas" && frame.scope === client.scope) continue;
         client.send(frame);
       }
-      if (home && deps.route)
-        void deps.route.forward(home, ask, "send").then(
-          (out) => {
-            if (!out.ok) client.send({ type: "error", message: out.message });
-          },
-          (err: unknown) => client.send({ type: "error", message: errorMessage(err) }),
-        );
     },
 
     onMessage(client: Client, msg: Record<string, unknown>) {

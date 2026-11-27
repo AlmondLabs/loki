@@ -8,7 +8,6 @@ export function useTranscriptScroll(
   messages: TranscriptRow[],
   status: string,
   dividerAt: number | null = null,
-  marks?: ReadonlyArray<{ before: number; who: string; change: string; title: string }>,
   older: (() => void) | null = null,
 ) {
   const pinnedRef = useRef(true);
@@ -60,7 +59,7 @@ export function useTranscriptScroll(
     setLeftAt((at) => at ?? messages.length);
   };
   const reveal = (query: string) => {
-    const at = findStart(messages, start, query, marks);
+    const at = findStart(messages, start, query);
     if (at < start) flushSync(() => setWin((w) => (w.start <= at ? w : { ...w, start: at })));
   };
 

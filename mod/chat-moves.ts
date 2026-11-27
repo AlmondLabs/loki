@@ -1,6 +1,3 @@
-import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
-import { scopeFor } from "../core/canvas-core.ts";
 import { MOVE_OUT_OF_REACH, MOVE_TIMEOUT_MS, type Replies } from "../core/frames.ts";
 import { readJson, writeJsonAtomic } from "./json-file.ts";
 import type { MovedChat } from "../daemon/chat-move.ts";
@@ -15,7 +12,6 @@ export class ChatMoves implements PeerMoves {
     here: string;
     chat: Pick<ChatBackend, "moveCandidates" | "exportChat" | "importChat" | "finishMove">;
     link: (macId: string) => PeerLink | null;
-    widgetsDir: string;
     name: (macId: string | null) => string | null;
     done: (macId: string) => boolean;
     markDone: (macId: string) => void;
@@ -160,14 +156,13 @@ export class ChatMoves implements PeerMoves {
     }
     if (!out.chat) {
       if (!held) this.drop(key);
-      return { ...out, widgets: {} };
+      return out;
     }
-    return { ...out, widgets: readWidgets(join(this.opts.widgetsDir, scopeFor(conversationId, agentId))) };
+    return out;
   }
 
   async moved(macId: string, agentId: string, conversationId: string): Promise<void> {
     await this.opts.chat.finishMove(agentId, conversationId);
-    rmSync(join(this.opts.widgetsDir, scopeFor(conversationId, agentId)), { recursive: true, force: true });
     this.drop(`${agentId}/${conversationId}`);
     log("peers:chat-moved", { agent: agentId, chat: conversationId, to: macId });
     this.opts.onLeft({ agent_id: agentId, conversation_id: conversationId }, macId);
@@ -188,13 +183,11 @@ export class ChatMoves implements PeerMoves {
     const reply = (await link.request({ type: "peer_chat_export", agent_id: agentId, conversation_id: conversationId }, 120_000)) as {
       chat?: MovedChat | null;
       busy?: boolean;
-      widgets?: Record<string, string>;
     };
     if (reply.busy) return "busy";
     if (!reply.chat) return "none";
     const names = { from: this.opts.name(macId) ?? "another Mac", to: this.opts.name(null) ?? "this Mac" };
     await this.opts.chat.importChat(placed ? { ...reply.chat, info: { ...reply.chat.info, placed: true } } : reply.chat, names);
-    writeWidgets(join(this.opts.widgetsDir, scopeFor(conversationId, agentId)), reply.widgets ?? {});
     await link.request({ type: "peer_chat_moved", agent_id: agentId, conversation_id: conversationId });
     return "moved";
   }
@@ -222,38 +215,4 @@ function readHolds(file: string): Array<[string, Hold]> {
     const hold: Hold = { agent_id: h.agent_id, conversation_id: h.conversation_id, to: h.to, at: h.at, ...(h.kept === true ? { kept: true } : {}) };
     return [[`${hold.agent_id}/${hold.conversation_id}`, hold] as [string, Hold]];
   });
-}
-
-function readWidgets(dir: string): Record<string, string> {
-  const out: Record<string, string> = {};
-  const walk = (d: string) => {
-    let names: string[];
-    try {
-      names = readdirSync(d);
-    } catch {
-      return;
-    }
-    for (const name of names) {
-      const full = join(d, name);
-      if (statSync(full).isDirectory()) walk(full);
-      else out[relative(dir, full).split(sep).join("/")] = readFileSync(full).toString("base64");
-    }
-  };
-  walk(dir);
-  return out;
-}
-
-/**
- * A canvas's files written into its folder here; a path that would leave the folder is skipped. Checked where it
- * lands, not only by its parts: on Windows `..\x` or `C:\x` is one part with no ".." in it.
- */
-export function writeWidgets(dir: string, files: Record<string, string>): void {
-  for (const [path, data] of Object.entries(files)) {
-    if (path.split("/").some((p) => p === ".." || p === "") || path.startsWith("/")) continue;
-    const full = join(dir, ...path.split("/"));
-    const rel = relative(resolve(dir), resolve(full));
-    if (!rel || rel.startsWith("..") || isAbsolute(rel)) continue;
-    mkdirSync(dirname(full), { recursive: true });
-    if (!existsSync(full)) writeFileSync(full, Buffer.from(data, "base64"));
-  }
 }

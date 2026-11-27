@@ -1,8 +1,7 @@
 import { describe, expect, test } from "vitest";
-import { emptyCanvas } from "../core/canvas-core.ts";
 import type { LanStatus } from "../core/frame-types.ts";
 import type { PushFrame } from "../core/frames.ts";
-import { EMPTY_DESK_SOCKET, NO_YANK_MS, STATE_PUSHES, applyPush, opened, type DeskSocketState } from "../app/src/workspace/workspace-pushes.ts";
+import { EMPTY_DESK_SOCKET, STATE_PUSHES, applyPush, opened, type DeskSocketState } from "../app/src/workspace/workspace-pushes.ts";
 
 const NOW = Date.parse("2026-10-30T10:00:00Z");
 const ctx = { now: NOW, lastInteraction: 0 };
@@ -22,33 +21,20 @@ const lan = (enabled: boolean): { type: "lan_status" } & LanStatus => ({
 });
 
 describe("what the mod's pushes leave in a tab (plan 058)", () => {
-  test("a desk push fills in the chat's header, geometry and widgets; the same title again changes nothing", () => {
-    const s = fold([
-      {
-        type: "canvas",
-        scope: "c1",
-        title: "plans",
-        status: "live",
-        agent_name: "Ada",
-        agent_id: "ada",
-        model: "m",
-        reasoning_effort: "high",
-        mode: "default",
-        state: emptyCanvas("c1"),
-        widgets: [],
-      },
-    ]);
-    expect(s).toMatchObject({ titles: { c1: "plans" }, agentIds: { c1: "ada" }, reasoningEfforts: { c1: "high" }, widgets: { c1: [] } });
+  test("chat_meta fills in the chat's header and agent id; the same push again changes nothing", () => {
     const title = {
       type: "chat_meta",
       scope: "c1",
       title: "plans",
       status: "live",
       agent_name: "Ada",
+      agent_id: "ada",
       model: "m",
       reasoning_effort: "high",
       mode: "default",
     } as const;
+    const s = fold([title]);
+    expect(s).toMatchObject({ titles: { c1: "plans" }, agentIds: { c1: "ada" }, reasoningEfforts: { c1: "high" } });
     expect(applyPush(s, title, ctx)).toBe(s);
     expect(applyPush(s, { ...title, reasoning_effort: null }, ctx).reasoningEfforts).toEqual({});
   });
@@ -70,14 +56,6 @@ describe("what the mod's pushes leave in a tab (plan 058)", () => {
     expect(s.lanes).toEqual(lanes);
     expect(applyPush(s, seen, ctx)).toBe(s);
     expect(applyPush(s, { ...seen, lanes: [] }, ctx).lanes).toEqual([]);
-  });
-
-  test("the agent's camera waits for the person: a move just after they touched the canvas is dropped", () => {
-    const camera = { type: "camera", widget_id: "w1" } as const;
-    expect(applyPush(EMPTY_DESK_SOCKET, camera, { now: NOW, lastInteraction: NOW - 100 })).toBe(EMPTY_DESK_SOCKET);
-    const once = applyPush(EMPTY_DESK_SOCKET, camera, { now: NOW, lastInteraction: NOW - NO_YANK_MS - 1 });
-    expect(once.cameraTarget).toEqual({ widgetId: "w1", widgetIds: ["w1"], nonce: 1 });
-    expect(applyPush(once, camera, ctx).cameraTarget?.nonce).toBe(2);
   });
 
   test("a pairing code lasts while the listener is up", () => {

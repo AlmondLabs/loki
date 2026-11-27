@@ -7,9 +7,6 @@ directories:
 files:
   - "**/*"
   - "!**/*.map"
-asarUnpack:
-  - node_modules/esbuild/**/*
-  - node_modules/@esbuild/**/*
 extraResources:
   - from: desktop/resources
     to: resources
