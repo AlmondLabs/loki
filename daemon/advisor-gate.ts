@@ -173,7 +173,9 @@ async function chainOf(path: string): Promise<{ ids: string[]; whole: boolean }>
 
 export async function advisorRefusal(call: AdvisorCall, folders: AdvisorFolders | undefined): Promise<string | null> {
   if (!ADVISOR_TOOL_SET.has(call.name)) return offList(call.name);
-  if (call.name === "bash" && !isReadOnlyCommand(call.args.command)) return NOT_READ_ONLY;
+  if (call.name === "bash" && (!isReadOnlyCommand(call.args.command) || call.args.background === true || call.args.wait_ms !== undefined)) {
+    return NOT_READ_ONLY;
+  }
   const reach = reachOf(call.name, call.args);
   if (typeof reach === "string") return reach;
   if (!reach.length) return null;

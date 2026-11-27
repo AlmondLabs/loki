@@ -13,6 +13,7 @@ import { CODING_TOOL_KINDS, type ToolKind } from "./tool-kinds.ts";
 export type { ToolKind } from "./tool-kinds.ts";
 
 const NEVER_ASK = new Set([
+  "plan",
   "user_ask",
   "chat_list",
   "suggestion_create",
@@ -41,8 +42,9 @@ export function asks(mode: PermissionMode, name: string, args: Record<string, un
 }
 
 function callKind(name: string, args: Record<string, unknown>): ToolKind | undefined {
-  if (name === "bash" && isReadOnlyCommand(args.command)) return "read";
+  if (name === "bash" && isReadOnlyCommand(args.command) && args.background !== true && args.wait_ms === undefined) return "read";
   if (name === "background_watch" && (args.input !== undefined || args.stop === true)) return "command";
+  if (name === "subagent" && args.workspace === "worktree") return "command";
   return undefined;
 }
 

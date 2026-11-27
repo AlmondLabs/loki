@@ -16,6 +16,7 @@ import { parseLinkAnswer } from "../core/chat-links.ts";
 import { KeychainCredentials, keychain, memorySecrets } from "./credentials.ts";
 import { deviceIdIn, Providers } from "./providers.ts";
 import { BackgroundTasks } from "./background.ts";
+import { SubagentManager } from "./subagents.ts";
 import { Schedules, scheduleTools } from "./schedule.ts";
 import { memoryRepos } from "./memory-sync.ts";
 import { memoryRoot, memoryTools } from "./memory.ts";
@@ -122,6 +123,16 @@ const background = new BackgroundTasks(
       .then((delivery) => delivery?.outcome)
       .catch((e: unknown) => report(`task notice not delivered: ${String(e)}`)),
 );
+const subagents = new SubagentManager({
+  notify: (agentId, chatId, text) =>
+    void chat
+      .deliver(agentId, chatId, text, "steer")
+      .then((delivery) => delivery?.outcome)
+      .catch((e: unknown) => report(`subagent notice not delivered: ${String(e)}`)),
+  harnessFor: async (agentId) => (await stores.get(agentId)).harness,
+  context,
+  worktreesDir: join(args.dir, "worktrees"),
+});
 const schedules = new Schedules(schedulesFile, deliver, report);
 const approvals = new Approvals({
   widgetsDir: process.env.LOKI_WIDGETS_DIR ?? join(args.dir, "widgets"),
@@ -140,6 +151,7 @@ const builtins = builtinExtensions({
   background,
   schedules,
   history: chats,
+  subagents,
   scripts: scriptExtensions(sandbox, undefined, (name) => mods.annotations(name)?.strangerText === true),
 });
 const builtinToolKinds = builtinKinds(builtins);
@@ -257,6 +269,7 @@ const chat: DaemonChats = new DaemonChats({
   macId: installId(),
   schedules,
   background,
+  subagents,
   usualModel: (agentId) => topUsualModel(agentId),
   advisors,
 });
@@ -375,6 +388,7 @@ function stop(signal: string) {
     passes.stop();
     usage.close();
     background.stopAll();
+    void subagents.stopAll();
     void mcp.close();
     void acp.close();
     void lokiTools.stop();

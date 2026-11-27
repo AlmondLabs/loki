@@ -61,6 +61,7 @@ interface Deps {
   macId?: string;
   schedules?: Schedules;
   background?: Pick<BackgroundTasks, "stopAgent">;
+  subagents?: { stopAgent(agentId: string): Promise<void> };
   now?: () => number;
   usualModel?: (agentId: string) => { handle: string; reasoning_effort: ReasoningEffort | null } | null;
   advisors?: AdvisorConsults;
@@ -653,6 +654,7 @@ export class DaemonChats implements ChatBackend {
   async removeAgent(agentId: string): Promise<void> {
     this.deps.schedules?.cancelAgent(agentId);
     this.deps.background?.stopAgent(agentId);
+    await this.deps.subagents?.stopAgent(agentId);
     await this.deps.stores.close(agentId);
     for (const path of [
       this.deps.stores.file(agentId),
