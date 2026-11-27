@@ -52,9 +52,11 @@ While you work, check with `bun run lint:fast`: it reuses ESLint's earlier resul
 type change in another file causes, so before pushing run the uncached `bun run lint` below. `bun run typecheck`
 checks the whole project in about a second and keeps no cache.
 
-Run every check, with CI's toolchain (the newest Node 22, the bun in package.json's `packageManager`, `SHELL=/bin/bash`), and push only when all pass:
+Run every check, with CI's toolchain (the newest Node 22, the bun in package.json's `packageManager`, `SHELL=/bin/bash`), and push only when all pass (`bun run verify` runs them in parallel, and `bun run verify:pr` scopes lint, tests, and the app build to your branch diff while iterating):
 
 ```bash
+bun run verify
+# or serially:
 bun run format:check && bun run lint && bun run typecheck && bun run test && bun run test:node
 bun run build:app && bun run build:mod && bun run smoke
 ```

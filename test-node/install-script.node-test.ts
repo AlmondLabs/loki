@@ -4,7 +4,7 @@ import { once } from "node:events";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { delimiter, join, relative, resolve } from "node:path";
-import { test } from "node:test";
+import { describe, test } from "node:test";
 import { pathToFileURL } from "node:url";
 import { INSTALL_FILES } from "../scripts/release.ts";
 
@@ -102,7 +102,7 @@ async function serve(root: string): Promise<{ url: string; close: () => void }> 
   return { url: `http://127.0.0.1:${port.toString().trim()}`, close: () => void server.kill() };
 }
 
-function install(s: Scratch, opts: { system?: string; arch?: string; args?: string[]; env?: Record<string, string>; piped?: boolean } = {}): Run {
+function install(s: Scratch, opts: { system?: string; arch?: string; args?: string[]; env?: Record<string, string>; piped?: boolean } = {}): Promise<Run> {
   const env: Record<string, string> = {
     PATH: `${s.bin}${delimiter}${process.env.PATH ?? ""}`,
     HOME: s.home,
@@ -116,10 +116,23 @@ function install(s: Scratch, opts: { system?: string; arch?: string; args?: stri
     ...opts.env,
   };
   const args = opts.args ?? [];
-  const r = opts.piped
-    ? spawnSync("sh", ["-s", "--", ...args], { env, encoding: "utf8", input: readFileSync(SCRIPT, "utf8") })
-    : spawnSync("sh", [SCRIPT, ...args], { env, encoding: "utf8" });
-  return { status: r.status, stdout: r.stdout, stderr: r.stderr };
+  const shArgs = opts.piped ? ["-s", "--", ...args] : [SCRIPT, ...args];
+  return new Promise((resolvePromise, reject) => {
+    const child = spawn("sh", shArgs, { env, stdio: [opts.piped ? "pipe" : "ignore", "pipe", "pipe"] });
+    let stdout = "";
+    let stderr = "";
+    child.stdout?.setEncoding("utf8");
+    child.stderr?.setEncoding("utf8");
+    child.stdout?.on("data", (chunk: string) => {
+      stdout += chunk;
+    });
+    child.stderr?.on("data", (chunk: string) => {
+      stderr += chunk;
+    });
+    child.once("error", reject);
+    child.once("close", (status) => resolvePromise({ status, stdout, stderr }));
+    if (opts.piped) child.stdin?.end(readFileSync(SCRIPT, "utf8"));
+  });
 }
 
 function snapshot(dir: string): Record<string, string> {
@@ -140,271 +153,277 @@ function snapshot(dir: string): Record<string, string> {
 const literal = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const plistOf = (app: string): string => readFileSync(join(app, "Contents", "Info.plist"), "utf8");
 
-void test("on a Mac, loki goes into the Applications folder, unopened, and the temp files go", { skip: noSh }, () => {
-  const s = scratch();
-  try {
-    macRelease(s, "stable", "stable-1");
-    const r = install(s);
-    assert.equal(r.status, 0, r.stderr);
-    assert.match(plistOf(join(s.apps, "loki.app")), /stable-1/);
-    assert.equal(r.stdout, `Downloading the latest loki.\nInstalling loki in ${s.apps}.\nDone. loki is in ${s.apps}.\n`);
-    assert.deepEqual(readdirSync(s.tmp), []);
-  } finally {
-    rmSync(s.dir, { recursive: true, force: true });
-  }
-});
-
-void test("on a Mac whose Applications folder can't be written, loki goes into ~/Applications, made for it", { skip: noSh }, () => {
-  const s = scratch();
-  try {
-    macRelease(s, "stable", "stable-1");
-    const r = install(s, { env: { LOKI_APPLICATIONS_DIR: join(s.dir, "missing") } });
-    assert.equal(r.status, 0, r.stderr);
-    assert.match(plistOf(join(s.home, "Applications", "loki.app")), /stable-1/);
-    assert.match(r.stdout, new RegExp(`Installing loki in ${literal(join(s.home, "Applications"))}\\.`));
-  } finally {
-    rmSync(s.dir, { recursive: true, force: true });
-  }
-});
-
-void test("AE6: running the line again replaces the app and leaves ~/.loki as it was", { skip: noSh }, () => {
-  const s = scratch();
-  try {
-    macRelease(s, "stable", "stable-1");
-    assert.equal(install(s).status, 0);
-    writeFileSync(join(s.apps, "loki.app", "Contents", "stale"), "from the old version");
-    mkdirSync(join(s.home, ".loki"));
-    writeFileSync(join(s.home, ".loki", "agents.json"), '{"agents":["a"]}');
-    const before = snapshot(join(s.home, ".loki"));
-
-    macRelease(s, "stable", "stable-2");
-    const r = install(s);
-    assert.equal(r.status, 0, r.stderr);
-    assert.match(plistOf(join(s.apps, "loki.app")), /stable-2/);
-    assert.equal(existsSync(join(s.apps, "loki.app", "Contents", "stale")), false);
-    assert.deepEqual(snapshot(join(s.home, ".loki")), before);
-  } finally {
-    rmSync(s.dir, { recursive: true, force: true });
-  }
-});
-
-void test("--nightly, piped into sh, and LOKI_CHANNEL=nightly fetch from the nightly release", { skip: noSh }, () => {
-  const s = scratch();
-  try {
-    macRelease(s, "stable", "stable-1");
-    macRelease(s, "nightly", "nightly-1");
-    const piped = install(s, { args: ["--nightly"], piped: true });
-    assert.equal(piped.status, 0, piped.stderr);
-    assert.match(piped.stdout, /^Downloading the latest loki Nightly\./);
-    assert.match(plistOf(join(s.apps, "loki.app")), /nightly-1/);
-
-    rmSync(join(s.apps, "loki.app"), { recursive: true });
-    const env = install(s, { env: { LOKI_CHANNEL: "nightly" } });
-    assert.equal(env.status, 0, env.stderr);
-    assert.match(plistOf(join(s.apps, "loki.app")), /nightly-1/);
-
-    assert.equal(install(s).status, 0);
-    assert.match(plistOf(join(s.apps, "loki.app")), /stable-1/);
-  } finally {
-    rmSync(s.dir, { recursive: true, force: true });
-  }
-});
-
-void test("an unsupported system or architecture, or an unknown option, stops with a message and changes nothing", { skip: noSh }, () => {
-  const s = scratch();
-  try {
-    linuxRelease(s, "stable", "stable-1");
-    const before = snapshot(s.dir);
-    const arm = install(s, { system: "Linux", arch: "aarch64" });
-    assert.equal(arm.status, 1);
-    assert.equal(arm.stdout, "");
-    assert.equal(
-      arm.stderr,
-      "loki for Linux runs on x86_64 only, and this machine is aarch64.\nUse loki on a Mac with Apple silicon, on Windows, or on an x86_64 Linux machine.\n",
-    );
-    const bsd = install(s, { system: "FreeBSD", arch: "amd64" });
-    assert.equal(bsd.status, 1);
-    assert.match(bsd.stderr, /runs FreeBSD\.\nOn Windows, run this in PowerShell: irm https:\/\/almondlabs\.github\.io\/loki\/install\.ps1 \| iex\n$/);
-    const option = install(s, { args: ["--beta"] });
-    assert.equal(option.status, 1);
-    assert.match(option.stderr, /^Unknown option: --beta\./);
-    assert.deepEqual(snapshot(s.dir), before);
-  } finally {
-    rmSync(s.dir, { recursive: true, force: true });
-  }
-});
-
-void test("an Intel Mac stops with a message before it downloads anything, and changes nothing", { skip: noSh }, () => {
-  const s = scratch();
-  try {
-    macRelease(s, "stable", "stable-1");
-    const before = snapshot(s.dir);
-    for (const arm64 of ["0", "missing"]) {
-      const r = install(s, { arch: "x86_64", env: { FAKE_ARM64: arm64 } });
-      assert.equal(r.status, 1, arm64);
-      assert.equal(r.stdout, "", arm64);
-      assert.equal(r.stderr, "loki needs a Mac with Apple silicon.\nUse loki on a Mac with Apple silicon, on Windows, or on an x86_64 Linux machine.\n", arm64);
+void describe("install.sh", { concurrency: true }, () => {
+  void test("on a Mac, loki goes into the Applications folder, unopened, and the temp files go", { skip: noSh }, async () => {
+    const s = scratch();
+    try {
+      macRelease(s, "stable", "stable-1");
+      const r = await install(s);
+      assert.equal(r.status, 0, r.stderr);
+      assert.match(plistOf(join(s.apps, "loki.app")), /stable-1/);
+      assert.equal(r.stdout, `Downloading the latest loki.\nInstalling loki in ${s.apps}.\nDone. loki is in ${s.apps}.\n`);
+      assert.deepEqual(readdirSync(s.tmp), []);
+    } finally {
+      rmSync(s.dir, { recursive: true, force: true });
     }
-    assert.deepEqual(snapshot(s.dir), before);
-  } finally {
-    rmSync(s.dir, { recursive: true, force: true });
-  }
-});
+  });
 
-void test("an Apple silicon Mac whose shell runs under Rosetta, so uname says x86_64, installs", { skip: noSh }, () => {
-  const s = scratch();
-  try {
-    macRelease(s, "stable", "stable-1");
-    const r = install(s, { arch: "x86_64" });
-    assert.equal(r.status, 0, r.stderr);
-    assert.match(plistOf(join(s.apps, "loki.app")), /stable-1/);
-  } finally {
-    rmSync(s.dir, { recursive: true, force: true });
-  }
-});
-
-void test("with loki running, the line says to quit it first and changes nothing", { skip: noSh }, () => {
-  const s = scratch();
-  try {
-    macRelease(s, "stable", "stable-1");
-    linuxRelease(s, "stable", "stable-1");
-    assert.equal(install(s).status, 0);
-    const before = snapshot(s.dir);
-    for (const system of ["Darwin", "Linux"]) {
-      const r = install(s, { system, arch: "x86_64", env: { FAKE_RUNNING: "1" } });
-      assert.equal(r.status, 1, system);
-      assert.equal(r.stderr, "loki is open, so it can't be replaced.\nQuit loki, then run the line again.\n");
+  void test("on a Mac whose Applications folder can't be written, loki goes into ~/Applications, made for it", { skip: noSh }, async () => {
+    const s = scratch();
+    try {
+      macRelease(s, "stable", "stable-1");
+      const r = await install(s, { env: { LOKI_APPLICATIONS_DIR: join(s.dir, "missing") } });
+      assert.equal(r.status, 0, r.stderr);
+      assert.match(plistOf(join(s.home, "Applications", "loki.app")), /stable-1/);
+      assert.match(r.stdout, new RegExp(`Installing loki in ${literal(join(s.home, "Applications"))}\\.`));
+    } finally {
+      rmSync(s.dir, { recursive: true, force: true });
     }
-    assert.deepEqual(snapshot(s.dir), before);
-  } finally {
-    rmSync(s.dir, { recursive: true, force: true });
-  }
-});
+  });
 
-void test("on Linux, the AppImage goes to ~/.local/share/loki with a menu entry and icon, and a second run replaces it", { skip: noSh }, () => {
-  const s = scratch();
-  try {
-    const data = join(s.home, ".local", "share");
-    const app = join(data, "loki", "loki.AppImage");
-    linuxRelease(s, "stable", "stable-1");
-    const r = install(s, { system: "Linux", arch: "x86_64" });
-    assert.equal(r.status, 0, r.stderr);
-    assert.equal(r.stdout, `Downloading the latest loki.\nInstalling loki in ${join(data, "loki")}.\nDone. loki is in ${join(data, "loki")}.\n`);
-    assert.match(readFileSync(app, "utf8"), /stable-1/);
-    assert.notEqual(statSync(app).mode & 0o111, 0);
-    const entry = readFileSync(join(data, "applications", "loki.desktop"), "utf8");
-    assert.match(entry, new RegExp(`^Exec="${literal(app)}" %U$`, "m"));
-    assert.match(entry, new RegExp(`^Icon=${literal(join(data, "loki", "loki.png"))}$`, "m"));
-    assert.equal(readFileSync(join(data, "loki", "loki.png"), "utf8"), "png\n");
-    assert.deepEqual(readdirSync(s.tmp), []);
+  void test("AE6: running the line again replaces the app and leaves ~/.loki as it was", { skip: noSh }, async () => {
+    const s = scratch();
+    try {
+      macRelease(s, "stable", "stable-1");
+      assert.equal((await install(s)).status, 0);
+      writeFileSync(join(s.apps, "loki.app", "Contents", "stale"), "from the old version");
+      mkdirSync(join(s.home, ".loki"));
+      writeFileSync(join(s.home, ".loki", "agents.json"), '{"agents":["a"]}');
+      const before = snapshot(join(s.home, ".loki"));
 
-    mkdirSync(join(s.home, ".loki"));
-    writeFileSync(join(s.home, ".loki", "agents.json"), '{"agents":["a"]}');
-    linuxRelease(s, "stable", "stable-2");
-    assert.equal(install(s, { system: "Linux", arch: "x86_64" }).status, 0);
-    assert.match(readFileSync(app, "utf8"), /stable-2/);
-    assert.equal(readFileSync(join(s.home, ".loki", "agents.json"), "utf8"), '{"agents":["a"]}');
-  } finally {
-    rmSync(s.dir, { recursive: true, force: true });
-  }
-});
+      macRelease(s, "stable", "stable-2");
+      const r = await install(s);
+      assert.equal(r.status, 0, r.stderr);
+      assert.match(plistOf(join(s.apps, "loki.app")), /stable-2/);
+      assert.equal(existsSync(join(s.apps, "loki.app", "Contents", "stale")), false);
+      assert.deepEqual(snapshot(join(s.home, ".loki")), before);
+    } finally {
+      rmSync(s.dir, { recursive: true, force: true });
+    }
+  });
 
-void test("on Linux without FUSE 2, an AppImage that needs it stops with the command to install it; one that doesn't installs", { skip: noSh }, () => {
-  const s = scratch();
-  try {
-    linuxRelease(s, "stable", "stable-1");
-    const before = snapshot(s.home);
-    const r = install(s, { system: "Linux", arch: "x86_64", env: { FAKE_NO_FUSE: "1" } });
-    assert.equal(r.status, 1);
-    assert.match(
-      r.stderr,
-      /^loki needs FUSE 2 \(libfuse2\), which isn't installed\.\nInstall it with .*(libfuse2|fuse-libs|fuse2).*, then run the line again\.\n$/,
-    );
-    assert.deepEqual(snapshot(s.home), before);
-    assert.deepEqual(readdirSync(s.tmp), []);
+  void test("--nightly, piped into sh, and LOKI_CHANNEL=nightly fetch from the nightly release", { skip: noSh }, async () => {
+    const s = scratch();
+    try {
+      macRelease(s, "stable", "stable-1");
+      macRelease(s, "nightly", "nightly-1");
+      const piped = await install(s, { args: ["--nightly"], piped: true });
+      assert.equal(piped.status, 0, piped.stderr);
+      assert.match(piped.stdout, /^Downloading the latest loki Nightly\./);
+      assert.match(plistOf(join(s.apps, "loki.app")), /nightly-1/);
 
-    linuxRelease(s, "stable", "static-runtime", false);
-    const ok = install(s, { system: "Linux", arch: "x86_64", env: { FAKE_NO_FUSE: "1" } });
-    assert.equal(ok.status, 0, ok.stderr);
-    assert.match(readFileSync(join(s.home, ".local", "share", "loki", "loki.AppImage"), "utf8"), /static-runtime/);
-  } finally {
-    rmSync(s.dir, { recursive: true, force: true });
-  }
-});
+      rmSync(join(s.apps, "loki.app"), { recursive: true });
+      const env = await install(s, { env: { LOKI_CHANNEL: "nightly" } });
+      assert.equal(env.status, 0, env.stderr);
+      assert.match(plistOf(join(s.apps, "loki.app")), /nightly-1/);
 
-void test("a release without the file says it isn't published yet, keeps the installed loki, and leaves no temp files", { skip: noSh }, async () => {
-  const s = scratch();
-  const server = await serve(s.releases);
-  try {
-    macRelease(s, "stable", "stable-1");
-    assert.equal(install(s).status, 0);
-    rmSync(join(s.releases, "latest"), { recursive: true });
-    const before = snapshot(s.apps);
-    const stable = install(s, { env: { LOKI_DOWNLOAD_URL: server.url } });
-    assert.equal(stable.status, 1);
-    assert.match(
-      stable.stderr,
-      /The latest loki isn't published yet\.\nRun the line with --nightly for loki Nightly, or download loki from https:\/\/github\.com\/AlmondLabs\/loki\/releases\.\n$/,
-    );
-    const nightly = install(s, { args: ["--nightly"], env: { LOKI_DOWNLOAD_URL: server.url } });
-    assert.equal(nightly.status, 1);
-    assert.match(
-      nightly.stderr,
-      /The latest loki Nightly isn't published yet\.\nRun the line again in a few minutes, or download loki from https:\/\/github\.com\/AlmondLabs\/loki\/releases\.\n$/,
-    );
-    assert.deepEqual(snapshot(s.apps), before);
-    assert.deepEqual(readdirSync(s.tmp), []);
-  } finally {
-    server.close();
-    rmSync(s.dir, { recursive: true, force: true });
-  }
-});
+      assert.equal((await install(s)).status, 0);
+      assert.match(plistOf(join(s.apps, "loki.app")), /stable-1/);
+    } finally {
+      rmSync(s.dir, { recursive: true, force: true });
+    }
+  });
 
-void test("a download the network cuts off says to check the connection, keeps the installed loki, and leaves no temp files", { skip: noSh }, async () => {
-  const s = scratch();
-  const server = await serve(s.releases);
-  try {
-    macRelease(s, "stable", "stable-1");
-    assert.equal(install(s).status, 0);
-    const before = snapshot(s.apps);
-    const r = install(s, { env: { LOKI_DOWNLOAD_URL: `${server.url}/drop` } });
-    assert.equal(r.status, 1);
-    assert.match(
-      r.stderr,
-      new RegExp(
-        `Couldn't download ${literal(`${server.url}/drop/latest/download/${MAC_FILE}`)}\\.\nCheck your internet connection, then run the line again\\.\n$`,
-      ),
-    );
-    assert.deepEqual(snapshot(s.apps), before);
-    assert.deepEqual(readdirSync(s.tmp), []);
-  } finally {
-    server.close();
-    rmSync(s.dir, { recursive: true, force: true });
-  }
-});
+  void test("an unsupported system or architecture, or an unknown option, stops with a message and changes nothing", { skip: noSh }, async () => {
+    const s = scratch();
+    try {
+      linuxRelease(s, "stable", "stable-1");
+      const before = snapshot(s.dir);
+      const arm = await install(s, { system: "Linux", arch: "aarch64" });
+      assert.equal(arm.status, 1);
+      assert.equal(arm.stdout, "");
+      assert.equal(
+        arm.stderr,
+        "loki for Linux runs on x86_64 only, and this machine is aarch64.\nUse loki on a Mac with Apple silicon, on Windows, or on an x86_64 Linux machine.\n",
+      );
+      const bsd = await install(s, { system: "FreeBSD", arch: "amd64" });
+      assert.equal(bsd.status, 1);
+      assert.match(bsd.stderr, /runs FreeBSD\.\nOn Windows, run this in PowerShell: irm https:\/\/almondlabs\.github\.io\/loki\/install\.ps1 \| iex\n$/);
+      const option = await install(s, { args: ["--beta"] });
+      assert.equal(option.status, 1);
+      assert.match(option.stderr, /^Unknown option: --beta\./);
+      assert.deepEqual(snapshot(s.dir), before);
+    } finally {
+      rmSync(s.dir, { recursive: true, force: true });
+    }
+  });
 
-void test("a download that isn't a loki app stops with a message, keeps the installed loki, and leaves no temp files", { skip: noSh }, () => {
-  const s = scratch();
-  try {
-    macRelease(s, "stable", "stable-1");
-    assert.equal(install(s).status, 0);
-    const before = snapshot(s.apps);
-    const notLoki = (): void => macRelease(s, "stable", "other-1", "other.app");
-    const notArchive = (): void => writeFileSync(join(channelDir(s, "stable"), MAC_FILE), "not an archive");
-    for (const release of [notLoki, notArchive]) {
-      release();
-      const r = install(s);
-      assert.equal(r.status, 1, release.name);
+  void test("an Intel Mac stops with a message before it downloads anything, and changes nothing", { skip: noSh }, async () => {
+    const s = scratch();
+    try {
+      macRelease(s, "stable", "stable-1");
+      const before = snapshot(s.dir);
+      for (const arm64 of ["0", "missing"]) {
+        const r = await install(s, { arch: "x86_64", env: { FAKE_ARM64: arm64 } });
+        assert.equal(r.status, 1, arm64);
+        assert.equal(r.stdout, "", arm64);
+        assert.equal(
+          r.stderr,
+          "loki needs a Mac with Apple silicon.\nUse loki on a Mac with Apple silicon, on Windows, or on an x86_64 Linux machine.\n",
+          arm64,
+        );
+      }
+      assert.deepEqual(snapshot(s.dir), before);
+    } finally {
+      rmSync(s.dir, { recursive: true, force: true });
+    }
+  });
+
+  void test("an Apple silicon Mac whose shell runs under Rosetta, so uname says x86_64, installs", { skip: noSh }, async () => {
+    const s = scratch();
+    try {
+      macRelease(s, "stable", "stable-1");
+      const r = await install(s, { arch: "x86_64" });
+      assert.equal(r.status, 0, r.stderr);
+      assert.match(plistOf(join(s.apps, "loki.app")), /stable-1/);
+    } finally {
+      rmSync(s.dir, { recursive: true, force: true });
+    }
+  });
+
+  void test("with loki running, the line says to quit it first and changes nothing", { skip: noSh }, async () => {
+    const s = scratch();
+    try {
+      macRelease(s, "stable", "stable-1");
+      linuxRelease(s, "stable", "stable-1");
+      assert.equal((await install(s)).status, 0);
+      const before = snapshot(s.dir);
+      for (const system of ["Darwin", "Linux"]) {
+        const r = await install(s, { system, arch: "x86_64", env: { FAKE_RUNNING: "1" } });
+        assert.equal(r.status, 1, system);
+        assert.equal(r.stderr, "loki is open, so it can't be replaced.\nQuit loki, then run the line again.\n");
+      }
+      assert.deepEqual(snapshot(s.dir), before);
+    } finally {
+      rmSync(s.dir, { recursive: true, force: true });
+    }
+  });
+
+  void test("on Linux, the AppImage goes to ~/.local/share/loki with a menu entry and icon, and a second run replaces it", { skip: noSh }, async () => {
+    const s = scratch();
+    try {
+      const data = join(s.home, ".local", "share");
+      const app = join(data, "loki", "loki.AppImage");
+      linuxRelease(s, "stable", "stable-1");
+      const r = await install(s, { system: "Linux", arch: "x86_64" });
+      assert.equal(r.status, 0, r.stderr);
+      assert.equal(r.stdout, `Downloading the latest loki.\nInstalling loki in ${join(data, "loki")}.\nDone. loki is in ${join(data, "loki")}.\n`);
+      assert.match(readFileSync(app, "utf8"), /stable-1/);
+      assert.notEqual(statSync(app).mode & 0o111, 0);
+      const entry = readFileSync(join(data, "applications", "loki.desktop"), "utf8");
+      assert.match(entry, new RegExp(`^Exec="${literal(app)}" %U$`, "m"));
+      assert.match(entry, new RegExp(`^Icon=${literal(join(data, "loki", "loki.png"))}$`, "m"));
+      assert.equal(readFileSync(join(data, "loki", "loki.png"), "utf8"), "png\n");
+      assert.deepEqual(readdirSync(s.tmp), []);
+
+      mkdirSync(join(s.home, ".loki"));
+      writeFileSync(join(s.home, ".loki", "agents.json"), '{"agents":["a"]}');
+      linuxRelease(s, "stable", "stable-2");
+      assert.equal((await install(s, { system: "Linux", arch: "x86_64" })).status, 0);
+      assert.match(readFileSync(app, "utf8"), /stable-2/);
+      assert.equal(readFileSync(join(s.home, ".loki", "agents.json"), "utf8"), '{"agents":["a"]}');
+    } finally {
+      rmSync(s.dir, { recursive: true, force: true });
+    }
+  });
+
+  void test("on Linux without FUSE 2, an AppImage that needs it stops with the command to install it; one that doesn't installs", { skip: noSh }, async () => {
+    const s = scratch();
+    try {
+      linuxRelease(s, "stable", "stable-1");
+      const before = snapshot(s.home);
+      const r = await install(s, { system: "Linux", arch: "x86_64", env: { FAKE_NO_FUSE: "1" } });
+      assert.equal(r.status, 1);
       assert.match(
         r.stderr,
-        /The download isn't a loki app\.\nRun the line again in a few minutes; if it fails again, tell us at https:\/\/github\.com\/AlmondLabs\/loki\/issues\.\n$/,
+        /^loki needs FUSE 2 \(libfuse2\), which isn't installed\.\nInstall it with .*(libfuse2|fuse-libs|fuse2).*, then run the line again\.\n$/,
       );
-      assert.deepEqual(snapshot(s.apps), before, release.name);
-      assert.deepEqual(readdirSync(s.tmp), [], release.name);
+      assert.deepEqual(snapshot(s.home), before);
+      assert.deepEqual(readdirSync(s.tmp), []);
+
+      linuxRelease(s, "stable", "static-runtime", false);
+      const ok = await install(s, { system: "Linux", arch: "x86_64", env: { FAKE_NO_FUSE: "1" } });
+      assert.equal(ok.status, 0, ok.stderr);
+      assert.match(readFileSync(join(s.home, ".local", "share", "loki", "loki.AppImage"), "utf8"), /static-runtime/);
+    } finally {
+      rmSync(s.dir, { recursive: true, force: true });
     }
-  } finally {
-    rmSync(s.dir, { recursive: true, force: true });
-  }
+  });
+
+  void test("a release without the file says it isn't published yet, keeps the installed loki, and leaves no temp files", { skip: noSh }, async () => {
+    const s = scratch();
+    const server = await serve(s.releases);
+    try {
+      macRelease(s, "stable", "stable-1");
+      assert.equal((await install(s)).status, 0);
+      rmSync(join(s.releases, "latest"), { recursive: true });
+      const before = snapshot(s.apps);
+      const stable = await install(s, { env: { LOKI_DOWNLOAD_URL: server.url } });
+      assert.equal(stable.status, 1);
+      assert.match(
+        stable.stderr,
+        /The latest loki isn't published yet\.\nRun the line with --nightly for loki Nightly, or download loki from https:\/\/github\.com\/AlmondLabs\/loki\/releases\.\n$/,
+      );
+      const nightly = await install(s, { args: ["--nightly"], env: { LOKI_DOWNLOAD_URL: server.url } });
+      assert.equal(nightly.status, 1);
+      assert.match(
+        nightly.stderr,
+        /The latest loki Nightly isn't published yet\.\nRun the line again in a few minutes, or download loki from https:\/\/github\.com\/AlmondLabs\/loki\/releases\.\n$/,
+      );
+      assert.deepEqual(snapshot(s.apps), before);
+      assert.deepEqual(readdirSync(s.tmp), []);
+    } finally {
+      server.close();
+      rmSync(s.dir, { recursive: true, force: true });
+    }
+  });
+
+  void test("a download the network cuts off says to check the connection, keeps the installed loki, and leaves no temp files", { skip: noSh }, async () => {
+    const s = scratch();
+    const server = await serve(s.releases);
+    try {
+      macRelease(s, "stable", "stable-1");
+      assert.equal((await install(s)).status, 0);
+      const before = snapshot(s.apps);
+      const r = await install(s, { env: { LOKI_DOWNLOAD_URL: `${server.url}/drop` } });
+      assert.equal(r.status, 1);
+      assert.match(
+        r.stderr,
+        new RegExp(
+          `Couldn't download ${literal(`${server.url}/drop/latest/download/${MAC_FILE}`)}\\.\nCheck your internet connection, then run the line again\\.\n$`,
+        ),
+      );
+      assert.deepEqual(snapshot(s.apps), before);
+      assert.deepEqual(readdirSync(s.tmp), []);
+    } finally {
+      server.close();
+      rmSync(s.dir, { recursive: true, force: true });
+    }
+  });
+
+  void test("a download that isn't a loki app stops with a message, keeps the installed loki, and leaves no temp files", { skip: noSh }, async () => {
+    const s = scratch();
+    try {
+      macRelease(s, "stable", "stable-1");
+      assert.equal((await install(s)).status, 0);
+      const before = snapshot(s.apps);
+      const notLoki = (): void => macRelease(s, "stable", "other-1", "other.app");
+      const notArchive = (): void => writeFileSync(join(channelDir(s, "stable"), MAC_FILE), "not an archive");
+      for (const release of [notLoki, notArchive]) {
+        release();
+        const r = await install(s);
+        assert.equal(r.status, 1, release.name);
+        assert.match(
+          r.stderr,
+          /The download isn't a loki app\.\nRun the line again in a few minutes; if it fails again, tell us at https:\/\/github\.com\/AlmondLabs\/loki\/issues\.\n$/,
+        );
+        assert.deepEqual(snapshot(s.apps), before, release.name);
+        assert.deepEqual(readdirSync(s.tmp), [], release.name);
+      }
+    } finally {
+      rmSync(s.dir, { recursive: true, force: true });
+    }
+  });
 });
 
 const pwsh = ["pwsh", "powershell"].find((p) => spawnSync(p, ["-NoProfile", "-Command", "exit 0"]).status === 0);

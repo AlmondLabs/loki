@@ -11,7 +11,8 @@ export interface Change {
 
 export type Selection = { all: true; why: string } | { all: false; files: string[] };
 
-const CODE = /^(app\/src|mod|core|daemon|desktop|site\/src|scripts|test|test-node)\/.+\.(ts|tsx|mts)$/;
+const CODE = /^(app\/src|mod|core|daemon|desktop|site\/src|scripts|test|test-node)\/.+\.(ts|tsx|mts|mjs)$/;
+const DOCS = /^(docs\/|LICENSE$|\.github\/ISSUE_TEMPLATE\/|[^/]+\.md$)/;
 // Outside (vitest): `vitest related` follows the module graph, which cannot see a test that reads the tree from disk,
 // so such a test runs on every PR.
 const READS_TREE = /import\.meta\.dirname|new URL\(\s*["'`]\.\.\/|process\.cwd\(\)/;
@@ -21,11 +22,14 @@ export function treeReaders(tests: ReadonlyMap<string, string>): string[] {
 }
 
 export function selectTests(changes: readonly Change[], tests: ReadonlyMap<string, string>): Selection {
+  const codeChanges: Change[] = [];
   for (const c of changes) {
+    if (DOCS.test(c.path)) continue;
     if (c.status !== "M" && c.status !== "A") return { all: true, why: `${c.path} was ${c.status === "D" ? "deleted" : "renamed or copied"}` };
-    if (!CODE.test(c.path)) return { all: true, why: `${c.path} is not TypeScript the module graph follows` };
+    if (!CODE.test(c.path)) return { all: true, why: `${c.path} is not TypeScript or a test fixture module` };
+    codeChanges.push(c);
   }
-  return { all: false, files: [...new Set([...changes.map((c) => c.path), ...treeReaders(tests)])].sort() };
+  return { all: false, files: [...new Set([...codeChanges.map((c) => c.path), ...treeReaders(tests)])].sort() };
 }
 
 export function vitestArgs(selection: Selection, flags: readonly string[]): string[] {

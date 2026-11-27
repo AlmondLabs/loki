@@ -16,6 +16,8 @@
     "lint:pr": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/lint-pr.ts",
     "format": "bun fmt --no-script",
     "format:check": "bun fmt --no-script --check",
+    "verify": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/verify.ts",
+    "verify:pr": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/verify.ts --pr",
     "test": "vitest run",
     "test:pr": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/select-tests.ts",
     "test:node": "node --experimental-strip-types --disable-warning=ExperimentalWarning --test test-node/*.node-test.ts",

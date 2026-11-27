@@ -54,6 +54,7 @@ export default defineConfig({
   build: {
     outDir: here("dist"),
     emptyOutDir: true,
+    reportCompressedSize: false,
     rollupOptions: {
       output: {
         manualChunks(id) {
