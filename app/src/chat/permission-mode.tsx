@@ -22,7 +22,7 @@ const CHOICES: { [M in PermissionMode]: ModeChoice & { id: M } } = {
 
 export const MODES: Array<ModeChoice & { id: PermissionMode }> = PERMISSION_MODES.map((m) => CHOICES[m]);
 
-const isOpenDoor = (id: string) => id === "unrestricted" || /bypass/i.test(id);
+const isOpenDoor = (id: string) => id === "unrestricted" || /bypass|full-access|yolo|dontask/i.test(id);
 
 export function agentModes(engine: ChatEngineView): ModeChoice[] {
   return engine.modes.map((m) => ({

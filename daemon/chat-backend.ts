@@ -552,6 +552,7 @@ export class DaemonChats implements ChatBackend {
   }
 
   async removeAgent(agentId: string): Promise<void> {
+    this.deps.acp?.forgetAgent(agentId);
     this.deps.schedules?.cancelAgent(agentId);
     this.deps.background?.stopAgent(agentId);
     await this.deps.subagents?.stopAgent(agentId);

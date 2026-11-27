@@ -257,8 +257,10 @@ const TITLED_BY: Partial<Record<string, readonly string[]>> = {
 
 const PATCH_FILE = /^\*\*\* (?:Add|Update|Delete) File: (.+)$/m;
 
+const unprefixLoki = (name: string): string => (name.startsWith("mcp__loki__") ? name.slice("mcp__loki__".length) : name);
+
 const titleOf = (name: string, args: Record<string, unknown>): string | undefined => {
-  const key = TITLED_BY[name]?.find((k) => typeof args[k] === "string" && args[k].trim());
+  const key = TITLED_BY[unprefixLoki(name)]?.find((k) => typeof args[k] === "string" && args[k].trim());
   if (key) return (args[key] as string).trim();
   for (const v of Object.values(args)) {
     const file = typeof v === "string" ? PATCH_FILE.exec(v)?.[1]?.trim() : undefined;
@@ -267,11 +269,11 @@ const titleOf = (name: string, args: Record<string, unknown>): string | undefine
   return undefined;
 };
 
-const isQuestionTool = (name: string): boolean => name === "user_ask";
+const isQuestionTool = (name: string): boolean => unprefixLoki(name) === "user_ask";
 
-const NAMED_BY_INSTEAD_OF_DESCRIPTION: Partial<Record<string, string>> = { ticket_propose: "title", mcp__loki__ticket_propose: "title" };
+const NAMED_BY_INSTEAD_OF_DESCRIPTION: Partial<Record<string, string>> = { ticket_propose: "title" };
 
-const SCRIPT_TOOL_NAME = "codemode";
+const SCRIPT_TOOL_NAMES = new Set(["codemode", "script"]);
 
 export const SCRIPT_DESCRIPTION_PREFIX = "// @description:";
 
@@ -281,10 +283,10 @@ const scriptDescriptionOf = (code: string): string | undefined =>
   code.split("\n").find(isScriptDescriptionLine)?.trimStart().slice(SCRIPT_DESCRIPTION_PREFIX.length);
 
 const saidIn = (args: Record<string, unknown>, name: string): unknown =>
-  name === SCRIPT_TOOL_NAME && typeof args.code === "string" ? scriptDescriptionOf(args.code) : args.description;
+  SCRIPT_TOOL_NAMES.has(unprefixLoki(name)) && typeof args.code === "string" ? scriptDescriptionOf(args.code) : args.description;
 
 const descriptionOf = (name: string, args: Record<string, unknown>): string | undefined => {
-  if (NAMED_BY_INSTEAD_OF_DESCRIPTION[name]) return undefined;
+  if (NAMED_BY_INSTEAD_OF_DESCRIPTION[unprefixLoki(name)]) return undefined;
   const said = saidIn(args, name);
   return typeof said === "string" && said.trim() ? said.trim() : undefined;
 };
@@ -393,7 +395,7 @@ function toolLabelOf(name: string, args: Record<string, unknown> | null): string
   if (!args) return name;
   const question = isQuestionTool(name) ? (args.questions as Array<{ question?: string }> | undefined)?.[0]?.question?.trim() : undefined;
   const arg = typeof args.command === "string" && args.command.trim() ? shellTitle(args.command.trim()) : (argOf(args) ?? titleOf(name, args));
-  const namedBy = NAMED_BY_INSTEAD_OF_DESCRIPTION[name];
+  const namedBy = NAMED_BY_INSTEAD_OF_DESCRIPTION[unprefixLoki(name)];
   const ownName = namedBy && typeof args[namedBy] === "string" ? args[namedBy].trim() : undefined;
   const target = question || (arg ?? ownName)?.split("\n")[0];
   if (!target) return name;

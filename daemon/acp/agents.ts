@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { accessSync, constants, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { delimiter, dirname, isAbsolute, join, resolve } from "node:path";
 import { isRecord } from "../tool-kinds.ts";
 
@@ -37,7 +37,15 @@ export const CURSOR: AcpAgentConfig = {
   login: "cursor-agent login",
 };
 
-export const BUILT_IN_AGENTS: readonly AcpAgentConfig[] = [CLAUDE_CODE, CURSOR];
+export const AGY: AcpAgentConfig = {
+  id: "agy",
+  name: "Antigravity",
+  command: "agy",
+  args: ["acp"],
+  login: "agy acp --login",
+};
+
+export const BUILT_IN_AGENTS: readonly AcpAgentConfig[] = [CLAUDE_CODE, CURSOR, AGY];
 
 export function builtInAgent(id: string): AcpAgentConfig | undefined {
   return BUILT_IN_AGENTS.find((a) => a.id === id);
@@ -82,13 +90,25 @@ export function commandFound(command: string, env: NodeJS.ProcessEnv = process.e
   return commandPath(command, env) !== null;
 }
 
+function isRunnable(file: string): boolean {
+  try {
+    if (!statSync(file).isFile()) return false;
+    if (process.platform !== "win32") accessSync(file, constants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function commandPath(command: string, env: NodeJS.ProcessEnv = process.env): string | null {
-  if (isAbsolute(command) || command.includes("/") || command.includes("\\")) return existsSync(command) ? resolve(command) : null;
+  if (isAbsolute(command) || command.includes("/") || command.includes("\\")) return isRunnable(command) ? resolve(command) : null;
   const exts = process.platform === "win32" ? (env.PATHEXT ?? ".EXE;.CMD;.BAT").split(";").filter(Boolean) : [];
   const dirs = (env.PATH ?? env.Path ?? "").split(delimiter).filter(Boolean);
   for (const dir of dirs)
     // Outside (Windows): the runnable forms come first, as npm puts an extensionless `npx` (a shell script Windows cannot run) beside npx.cmd.
-    for (const name of [...exts.map((e) => `${command}${e.toLowerCase()}`), ...exts.map((e) => `${command}${e}`), command])
-      if (existsSync(join(dir, name))) return join(dir, name);
+    for (const name of [...exts.map((e) => `${command}${e.toLowerCase()}`), ...exts.map((e) => `${command}${e}`), command]) {
+      const candidate = join(dir, name);
+      if (isRunnable(candidate)) return candidate;
+    }
   return null;
 }

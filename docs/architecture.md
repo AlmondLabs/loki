@@ -297,11 +297,13 @@ every chat gets, the chats, then the mods.
 14. **ACP agents (`daemon/acp/`, plan 020).** A chat whose engine is an ACP agent runs there instead of on pi-durable:
     its engine is `AcpEngine` (`daemon/acp/engine.ts`), which hands its send, stop, mode, model and commands to
     `AcpChats` (`chats.ts`). Each agent is one process (`process.ts`, on `@agentclientprotocol/sdk`, started on first
-    use and again after it exits), offered no files or terminals; each chat is a session on it, loaded again after a
-    restart. What the agent reports (`session/update`) becomes chat events and, as each message completes, `pi.user`,
-    `pi.assistant` and `pi.tool-result` entries in the chat's own store, written without pi
+    use and again after it exits), offered no files or terminals; each chat is a session on it, resumed or loaded
+    again after a restart (`resumeSession` / `loadSession`) and closed when leaving an ACP engine (`closeSession`). What
+    the agent reports (`session/update`) becomes chat events and, as each message completes, `pi.user`,
+    `pi.assistant`, `pi.tool-result` and `pi.compaction` entries in the chat's own store, written without pi
     (`AgentStore.appendEntries`), so the projection, the Flow, history and the passes read it as any chat; its reported
-    usage goes into `pi.usage` for the ledger. Its permission requests are `Approvals.ask` cards. The agent's persona,
+    usage (including `thoughtTokens` and running USD cost) goes into `pi.usage` for the ledger. Its permission requests
+    are `Approvals.ask` cards. The agent's persona,
     memory and skills go in its system prompt (`prompt.ts`). loki's own tools reach the session through `loki-tools.ts`
     (plan 044): one MCP endpoint on a random loopback port for the whole daemon, with a key per chat, kept in memory,
     that names the chat, running the same tool bodies as on pi-durable (`ChatTool`, `daemon/chat-tools.ts`); every
@@ -310,9 +312,10 @@ every chat gets, the chats, then the mods.
     with the same one card a run and the same fence (plan 097, U5). The MCP servers the agent has on are
     handed over as their configs (`McpTools.acpServers`) and the agent connects to them itself; one that wants a sign-in
     asks for its page (a URL elicitation), shown as a card and opened in this computer's default browser (`open-url.ts`:
-    `open`, `rundll32` or `xdg-open`). The agents are Claude Code (through npx, pinned) and the person's own in
-    `state/acp.json` (`agents.ts`); what each last offered (models, modes, commands) is kept in `state/acp-offered.json`
-    for the picker. Settings › Engines shows how each stands. Which agents there are, how each stands and what each
+    `open`, `rundll32` or `xdg-open`). The built-in agents are Claude Code (through npx, pinned), Cursor (`cursor-agent acp`),
+    and Antigravity (`agy acp`), plus the person's own in `state/acp.json` (`agents.ts`); what each last offered (models,
+    modes, commands) is kept in `state/acp-offered.json` for the picker. Settings › Engines shows how each stands and
+    lets people configure custom `env`, `login`, and `auth_method`. Which agents there are, how each stands and what each
     offered is `AcpCatalog` (`catalog.ts`, plan 060), apart from running them: `AcpChats` tells it what a session
     offered and how a turn went.
 15. **The advisor (plan 2026-11-22-2109).** A chat's second opinion, in a hidden chat of the agent's store with the id

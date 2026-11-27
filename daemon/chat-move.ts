@@ -63,6 +63,7 @@ export async function exportChat(
   const chat = await store.chat(chatId, context);
   if (!chat) return null;
   const info = await store.chatInfo(chat.id, context);
+  if (info?.engine?.kind === "acp") throw new Error("a chat running on an ACP agent stays on this Mac; export is not supported for it");
   const { model, cwd } = await settingsOf(store, chat, context);
   const entries = await store.entries(chat, context);
   return {

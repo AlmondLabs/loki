@@ -79,4 +79,31 @@ describe("the ACP agents loki knows (plan 060)", () => {
       c.done();
     }
   });
+
+  test("an uninstalled agent stays out of the model picker even if cached, and set/remove evict stale cache", () => {
+    const c = catalog([FAKE]);
+    try {
+      const cat = c.make();
+      cat.offer("fake", { models: [{ value: "sonnet", name: "Sonnet", description: null }], modes: [], commands: [] });
+      c.set([{ ...FAKE, command: "loki-no-such-command" }]);
+      expect(cat.models()).toEqual([]);
+
+      cat.went("gone", { status: "failed", detail: "401 Unauthorized" });
+      c.set([FAKE]);
+      cat.went("fake", { status: "failed", detail: "401 Unauthorized" });
+      expect(cat.engines().engines[0]).toMatchObject({ status: "signed_out" });
+
+      cat.set({ ...FAKE, command: process.execPath, args: ["--v2"], env: { FOO: "1" }, login: "fake login", auth_method: "tok" });
+      c.set(readAcpAgents(c.configFile));
+      expect(cat.offeredBy("fake")).toBeUndefined();
+      expect(cat.engines().engines.find((e) => e.id === "fake")).toMatchObject({ env: { FOO: "1" }, login: "fake login", auth_method: "tok" });
+      cat.set({ ...FAKE, command: process.execPath, args: ["--v2"], env: {}, login: "", auth_method: "" });
+      c.set(readAcpAgents(c.configFile));
+      expect(cat.engines().engines.find((e) => e.id === "fake")).not.toHaveProperty("env");
+      expect(cat.engines().engines.find((e) => e.id === "fake")).not.toHaveProperty("login");
+      expect(cat.engines().engines.find((e) => e.id === "fake")).not.toHaveProperty("auth_method");
+    } finally {
+      c.done();
+    }
+  });
 });

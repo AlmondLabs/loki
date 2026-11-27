@@ -5,7 +5,15 @@ import type { EnginesView, EngineView } from "../../../core/frame-types.ts";
 
 export interface EnginesApi {
   get: () => Promise<EnginesView | string>;
-  set: (engine: { id: string; name: string; command: string; args: string[] }) => Promise<EnginesView | string>;
+  set: (engine: {
+    id: string;
+    name: string;
+    command: string;
+    args: string[];
+    env?: Record<string, string>;
+    auth_method?: string;
+    login?: string;
+  }) => Promise<EnginesView | string>;
   remove: (id: string) => Promise<EnginesView | string>;
   check: (id: string) => Promise<EnginesView | string>;
 }
@@ -83,6 +91,7 @@ export function Engines({ api }: { api: EnginesApi }) {
           <EngineForm
             key={editing === "new" ? "new" : editing.id}
             engine={editing === "new" ? null : editing}
+            existingIds={view.engines.map((e) => e.id)}
             configPath={view.config_path}
             api={api}
             onDone={(r) => {
@@ -152,21 +161,38 @@ function EngineRow({
         )}
       </Setting>
       {details && (
-        <div className="loki-meta loki-meta--wrap loki-mono" style={{ paddingBottom: 12, overflowWrap: "anywhere" }}>
-          {[e.command, ...e.args].join(" ")}
+        <div className="loki-meta loki-meta--wrap loki-mono grid gap-1" style={{ paddingBottom: 12, overflowWrap: "anywhere" }}>
+          <div>{[e.command, ...e.args].join(" ")}</div>
+          {e.login && <div>Sign-in: {e.login}</div>}
+          {e.auth_method && <div>Auth method: {e.auth_method}</div>}
+          {e.env && Object.keys(e.env).length > 0 && <div>Environment: {Object.keys(e.env).join(", ")}</div>}
         </div>
       )}
     </div>
   );
 }
 
+function parseEnvLines(raw: string): Record<string, string> | string {
+  const out: Record<string, string> = {};
+  for (const line of raw.split("\n").map((l) => l.trim())) {
+    if (!line) continue;
+    const eq = line.indexOf("=");
+    const key = eq > 0 ? line.slice(0, eq).trim() : "";
+    if (!key) return "Write each environment entry as NAME=value";
+    out[key] = line.slice(eq + 1);
+  }
+  return out;
+}
+
 function EngineForm({
   engine,
+  existingIds,
   configPath,
   api,
   onDone,
 }: {
   engine: EngineView | null;
+  existingIds: string[];
   configPath: string;
   api: EnginesApi;
   onDone: (r: EnginesView | null) => void;
@@ -175,12 +201,22 @@ function EngineForm({
   const [name, setName] = useState(engine?.name ?? "");
   const [command, setCommand] = useState(engine?.command ?? "");
   const [args, setArgs] = useState(() => (engine?.args ?? []).join("\n"));
+  const [envText, setEnvText] = useState(() =>
+    Object.entries(engine?.env ?? {})
+      .map(([k, v]) => `${k}=${v}`)
+      .join("\n"),
+  );
+  const [login, setLogin] = useState(engine?.login ?? "");
+  const [authMethod, setAuthMethod] = useState(engine?.auth_method ?? "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const save = async () => {
     const id = engine?.id ?? engineId(name);
     if (!id) return setError("Give the agent a name");
+    if (!engine && existingIds.includes(id)) return setError(`An engine named ${id} already exists`);
     if (!command.trim()) return setError("Say which command starts it");
+    const env = parseEnvLines(envText);
+    if (typeof env === "string") return setError(env);
     setBusy(true);
     try {
       const r = await api.set({
@@ -191,6 +227,9 @@ function EngineForm({
           .split("\n")
           .map((a) => a.trim())
           .filter(Boolean),
+        env,
+        auth_method: authMethod.trim(),
+        login: login.trim(),
       });
       if (typeof r === "string") setError(r);
       else onDone(r);
@@ -221,6 +260,43 @@ function EngineForm({
         value={args}
         onChange={(e) => setArgs(e.target.value)}
         placeholder={"-y\n@google/gemini-cli\n--experimental-acp"}
+        spellCheck={false}
+      />
+      <label htmlFor={`${uid}-env`} className="loki-label">
+        Environment variables, one KEY=value per line
+      </label>
+      <TextArea
+        id={`${uid}-env`}
+        size="sm"
+        mono
+        rows={2}
+        value={envText}
+        onChange={(e) => setEnvText(e.target.value)}
+        placeholder="KEY=value"
+        spellCheck={false}
+      />
+      <label htmlFor={`${uid}-login`} className="loki-label">
+        Sign-in command
+      </label>
+      <Field
+        id={`${uid}-login`}
+        size="sm"
+        mono
+        value={login}
+        onChange={(e) => setLogin(e.target.value)}
+        placeholder="Command to run in a terminal"
+        spellCheck={false}
+      />
+      <label htmlFor={`${uid}-auth`} className="loki-label">
+        Sign-in method
+      </label>
+      <Field
+        id={`${uid}-auth`}
+        size="sm"
+        mono
+        value={authMethod}
+        onChange={(e) => setAuthMethod(e.target.value)}
+        placeholder="Method id when the agent asks"
         spellCheck={false}
       />
       {error && (

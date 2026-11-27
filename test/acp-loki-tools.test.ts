@@ -336,5 +336,21 @@ describe("loki's tools for a chat on an ACP agent (plan 044)", () => {
     expect([...stored.values()].flat()).toMatchObject([{ id: "sugg-1", status: "pending", target: { agent_id: "agent-local-ira", folder: "/work/site" } }]);
     expect(tools.readOnly()).toContain("mcp__loki__suggestion_create");
     expect(tools.readOnly()).not.toContain("mcp__loki__chat_list");
+
+    tools.forgetChat("agent-local-ada", "local-conv-garden");
+    await expect(loki.callTool({ name: "suggestion_create", arguments: { title: "X", text: "Y" } })).rejects.toThrow();
+
+    const fresh = tools.serverFor("agent-local-ada", "local-conv-garden");
+    if (!fresh || !("url" in fresh)) throw new Error("expected http server");
+    const big = await fetch(fresh.url, {
+      method: "POST",
+      headers: {
+        authorization: fresh.headers[0].value,
+        "content-type": "application/json",
+      },
+      body: "x".repeat(4 * 1024 * 1024 + 16),
+    });
+    expect(big.status).toBe(413);
+    tools.forgetAgent("agent-local-ada");
   });
 });

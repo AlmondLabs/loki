@@ -76,6 +76,7 @@ const CATALOGUE: Readonly<Partial<Record<string, Entry>>> = {
   user_ask: ASKED,
   AskUserQuestion: ASKED,
   codemode: entry("Ran a script", "Script", "code", "tool", { untitled: "A script" }),
+  script: entry("Ran a script", "Script", "code", "tool", { untitled: "A script" }),
   skill: SKILL,
   Skill: SKILL,
   suggestion_create: entry("Suggested work", "Suggested", "learn", "tool"),
@@ -110,8 +111,10 @@ export const nameAsWords = (name: string): string => {
 
 const isAgentTitle = (name: string): boolean => name.includes(" ");
 
+const unprefixLoki = (name: string): string => (name.startsWith("mcp__loki__") ? name.slice("mcp__loki__".length) : name);
+
 function entryOf(name: string, acpKind?: string): Entry {
-  const listed = CATALOGUE[name];
+  const listed = CATALOGUE[name] ?? CATALOGUE[unprefixLoki(name)];
   if (listed) return listed;
   const acp = acpKind ? ACP_KINDS[acpKind] : undefined;
   if (acp) return acp;

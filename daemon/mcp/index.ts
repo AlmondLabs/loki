@@ -138,9 +138,10 @@ export class McpTools {
     return new Set(agentId ? (this.off[agentId] ?? []) : []);
   }
 
-  async acpServers(agentId: string): Promise<acp.McpServer[]> {
+  async acpServers(agentId: string, extraEnv?: Record<string, string>): Promise<acp.McpServer[]> {
     const off = this.offFor(agentId);
     const secrets = this.secrets;
+    const pathEnv = extraEnv ? { ...process.env, ...extraEnv } : process.env;
     const out: acp.McpServer[] = [];
     for (const config of this.servers.configs().filter((c) => !off.has(c.name))) {
       try {
@@ -151,7 +152,7 @@ export class McpTools {
           continue;
         }
         if (c.cwd) throw new Error("it runs in its own folder, which an ACP agent cannot be told");
-        const command = commandPath(c.command);
+        const command = commandPath(c.command, pathEnv);
         if (!command) throw new Error(`${c.command} is not on the PATH`);
         out.push({ name: c.name, command, args: c.args, env: pairs(c.env) });
       } catch (e) {

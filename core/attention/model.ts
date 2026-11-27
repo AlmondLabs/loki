@@ -16,12 +16,14 @@ export interface PendingApproval {
   requestId: string;
   toolName: string;
   input: unknown;
+  allowAlways?: boolean;
   at: string;
 }
 
 export const NEVER_ALWAYS_TOOLS: ReadonlySet<string> = new Set(["codemode"]);
 
-export const offersAlways = (approval: Pick<PendingApproval, "toolName">): boolean => !NEVER_ALWAYS_TOOLS.has(approval.toolName);
+export const offersAlways = (approval: Pick<PendingApproval, "toolName" | "allowAlways">): boolean =>
+  approval.allowAlways !== false && !NEVER_ALWAYS_TOOLS.has(approval.toolName);
 
 export interface PendingQuestion {
   requestId: string;
@@ -205,7 +207,7 @@ export function cancelQueued(l: Live, text: string): boolean {
 
 export type ChatEvent =
   /** The agent asks to run a tool. */
-  | { kind: "approval"; request_id: string; tool_name: string; input: unknown }
+  | { kind: "approval"; request_id: string; tool_name: string; input: unknown; allow_always?: boolean }
   /** The agent asks you questions (a question card), answered with the input filled in. */
   | { kind: "question"; request_id: string; input: unknown }
   /** The chat's permission mode, folder or engine, as the backend has them now. */
@@ -236,7 +238,13 @@ export type ChatEvent =
 export function applyChatEvent(l: Live, e: ChatEvent, now = new Date().toISOString()): { changed: boolean; userSpoke: boolean } {
   switch (e.kind) {
     case "approval":
-      l.pending = { requestId: e.request_id, toolName: e.tool_name, input: e.input, at: now };
+      l.pending = {
+        requestId: e.request_id,
+        toolName: e.tool_name,
+        input: e.input,
+        ...(e.allow_always !== undefined ? { allowAlways: e.allow_always } : {}),
+        at: now,
+      };
       l.pendingAsk = null;
       l.lastMessageAt = now;
       return { changed: true, userSpoke: false };

@@ -1,3 +1,4 @@
+import { appendFileSync } from "node:fs";
 import { createInterface } from "node:readline";
 
 const sessions = new Map();
@@ -8,6 +9,9 @@ const cancels = new Map();
 let costSoFar = 0;
 let signedIn = !process.env.FAKE_ACP_AUTH;
 const signedOut = (msg) => send({ id: msg.id, error: { code: -32000, message: "Authentication required" } });
+const logRpc = (msg) => {
+  if (process.env.FAKE_ACP_LOG && msg.method) appendFileSync(process.env.FAKE_ACP_LOG, `${JSON.stringify({ method: msg.method, params: msg.params })}\n`);
+};
 
 const send = (msg) => process.stdout.write(`${JSON.stringify({ jsonrpc: "2.0", ...msg })}\n`);
 const update = (sessionId, u) => send({ method: "session/update", params: { sessionId, update: u } });
@@ -108,6 +112,75 @@ async function prompt(params) {
   if (text.includes("wait")) {
     say(id, "working");
     return new Promise((resolve) => cancels.set(id, () => resolve({ stopReason: "cancelled" })));
+  }
+  if (text.includes("compaction")) {
+    update(id, { sessionUpdate: "compaction_update", compactionId: "cmp-1", status: "in_progress" });
+    update(id, { sessionUpdate: "compaction_summary_chunk", compactionId: "cmp-1", content: { type: "text", text: "Earlier: agreed on " } });
+    update(id, { sessionUpdate: "compaction_summary_chunk", compactionId: "cmp-1", content: { type: "text", text: "the plan." } });
+    update(id, { sessionUpdate: "compaction_update", compactionId: "cmp-1", status: "completed" });
+    say(id, "compacted");
+    return { stopReason: "end_turn" };
+  }
+  if (text.includes("notice-error")) {
+    update(id, { sessionUpdate: "notice", severity: "error", title: "Rate limit", description: "Slow down" });
+    say(id, "after notice");
+    return { stopReason: "end_turn" };
+  }
+  if (text.includes("delete-file")) {
+    update(id, {
+      sessionUpdate: "tool_call",
+      toolCallId: "call-del",
+      title: "Delete old.txt",
+      kind: "edit",
+      status: "completed",
+      rawInput: { path: "old.txt" },
+      content: [{ type: "diff", path: "old.txt", oldText: "old\n", newText: "" }],
+    });
+    say(id, "deleted");
+    return { stopReason: "end_turn" };
+  }
+  if (text.includes("resource-tool")) {
+    update(id, {
+      sessionUpdate: "tool_call",
+      toolCallId: "call-res",
+      title: "Read doc",
+      kind: "read",
+      status: "completed",
+      rawInput: { path: "doc.md" },
+      content: [
+        { type: "content", content: { type: "resource_link", uri: "file:///doc.md", name: "doc.md", title: "Doc" } },
+        { type: "content", content: { type: "resource", resource: { uri: "file:///body.txt", text: "resource body" } } },
+      ],
+    });
+    say(id, "read");
+    return { stopReason: "end_turn" };
+  }
+  if (text.includes("config-sync")) {
+    s.model = "sonnet";
+    s.mode = "plan";
+    update(id, {
+      sessionUpdate: "config_option_update",
+      configOptions: [
+        ...options(s),
+        {
+          id: "mode",
+          name: "Mode",
+          category: "mode",
+          type: "select",
+          currentValue: "plan",
+          options: [
+            { value: "default", name: "Default" },
+            { value: "plan", name: "Plan" },
+          ],
+        },
+      ],
+    });
+    say(id, "synced");
+    return { stopReason: "end_turn" };
+  }
+  if (text.includes("thoughts")) {
+    say(id, "thoughtful");
+    return { stopReason: "end_turn", usage: { ...usage, thoughtTokens: 42 } };
   }
   if (text.includes("write")) {
     update(id, { sessionUpdate: "tool_call", toolCallId: "call-w", title: "Preparing file…", kind: "edit", status: "pending" });
@@ -210,15 +283,19 @@ async function handle(msg) {
   }
   const ok = (result) => send({ id: msg.id, result });
   const p = msg.params ?? {};
+  logRpc(msg);
   switch (msg.method) {
     case "initialize":
       return ok({
-        protocolVersion: 1,
+        protocolVersion: process.env.FAKE_ACP_PROTOCOL_VERSION ? Number(process.env.FAKE_ACP_PROTOCOL_VERSION) : 1,
         agentCapabilities: {
           loadSession: true,
-          promptCapabilities: { image: true },
+          promptCapabilities: process.env.FAKE_ACP_NO_IMAGE ? {} : { image: true },
           mcpCapabilities: process.env.FAKE_ACP_NO_HTTP_MCP ? {} : { http: true },
-          sessionCapabilities: process.env.FAKE_ACP_NO_SYSTEM_PROMPT ? {} : { systemPrompt: { mode: { append: {} } } },
+          sessionCapabilities: {
+            ...(process.env.FAKE_ACP_NO_SYSTEM_PROMPT ? {} : { systemPrompt: { mode: { append: {} } } }),
+            ...(process.env.FAKE_ACP_RESUME ? { resume: {}, close: {} } : {}),
+          },
         },
         agentInfo: { name: "fake-acp", version: "1" },
         authMethods: process.env.FAKE_ACP_AUTH ? [{ id: process.env.FAKE_ACP_AUTH, name: "Fake login" }] : [],
@@ -235,6 +312,16 @@ async function handle(msg) {
         return;
       }
       const sessionId = `s-${process.pid}-${nextSession++}`;
+      if (process.env.FAKE_ACP_ELICIT_ON_NEW && nextSession === 2) {
+        const answer = await ask("elicitation/create", {
+          mode: "url",
+          sessionId,
+          message: "Authenticate before session",
+          url: "https://signin.example.com/new",
+          elicitationId: "sign-in-new",
+        });
+        if (answer.action !== "accept") return send({ id: msg.id, error: { code: -32000, message: "elicitation declined" } });
+      }
       ok({ sessionId, ...open(sessionId, p) });
       // Outside (Claude Code): Claude's adapter sends the session's commands after the session.
       update(sessionId, {
@@ -243,6 +330,15 @@ async function handle(msg) {
       });
       return;
     }
+    case "session/resume": {
+      if (!signedIn) return signedOut(msg);
+      if (p.sessionId === "gone") return send({ id: msg.id, error: { code: -32002, message: "no such session" } });
+      if (process.env.FAKE_ACP_RESUMED_COST) costSoFar = Number(process.env.FAKE_ACP_RESUMED_COST);
+      return ok(open(p.sessionId, p));
+    }
+    case "session/close":
+      sessions.delete(p.sessionId);
+      return ok({});
     case "session/load": {
       if (!signedIn) return signedOut(msg);
       if (p.sessionId === "gone") return send({ id: msg.id, error: { code: -32002, message: "no such session" } });

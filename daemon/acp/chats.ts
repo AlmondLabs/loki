@@ -4,6 +4,7 @@ import type * as acp from "@agentclientprotocol/sdk";
 import { randomUUID } from "node:crypto";
 import { contentText } from "../../core/harness.ts";
 import type { ChatEvent } from "../../core/attention/model.ts";
+import type { ImageNamer } from "../../core/attention/pi-steps.ts";
 import type { ChatState, PayloadOf } from "../../core/frames.ts";
 import type { ChatEngineView, ModelEntry } from "../../core/models.ts";
 import type { Approvals } from "../approvals.ts";
@@ -28,10 +29,14 @@ export interface AcpChatsDeps {
   systemPrompt?: (agentId: string, withTools: boolean) => string | null;
   mods?: Pick<ModRegistry, "renderSections" | "transformMessage">;
   homeDir: string;
-  mcpServers?: (agentId: string, conversationId: string) => Promise<acp.McpServer[]>;
+  nameImage?: ImageNamer;
+  clientVersion?: string;
+  mcpServers?: (agentId: string, conversationId: string, engineEnv?: Record<string, string>) => Promise<acp.McpServer[]>;
   openUrl?: (url: string) => void;
   allowedTools?: (agentId: string) => string[];
   passServer?: (agentId: string, conversationId: string, tools: readonly string[]) => acp.McpServer | null;
+  forgetChat?: (agentId: string, conversationId: string) => void;
+  forgetAgent?: (agentId: string) => void;
   report?: (message: string) => void;
   stopWaitMs?: number;
   configFile?: string;
@@ -57,6 +62,7 @@ export class AcpChats {
   private push: (agentId: string, conversationId: string, events: ChatEvent[]) => void = () => {};
   private readonly live = new Map<string, Live>();
   private readonly bySession = new Map<string, Live>();
+  private readonly opening = new Map<string, Live>();
   /** Updates for a session loki has not registered yet (they can arrive with its `session/new` answer), replayed once it has. */
   private readonly early = new Map<string, acp.SessionNotification[]>();
   private readonly registering = new Map<string, Array<(live: Live) => void>>();
@@ -81,6 +87,12 @@ export class AcpChats {
       saveMode: async (agentId, conversationId, modeId) => {
         const store = await this.deps.stores.get(agentId);
         await store.updateChat(conversationId, { mode: modeId }, this.deps.context);
+      },
+      saveCost: async (agentId, conversationId, costSoFar) => {
+        const { store, info } = await this.chat(agentId, conversationId);
+        if (info.engine?.kind === "acp") {
+          await store.updateChat(conversationId, { engine: { ...info.engine, cost_so_far: costSoFar } }, this.deps.context);
+        }
       },
       remember: (live) => this.remember(live),
     };
@@ -127,15 +139,54 @@ export class AcpChats {
   }
 
   async checkEngine(id: string): Promise<EnginesView> {
-    const proc = this.process(id);
-    await proc.close();
+    const config = this.agent(id);
+    if (!config) throw new Error(`no ACP agent named ${id}; add it in Settings`);
+    const probe = new AcpProcess(
+      config,
+      {
+        update: () => {},
+        permission: () => Promise.resolve({ outcome: { outcome: "cancelled" } }),
+        elicit: () => Promise.resolve({ action: "cancel" }),
+        log: (line) => this.deps.report?.(`${id}: ${line}`),
+      },
+      undefined,
+      this.deps.clientVersion,
+    );
     try {
-      await proc.capabilities();
+      await probe.capabilities();
       if (this.catalog.healthOf(id)?.status !== "ready") this.catalog.went(id, { status: "started", detail: "it starts; sign-in shows on the first message" });
     } catch (error) {
-      this.catalog.went(id, { status: "failed", detail: proc.failure(error).message });
+      this.catalog.went(id, { status: "failed", detail: probe.failure(error).message });
+    } finally {
+      await probe.close();
     }
     return this.catalog.engines();
+  }
+
+  async leave(agentId: string, conversationId: string): Promise<void> {
+    const live = this.live.get(key(agentId, conversationId));
+    if (live) {
+      this.abort(agentId, conversationId);
+      const proc = this.processes.get(live.agent);
+      const sessionId = live.sessionId;
+      if (proc && sessionId && live.epoch === proc.epoch()) {
+        const caps = await proc.capabilities().catch(() => null);
+        if (caps?.sessionCapabilities?.close) await proc.closeSession({ sessionId }).catch(() => {});
+      }
+      if (sessionId) this.bySession.delete(sessionId);
+      this.live.delete(key(agentId, conversationId));
+    }
+    this.deps.forgetChat?.(agentId, conversationId);
+  }
+
+  forgetAgent(agentId: string): void {
+    for (const [k, live] of this.live) {
+      if (live.agentId !== agentId) continue;
+      this.abort(agentId, live.conversationId);
+      if (live.sessionId) this.bySession.delete(live.sessionId);
+      this.live.delete(k);
+    }
+    this.deps.forgetAgent?.(agentId);
   }
 
   private restart(id: string): void {
@@ -179,12 +230,17 @@ export class AcpChats {
     if (!proc) {
       const config = this.agent(agent);
       if (!config) throw new Error(`no ACP agent named ${agent}; add it in Settings`);
-      proc = new AcpProcess(config, {
-        update: (n) => this.update(n),
-        permission: (r) => this.permission(r),
-        elicit: (r) => this.elicit(r),
-        log: (line) => this.deps.report?.(`${agent}: ${line}`),
-      });
+      proc = new AcpProcess(
+        config,
+        {
+          update: (n) => this.update(n),
+          permission: (r) => this.permission(r),
+          elicit: (r) => this.elicit(agent, r),
+          log: (line) => this.deps.report?.(`${agent}: ${line}`),
+        },
+        undefined,
+        this.deps.clientVersion,
+      );
       this.processes.set(agent, proc);
     }
     return proc;
@@ -214,7 +270,7 @@ export class AcpChats {
         modes: null,
         configOptions: [],
         commands: [],
-        costSoFar: 0,
+        costSoFar: engine.cost_so_far ?? 0,
         pass: null,
       };
       this.live.set(key(agentId, conversationId), live);
@@ -245,7 +301,7 @@ export class AcpChats {
       agent_id: agentId,
       conversation_id: conversationId,
       loop: waiting ? "approval" : turn ? "running" : "idle",
-      mode: info.mode ?? live?.modes?.currentModeId ?? null,
+      mode: info.mode ?? (live ? this.currentMode(live) : null),
       cwd: settings?.cwd ?? null,
       engine: info.engine?.kind === "acp" ? this.view(info.engine) : null,
       ...(turn?.text ? { streaming: { text: turn.text, at: turn.at } } : {}),
@@ -297,13 +353,19 @@ export class AcpChats {
     const engine: ChatEngine = { ...p.engine, session_id: null };
     await store.updateChat(p.chatId, { engine }, context);
     const live = this.liveOf(p.agentId, p.chatId, engine);
-    if (live.sessionId) this.bySession.delete(live.sessionId);
-    live.sessionId = null;
-    live.agent = engine.agent;
-    live.model = engine.model;
-    live.effort = engine.effort ?? null;
-    live.pass = { instructions: p.instructions, tools: p.tools };
-    const ran = live.queue.then(() => this.run(live, p.prompt, []));
+    const ran = live.queue.then(async () => {
+      if (live.sessionId) this.bySession.delete(live.sessionId);
+      live.sessionId = null;
+      live.agent = engine.agent;
+      live.model = engine.model;
+      live.effort = engine.effort ?? null;
+      live.pass = { instructions: p.instructions, tools: p.tools };
+      try {
+        return await this.run(live, p.prompt, []);
+      } finally {
+        live.pass = null;
+      }
+    });
     live.queue = ran.then(
       () => {},
       () => {},
@@ -336,9 +398,9 @@ export class AcpChats {
 
   async setMode(agentId: string, conversationId: string, modeId: string): Promise<void> {
     const { store } = await this.chat(agentId, conversationId);
-    await store.updateChat(conversationId, { mode: modeId }, this.deps.context);
     const live = this.live.get(key(agentId, conversationId));
     if (live?.sessionId && live.epoch === this.process(live.agent).epoch()) await this.applyMode(live, modeId);
+    await store.updateChat(conversationId, { mode: modeId }, this.deps.context);
     this.push(agentId, conversationId, [{ kind: "device", mode: modeId }]);
   }
 
@@ -378,21 +440,30 @@ export class AcpChats {
   }
 
   private async applyModel(live: Live, model: string): Promise<void> {
-    if (!live.sessionId || model === "default") return;
+    if (!live.sessionId) return;
     const option = live.configOptions.find((o) => o.category === "model" && o.type === "select");
-    if (option?.type === "select" && option.currentValue !== model) {
-      live.configOptions = (await this.process(live.agent).setConfigOption(live.sessionId, option.id, model)).configOptions;
-    }
+    if (option?.type !== "select") return;
+    const target = model === "default" ? (live.defaultModel ?? "default") : model;
+    if (option.currentValue === target || !selectOptions(option).some((o) => o.value === target)) return;
+    live.configOptions = (await this.process(live.agent).setConfigOption(live.sessionId, option.id, target)).configOptions;
   }
 
   private async applyEffort(live: Live, effort: string | null): Promise<void> {
-    if (!live.sessionId || !effort) return;
+    if (!live.sessionId) return;
     const option = live.configOptions.find((o) => o.category === "thought_level" && o.type === "select");
-    if (option?.type !== "select" || option.currentValue === effort || !selectOptions(option).some((o) => o.value === effort)) return;
-    live.configOptions = (await this.process(live.agent).setConfigOption(live.sessionId, option.id, effort)).configOptions;
+    const target = effort ?? live.defaultEffort ?? null;
+    if (option?.type !== "select" || !target || option.currentValue === target || !selectOptions(option).some((o) => o.value === target)) return;
+    live.configOptions = (await this.process(live.agent).setConfigOption(live.sessionId, option.id, target)).configOptions;
   }
 
-  private async session(live: Live, store: AgentStore, chat: Conversation, info: Readonly<ChatInfo>, engine: ChatEngine): Promise<string> {
+  private async session(
+    live: Live,
+    store: AgentStore,
+    chat: Conversation,
+    info: Readonly<ChatInfo>,
+    engine: ChatEngine,
+    signal?: AbortSignal,
+  ): Promise<string> {
     const proc = this.process(live.agent);
     const caps = await proc.capabilities();
     if (live.sessionId && live.epoch === proc.epoch()) return live.sessionId;
@@ -404,11 +475,14 @@ export class AcpChats {
     const servers = pass
       ? [this.deps.passServer && pass.tools.length ? this.deps.passServer(live.agentId, live.conversationId, pass.tools) : null].filter((m) => m !== null)
       : this.deps.mcpServers
-        ? await this.deps.mcpServers(live.agentId, live.conversationId)
+        ? await this.deps.mcpServers(live.agentId, live.conversationId, this.agent(live.agent)?.env)
         : [];
     const mcpServers = servers.filter((m) =>
       !("type" in m) ? true : m.type === "http" ? Boolean(caps.mcpCapabilities?.http) : m.type === "sse" ? Boolean(caps.mcpCapabilities?.sse) : false,
     );
+    if (pass && pass.tools.length > 0 && servers.length > 0 && !mcpServers.some((m) => m.name === LOKI_TOOLS_SERVER)) {
+      throw new Error("this agent does not support HTTP MCP servers, so it cannot run passes that need loki's tools");
+    }
     const prompt = pass
       ? pass.instructions
       : [
@@ -428,35 +502,59 @@ export class AcpChats {
     const opening = { cwd, mcpServers, ...systemPrompt, ...meta };
     if (live.sessionId) this.bySession.delete(live.sessionId);
     let opened: { sessionId: string; modes?: acp.SessionModeState | null; configOptions?: acp.SessionConfigOption[] | null } | null = null;
-    if (engine.session_id && caps.loadSession) {
-      live.sessionId = engine.session_id;
-      this.bySession.set(engine.session_id, live);
-      live.loading = true;
-      try {
-        opened = { sessionId: engine.session_id, ...(await proc.loadSession({ sessionId: engine.session_id, ...opening })) };
-      } catch {
-        opened = null;
-      } finally {
-        live.loading = false;
+    if (engine.session_id) {
+      if (caps.sessionCapabilities?.resume) {
+        try {
+          opened = { sessionId: engine.session_id, ...(await proc.resumeSession({ sessionId: engine.session_id, cwd, mcpServers }, signal)) };
+        } catch {
+          opened = null;
+        }
+      } else if (caps.loadSession) {
+        live.sessionId = engine.session_id;
+        this.bySession.set(engine.session_id, live);
+        live.loading = true;
+        try {
+          opened = { sessionId: engine.session_id, ...(await proc.loadSession({ sessionId: engine.session_id, ...opening }, signal)) };
+        } catch {
+          opened = null;
+        } finally {
+          live.loading = false;
+        }
       }
     }
+    const resumed = opened !== null;
     if (!opened) {
       if (engine.session_id) {
         const note = "the agent could not pick up where this chat left off, so it starts afresh; it does not remember the messages above";
         this.push(live.agentId, live.conversationId, [{ kind: "error", message: note }]);
       }
-      opened = await proc.newSession(opening);
-      // Outside (ACP): the agent sends its commands right after it answers, so the session is known before anything else is awaited.
-      this.register(opened.sessionId, live);
+      this.opening.set(live.agent, live);
+      try {
+        opened = await proc.newSession(opening, signal);
+      } finally {
+        if (this.opening.get(live.agent) === live) this.opening.delete(live.agent);
+      }
+      if (signal?.aborted) {
+        if (caps.sessionCapabilities?.close) void proc.closeSession({ sessionId: opened.sessionId }).catch(() => {});
+        throw new Stopped("the turn was stopped");
+      }
       const now = (await store.chatInfo(chat.id, this.deps.context))?.engine;
       if (now?.kind === "acp" && now.agent === engine.agent)
-        await store.updateChat(live.conversationId, { engine: { ...now, session_id: opened.sessionId } }, this.deps.context);
+        await store.updateChat(live.conversationId, { engine: { ...now, session_id: opened.sessionId, cost_so_far: 0 } }, this.deps.context);
     }
     live.sessionId = opened.sessionId;
     live.epoch = proc.epoch();
     live.modes = opened.modes ?? null;
     live.configOptions = opened.configOptions ?? [];
-    live.preamble = prompt && !takesPrompt ? prompt : null;
+    if (!resumed || live.defaultModel === undefined) {
+      const modelOpt = live.configOptions.find((o) => o.category === "model");
+      live.defaultModel = modelOpt?.type === "select" ? modelOpt.currentValue : null;
+      const effortOpt = live.configOptions.find((o) => o.category === "thought_level");
+      live.defaultEffort = effortOpt?.type === "select" ? effortOpt.currentValue : null;
+    }
+    live.preamble = !resumed && prompt && !takesPrompt ? prompt : null;
+    live.costSoFar = resumed ? (engine.cost_so_far ?? live.costSoFar) : 0;
+    // Outside (ACP): the agent sends its commands right after opening, so all live state is in place before register() replays early updates.
     this.register(opened.sessionId, live);
     await this.applyModel(live, live.model);
     await this.applyEffort(live, live.effort);
@@ -492,43 +590,48 @@ export class AcpChats {
       abort: new AbortController(),
       text: "",
       thought: "",
+      compaction: "",
       at: null,
       calls: new Map(),
       plan: null,
       model: null,
       cost: 0,
-      writes: [],
-      startedAt: 0,
-      firstOutputAt: null,
-      responses: 0,
+      writeChain: Promise.resolve(),
     };
     live.turn = turn;
     live.stop = turn.abort;
     const at = this.now();
-    turn.startedAt = Date.parse(at);
     const content = [
       ...(text ? [{ type: "text" as const, text }] : []),
       ...images.map((i) => ({ type: "image" as const, data: i.data, mimeType: i.media_type })),
     ];
-    this.push(live.agentId, live.conversationId, [
-      { kind: "loop", state: "running" },
-      { kind: "step", step: { kind: "user", raw: contentText(content), at } },
-    ]);
+    const namer = this.deps.nameImage;
+    const stepImages = namer ? images.flatMap((i) => namer({ data: i.data, mimeType: i.media_type }) ?? []) : [];
+    this.push(live.agentId, live.conversationId, [{ kind: "loop", state: "running" }]);
     let usage: acp.Usage | null = null;
     const outcome: TurnOutcome = { text: "", error: null };
     try {
       await store.appendEntries(chat, [{ kind: "pi.user", message: { role: "user", content, timestamp: Date.parse(at) } }], null, this.deps.context);
-      const sessionId = await unlessStopped(this.session(live, store, chat, info, info.engine), turn.abort.signal, this.stopWaitMs);
+      this.push(live.agentId, live.conversationId, [
+        { kind: "step", step: { kind: "user", raw: contentText(content), at, ...(stepImages.length ? { images: stepImages } : {}) } },
+      ]);
+      const sessionId = await unlessStopped(this.session(live, store, chat, info, info.engine, turn.abort.signal), turn.abort.signal, this.stopWaitMs);
       const caps = await proc.capabilities();
       const prompt: acp.ContentBlock[] = [
         ...(live.preamble ? [{ type: "text" as const, text: `<loki-agent>\n${live.preamble}\n</loki-agent>` }] : []),
         ...(text ? [{ type: "text" as const, text }] : []),
         ...(caps.promptCapabilities?.image ? images.map((i) => ({ type: "image" as const, data: i.data, mimeType: i.media_type })) : []),
       ];
-      live.preamble = null;
-      if (images.length && !caps.promptCapabilities?.image)
+      if (images.length && !caps.promptCapabilities?.image) {
         this.push(live.agentId, live.conversationId, [{ kind: "error", message: "this agent takes no pictures; they were not sent" }]);
-      const response = await unlessStopped(proc.prompt({ sessionId, prompt }), turn.abort.signal, this.stopWaitMs);
+        if (prompt.length === 0) {
+          outcome.error = "this agent takes no pictures, so there was nothing to send";
+          this.push(live.agentId, live.conversationId, [{ kind: "error", message: outcome.error }]);
+          return outcome;
+        }
+      }
+      live.preamble = null;
+      const response = await unlessStopped(proc.prompt({ sessionId, prompt }, turn.abort.signal), turn.abort.signal, this.stopWaitMs);
       usage = response.usage ?? null;
       outcome.text = await finishTurn(this.streamHost(), live, store, chat, turn, usage, info.engine);
       if (response.stopReason !== "end_turn") outcome.error = stopNote(response.stopReason) ?? `the agent stopped: ${response.stopReason}`;
@@ -538,6 +641,23 @@ export class AcpChats {
     } catch (error) {
       await finishTurn(this.streamHost(), live, store, chat, turn, null, info.engine).catch(() => {});
       if (error instanceof Stopped) {
+        const sid = live.sessionId;
+        live.sessionId = null;
+        if (sid) {
+          this.bySession.delete(sid);
+          void store
+            .chatInfo(chat.id, this.deps.context)
+            .then((latest) => {
+              if (latest?.engine?.kind === "acp" && latest.engine.session_id === sid) {
+                return store.updateChat(live.conversationId, { engine: { ...latest.engine, session_id: null } }, this.deps.context);
+              }
+            })
+            .catch(() => {});
+          void proc
+            .capabilities()
+            .then((caps) => (caps.sessionCapabilities?.close ? proc.closeSession({ sessionId: sid }) : undefined))
+            .catch(() => {});
+        }
         outcome.error = "the turn was stopped";
         this.push(live.agentId, live.conversationId, [{ kind: "error", message: "the agent did not answer the stop, so loki ended the turn without it" }]);
         return outcome;
@@ -575,18 +695,22 @@ export class AcpChats {
     applySessionNotification(this.streamHost(), live, n);
   }
 
-  private async elicit(r: acp.CreateElicitationRequest): Promise<acp.CreateElicitationResponse> {
+  private async elicit(agent: string, r: acp.CreateElicitationRequest): Promise<acp.CreateElicitationResponse> {
     // Outside (ACP): the request's type keeps room for modes a later version adds, so its fields are read as unknown and checked.
     const url = r.mode === "url" && "url" in r && typeof r.url === "string" && /^https?:\/\//i.test(r.url) ? r.url : null;
     const sessionId = "sessionId" in r && typeof r.sessionId === "string" ? r.sessionId : null;
     const openUrl = this.deps.openUrl;
-    if (!url || !sessionId || !openUrl) return { action: "decline" };
-    const signal = AbortSignal.timeout(SIGN_IN_WAIT_MS);
-    const live = await this.sessionLive(sessionId, signal);
+    if (!url || (!sessionId && !this.opening.has(agent)) || !openUrl) return { action: "decline" };
+    const timeoutSignal = AbortSignal.timeout(SIGN_IN_WAIT_MS);
+    const live =
+      (sessionId ? this.bySession.get(sessionId) : undefined) ??
+      this.opening.get(agent) ??
+      (sessionId ? await this.sessionLive(sessionId, timeoutSignal) : null);
     if (!live) return { action: "cancel" };
-    const event = { kind: "approval" as const, request_id: `acp-page-${randomUUID()}`, tool_name: r.message, input: { url } };
+    const askSignal = live.stop ? AbortSignal.any([timeoutSignal, live.stop.signal]) : timeoutSignal;
+    const event = { kind: "approval" as const, request_id: `acp-page-${randomUUID()}`, tool_name: r.message, input: { url }, allow_always: false };
     try {
-      const d = await this.deps.approvals.ask<{ allow: boolean }>(live.agentId, live.conversationId, event, signal, { remember: false });
+      const d = await this.deps.approvals.ask<{ allow: boolean }>(live.agentId, live.conversationId, event, askSignal, { remember: false });
       if (!d.allow) return { action: "decline" };
       openUrl(url);
       return { action: "accept" };
@@ -598,16 +722,20 @@ export class AcpChats {
   private sessionLive(sessionId: string, signal: AbortSignal): Promise<Live | null> {
     const known = this.bySession.get(sessionId);
     if (known) return Promise.resolve(known);
+    if (signal.aborted) return Promise.resolve(null);
     return new Promise((resolve) => {
-      const waiting = (live: Live) => resolve(live);
-      this.registering.set(sessionId, [...(this.registering.get(sessionId) ?? []), waiting]);
-      signal.addEventListener("abort", () => {
-        this.registering.set(
-          sessionId,
-          (this.registering.get(sessionId) ?? []).filter((w) => w !== waiting),
-        );
+      const waiting = (live: Live) => {
+        signal.removeEventListener("abort", onAbort);
+        resolve(live);
+      };
+      const onAbort = () => {
+        const rest = (this.registering.get(sessionId) ?? []).filter((w) => w !== waiting);
+        if (rest.length > 0) this.registering.set(sessionId, rest);
+        else this.registering.delete(sessionId);
         resolve(null);
-      });
+      };
+      this.registering.set(sessionId, [...(this.registering.get(sessionId) ?? []), waiting]);
+      signal.addEventListener("abort", onAbort, { once: true });
     });
   }
 
@@ -615,6 +743,14 @@ export class AcpChats {
     const live = this.bySession.get(r.sessionId);
     if (!live?.turn) return { outcome: { outcome: "cancelled" } };
     if (live.pass) {
+      const allowed = new Set(LokiTools.named(live.pass.tools));
+      const meta = r.toolCall._meta as { claudeCode?: { toolName?: string } } | null | undefined;
+      const metaName = typeof meta?.claudeCode?.toolName === "string" ? meta.claudeCode.toolName : "";
+      const names = [r.toolCall.name ?? "", r.toolCall.title ?? "", metaName];
+      if (names.some((n) => allowed.has(n))) {
+        const allow = r.options.find((o) => o.kind === "allow_once") ?? r.options.find((o) => o.kind === "allow_always");
+        if (allow) return { outcome: { outcome: "selected", optionId: allow.optionId } };
+      }
       const reject = r.options.find((o) => o.kind === "reject_once") ?? r.options.find((o) => o.kind === "reject_always");
       return reject ? { outcome: { outcome: "selected", optionId: reject.optionId } } : { outcome: { outcome: "cancelled" } };
     }
@@ -624,6 +760,7 @@ export class AcpChats {
       request_id: `acp-${randomUUID()}`,
       tool_name: r.toolCall.title || call?.name || r.toolCall.name || "tool",
       input: r.toolCall.rawInput ?? call?.args ?? {},
+      allow_always: r.options.some((o) => o.kind === "allow_always"),
     };
     try {
       const d = await this.deps.approvals.ask<{ allow: boolean; always?: boolean }>(live.agentId, live.conversationId, event, live.turn.abort.signal, {

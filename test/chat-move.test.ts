@@ -136,6 +136,13 @@ describe("a moved chat's mark", () => {
     expect(JSON.stringify(entries.at(-1)?.data)).toContain('<loki-moved from=\\"MacBook\\" to=\\"Mac mini\\"/>');
     expect((await s.mini.chatInfo(there.id, ctx))?.moved).toEqual({ from: "MacBook", to: "Mac mini", files_left: 1 });
   });
+
+  test("an ACP chat is refused export rather than losing its session silently", async () => {
+    const s = await stores();
+    const chat = await s.book.createChat("conv-acp", { agent: { model: s.model } }, ctx);
+    await s.book.updateChat("conv-acp", { engine: { kind: "acp", agent: "claude-code", model: "default", session_id: "s1" } }, ctx);
+    await expect(exportChat(s.book, "agent-ira", chat.id ? "conv-acp" : "conv-acp", { schedules: [], cursors: {} }, ctx)).rejects.toThrow(/stays on this Mac/);
+  });
 });
 
 describe("a moved chat's schedules", () => {

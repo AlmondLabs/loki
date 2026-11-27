@@ -701,4 +701,28 @@ describe("how each frame crosses between Macs (plan 023, addendum C)", () => {
     expect(peerMeaning("peers_get")).toBeNull();
     expect(peerMeaning("nonsense")).toBeNull();
   });
+
+  test("chat_engine_set accepts optional env, auth_method and login and rejects malformed values", () => {
+    const ok = FRAMES.chat_engine_set.parse({
+      type: "chat_engine_set",
+      id: "agy",
+      name: "Antigravity",
+      command: "agy",
+      args: ["acp"],
+      env: { FOO: "bar" },
+      auth_method: "m1",
+      login: "agy acp --login",
+    });
+    expect(ok).toEqual({
+      id: "agy",
+      name: "Antigravity",
+      command: "agy",
+      args: ["acp"],
+      env: { FOO: "bar" },
+      auth_method: "m1",
+      login: "agy acp --login",
+    });
+    expect(typeof FRAMES.chat_engine_set.parse({ type: "chat_engine_set", id: "x", name: "X", command: "x", env: { A: 1 } })).toBe("string");
+    expect(typeof FRAMES.chat_engine_set.parse({ type: "chat_engine_set", id: "x", name: "X", command: "x", login: 123 })).toBe("string");
+  });
 });

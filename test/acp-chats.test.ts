@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "vitest";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
@@ -14,7 +14,7 @@ import { AgentStore } from "../daemon/kernel/index.ts";
 import { StoreManager } from "../daemon/kernel/stores.ts";
 import { ModRegistry } from "../daemon/mods/registry.ts";
 import { AcpChats, type AcpChatsDeps } from "../daemon/acp/chats.ts";
-import { acpHandle, CLAUDE_CODE, commandFound, CURSOR, readAcpAgents, writeAcpAgents, type AcpAgentConfig } from "../daemon/acp/agents.ts";
+import { acpHandle, AGY, CLAUDE_CODE, commandFound, CURSOR, readAcpAgents, writeAcpAgents, type AcpAgentConfig } from "../daemon/acp/agents.ts";
 import { entrySteps } from "../core/attention/pi-steps.ts";
 import { foldSteps } from "../core/attention/thread.ts";
 import type { ChatEvent } from "../core/attention/model.ts";
@@ -148,12 +148,14 @@ function setup(
 }
 
 describe("ACP agents (plan 020)", () => {
-  test("the agents: Claude Code and Cursor built in, others from the file, a bad one skipped; ACP handles named", () => {
+  test("the agents: Claude Code, Cursor and Antigravity built in, others from the file, a bad one skipped; ACP handles named", () => {
     const dir = mkdtempSync(join(tmpdir(), "loki-acp-agents-"));
     try {
-      expect(readAcpAgents(join(dir, "none.json"))).toEqual([CLAUDE_CODE, CURSOR]);
+      expect(readAcpAgents(join(dir, "none.json"))).toEqual([CLAUDE_CODE, CURSOR, AGY]);
       expect(CURSOR).toMatchObject({ command: "cursor-agent", args: ["acp"], auth_method: "cursor_login" });
+      expect(AGY).toMatchObject({ id: "agy", name: "Antigravity", command: "agy", args: ["acp"], login: "agy acp --login" });
       expect(acpHandle("acp:claude-code/sonnet")).toEqual({ agent: "claude-code", model: "sonnet" });
+      expect(acpHandle("acp:agy/default")).toEqual({ agent: "agy", model: "default" });
       expect(acpHandle("anthropic/claude-sonnet")).toBeNull();
       expect(commandFound(process.execPath)).toBe(true);
       expect(commandFound(join(dir, "nothing-here"))).toBe(false);
@@ -523,7 +525,7 @@ describe("ACP agents (plan 020)", () => {
 
     await acp.setEngine({ id: "gone", name: "Gone", command: join(dir, "no-such-agent"), args: [] });
     expect(one("gone")).toMatchObject({ builtin: false, status: "not_found" });
-    expect(readAcpAgents(file).map((a) => a.id)).toEqual(["claude-code", "cursor", "gone"]);
+    expect(readAcpAgents(file).map((a) => a.id)).toEqual(["claude-code", "cursor", "agy", "gone"]);
     await acp.setEngine({ id: "gone", name: "Gone", command: process.execPath, args: [join(dir, "no-such-script.mjs")] });
     expect((await acp.checkEngine("gone")).engines.find((e) => e.id === "gone")).toMatchObject({ status: "failed" });
 
@@ -543,7 +545,7 @@ describe("ACP agents (plan 020)", () => {
 
     await acp.removeEngine("gone");
     await acp.removeEngine("claude-code");
-    expect(readAcpAgents(file)).toEqual([CLAUDE_CODE, CURSOR]);
+    expect(readAcpAgents(file)).toEqual([CLAUDE_CODE, CURSOR, AGY]);
     expect(one("claude-code")).toMatchObject({ builtin: true, changed: false });
   });
 
@@ -738,5 +740,105 @@ describe("covers plan 061: a background pass on an ACP agent", () => {
   test("a turn past its time is stopped and the run fails, as on loki's engine", async () => {
     const s = setup({ stopWaitMs: 50 });
     await expect(s.acp.runPass(pass(s.dir, "deaf", { timeoutMs: 200 }))).rejects.toThrow(/did not finish within/);
+  });
+
+  test("a pass auto-allows the pass tools it explicitly granted, while still refusing other tools", async () => {
+    const s = setup();
+    // "edit" asks for "Edit notes.txt", which is not in pass.tools -> refused as before
+    expect(await s.acp.runPass(pass(s.dir, "edit"))).toBe("not edited");
+  });
+});
+
+describe("ACP protocol & lifecycle fixes", () => {
+  test("compaction, notice error, empty newText diff, resource output, thoughtTokens, and config_option_update all flow cleanly", async () => {
+    const s = setup();
+    const id = await s.chat();
+
+    await s.say(id, "compaction");
+    const { store, conversation, entries } = await s.stored(id);
+    const steps = entries.flatMap((e) => entrySteps(e));
+    expect(steps).toContainEqual(expect.objectContaining({ kind: "compaction", state: "done", detail: "Earlier: agreed on the plan." }));
+
+    await s.say(id, "notice-error");
+    expect(s.errors()).toContain("Rate limit: Slow down");
+
+    await s.say(id, "delete-file");
+    const results = s.events().flatMap((e) => (e.kind === "step" && e.step.kind === "result" ? [e.step.output] : []));
+    expect(results).toContain("--- old.txt\n+++ old.txt\n-old");
+
+    await s.say(id, "resource-tool");
+    const allResults = s.events().flatMap((e) => (e.kind === "step" && e.step.kind === "result" ? [e.step.output] : []));
+    expect(allResults.some((o) => typeof o === "string" && o.includes("Doc (file:///doc.md)") && o.includes("resource body"))).toBe(true);
+
+    await s.say(id, "thoughts");
+    const usage = must(await store.usage(conversation.id, ctx));
+    expect(Object.values(usage.models)[0]).toMatchObject({ reasoning: 42 });
+
+    await s.say(id, "config-sync");
+    const deviceEvents = s.events().filter((e): e is Extract<ChatEvent, { kind: "device" }> => e.kind === "device");
+    expect(deviceEvents.some((e) => e.mode === "plan" && e.engine?.model === "sonnet")).toBe(true);
+  });
+
+  test("resumeSession, closeSession on leaving an ACP engine, and persisted cost_so_far across restart", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "loki-acp-rpc-log-"));
+    cleanups.push(() => Promise.resolve(rmSync(dir, { recursive: true, force: true })));
+    const log = join(dir, "rpc.jsonl");
+    const logged = setup({ env: { FAKE_ACP_RESUME: "1", FAKE_ACP_LOG: log, FAKE_ACP_RESUMED_COST: "0.25" } });
+    const id = await logged.chat();
+    await logged.say(id, "hello");
+    const first = await logged.stored(id);
+    expect((await first.store.chatInfo(first.conversation.id, ctx))?.engine?.cost_so_far).toBeCloseTo(0.25);
+
+    await logged.restart();
+    await logged.say(id, "hello");
+    const { store, conversation } = await logged.stored(id);
+    const usage = must(await store.usage(conversation.id, ctx));
+    expect(usage.models["acp:fake/fake-sonnet"].cost.total).toBeCloseTo(0.5);
+
+    await logged.acp.leave("ada", id);
+    const { conversationId: warmed } = await logged.chats.create("ada", null, null);
+    await logged.chats.model({ agent_id: "ada", conversation_id: warmed, handle: "acp:fake/default", reasoning_effort: null });
+    await until(() => Boolean(logged.acp.models().find((m) => m.handle === "acp:fake/sonnet")));
+    await logged.chats.model({ agent_id: "ada", conversation_id: warmed, handle: "faux/faux-1", reasoning_effort: null });
+    const rpcs = readFileSync(log, "utf8")
+      .trim()
+      .split("\n")
+      .map((l) => (JSON.parse(l) as { method: string }).method);
+    expect(rpcs).toContain("session/resume");
+    expect(rpcs).toContain("session/close");
+  });
+
+  test("checkEngine does not disturb an active session, and image-only prompt to text-only agent fails clearly", async () => {
+    const s = setup({ env: { FAKE_ACP_NO_IMAGE: "1" } });
+    const id = await s.chat();
+    await s.say(id, "hello");
+    await s.acp.checkEngine("fake");
+    await s.say(id, "hello");
+    expect(s.errors()).toEqual([]);
+
+    await s.chats.send({
+      agent_id: "ada",
+      conversation_id: id,
+      text: "",
+      images: [{ media_type: "image/png", data: "iVBORw0KGgo=" }],
+      context: null,
+      send_id: null,
+    });
+    await until(() => s.events().some((e) => e.kind === "error" && e.message.includes("nothing to send")));
+    expect(s.errors().join("\n")).toMatch(/takes no pictures, so there was nothing to send/);
+  });
+
+  test("elicit during session/new does not deadlock and omits Always Allow", async () => {
+    const opened: string[] = [];
+    const s = setup({ env: { FAKE_ACP_ELICIT_ON_NEW: "1" }, openUrl: (url) => opened.push(url) });
+    const id = await s.chat();
+    await s.chats.send({ agent_id: "ada", conversation_id: id, text: "hello", images: [], context: null, send_id: null });
+    await until(() => s.events().some((e) => e.kind === "approval"));
+    const card = must(s.events().find((e): e is Extract<ChatEvent, { kind: "approval" }> => e.kind === "approval"));
+    expect(card.allow_always).toBe(false);
+    await s.chats.approve({ agent_id: "ada", conversation_id: id, approval_id: card.request_id, allow: true, always: false, message: null });
+    await until(() => s.events().some((e) => e.kind === "turn_end"));
+    expect(opened).toEqual(["https://signin.example.com/new"]);
+    expect(s.words()).toBe("Hi there");
   });
 });
