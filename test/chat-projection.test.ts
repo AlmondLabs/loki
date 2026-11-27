@@ -226,6 +226,40 @@ describe("chat projection", () => {
       await store.close(ctx);
     }
   });
+
+  test("background hydration yields to the event loop between pages and chats", async () => {
+    const { store, model, chats } = await setup();
+    try {
+      const converted = sampleEntries();
+      const long = Array.from({ length: Math.ceil(160 / converted.length) }, () => converted).flat();
+      const c1 = await store.createChat("c1", { agent: { model } }, ctx);
+      const c2 = await store.createChat("c2", { agent: { model } }, ctx);
+      await store.importEntries(c1, long, ctx);
+      await store.importEntries(c2, long, ctx);
+      await chats.attach(AGENT, store, { eagerEntries: false });
+
+      let yieldedBeforeLoaded = false;
+      let loaded = false;
+      const done = chats.loaded().then(() => {
+        loaded = true;
+      });
+      await new Promise<void>((resolve) => {
+        setTimeout(() => {
+          setImmediate(() => {
+            if (!loaded) yieldedBeforeLoaded = true;
+            resolve();
+          });
+        }, 0);
+      });
+      await done;
+
+      expect(yieldedBeforeLoaded).toBe(true);
+      expect(chats.entryCount("c1", AGENT)).toBe(long.length);
+      expect(chats.entryCount("c2", AGENT)).toBe(long.length);
+    } finally {
+      await store.close(ctx);
+    }
+  });
 });
 
 describe("a store whose chats fail to load", () => {

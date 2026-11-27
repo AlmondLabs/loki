@@ -13,6 +13,7 @@ import type { LocalConversationInfo, LocalConversationRow } from "../mod/chats.t
 import { ChatIndex, type AgentStore, type ChatInfo } from "./kernel/index.ts";
 import type { StoreManager } from "./kernel/stores.ts";
 import { Listeners } from "../core/listeners.ts";
+import { serialQueue } from "../core/serial.ts";
 import { messageOf } from "../core/errors.ts";
 
 interface Kept {
@@ -70,6 +71,13 @@ function effortOfThinkingLevel(level: string | undefined): ReasoningEffort | nul
 const DIGEST_TEXT_LIMIT = 700;
 
 const LOAD_AT_ONCE = 4;
+const HYDRATE_PAGE_SIZE = 50;
+
+// Outside (node:sqlite): `DatabaseSync` resolves reads in microtasks, so multi-page hydration starves libuv I/O unless each slice yields a macrotask.
+const yieldToEventLoop = (): Promise<void> =>
+  new Promise((resolve) => {
+    setImmediate(resolve).unref();
+  });
 
 export class ChatProjection implements ChatSource {
   private readonly chats = new Map<string, Chat>();
@@ -82,6 +90,7 @@ export class ChatProjection implements ChatSource {
   private readonly hydrating = new Map<string, Promise<void>>();
   private readonly hydrationTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private readonly loadingEntries = new Map<string, Promise<void>>();
+  private readonly hydrationQueue = serialQueue();
   private readonly context: Context;
   private readonly agentName: (agentId: string) => string | null;
 
@@ -161,13 +170,19 @@ export class ChatProjection implements ChatSource {
     let lastId = 0;
     let lastAt: string | null = null;
     let lastCompactionIndex = -1;
-    await store.eachEntry(conversation, this.context, (e) => {
-      const kept = keep(e, this.nameImage);
-      entries.push(kept);
-      if (kept.at) lastAt = kept.at;
-      if (kept.compaction) lastCompactionIndex = entries.length - 1;
-      lastId = e.id;
-    });
+    await store.eachEntry(
+      conversation,
+      this.context,
+      (e) => {
+        const kept = keep(e, this.nameImage);
+        entries.push(kept);
+        if (kept.at) lastAt = kept.at;
+        if (kept.compaction) lastCompactionIndex = entries.length - 1;
+        lastId = e.id;
+      },
+      undefined,
+      { pageSize: HYDRATE_PAGE_SIZE, betweenPages: yieldToEventLoop },
+    );
     for (const live of chat.entries) {
       if (live.id <= lastId) continue;
       entries.push(live);
@@ -184,18 +199,17 @@ export class ChatProjection implements ChatSource {
     chat.entriesLoaded = true;
   }
 
-  private async hydrateAgent(agentId: string): Promise<void> {
+  private async hydrateAgent(agentId: string, store: AgentStore): Promise<void> {
+    if (this.stores.get(agentId) !== store) return;
     const waiting = [...this.chats.values()]
       .filter((c) => c.agentId === agentId && !c.entriesLoaded)
       .sort((a, b) => (b.lastAt ?? "").localeCompare(a.lastAt ?? ""));
-    if (!waiting.length) return;
-    const worker = async (): Promise<void> => {
-      const next = waiting.shift();
-      if (!next) return;
+    for (const next of waiting) {
+      if (this.stores.get(agentId) !== store) return;
+      if (next.entriesLoaded) continue;
       await this.ensureEntries(next);
-      return worker();
-    };
-    await Promise.all(Array.from({ length: Math.min(2, waiting.length) }, worker));
+      await yieldToEventLoop();
+    }
   }
 
   async attach(agentId: string, store: AgentStore, { eagerEntries = true }: { eagerEntries?: boolean } = {}): Promise<void> {
@@ -303,7 +317,7 @@ export class ChatProjection implements ChatSource {
       })
         .then(() => {
           this.hydrationTimers.delete(agentId);
-          return this.hydrateAgent(agentId);
+          return this.hydrationQueue(() => this.hydrateAgent(agentId, store));
         })
         .catch(() => {})
         .finally(() => {

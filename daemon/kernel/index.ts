@@ -378,12 +378,20 @@ export class AgentStore {
     return out;
   }
 
-  async eachEntry(conversation: Conversation, context: Context, fn: (entry: EntryRecord) => void, after?: EntryId): Promise<void> {
+  async eachEntry(
+    conversation: Conversation,
+    context: Context,
+    fn: (entry: EntryRecord) => void,
+    after?: EntryId,
+    options?: { pageSize?: number; betweenPages?: () => Promise<void> | void },
+  ): Promise<void> {
+    const pageSize = options?.pageSize ?? 500;
     let cursor: Parameters<Conversation["entries"]>[2];
     do {
-      const page = await conversation.entries({ order: "ascending", ...(after === undefined ? {} : { minEntryId: after }) }, 500, cursor, context);
+      const page = await conversation.entries({ order: "ascending", ...(after === undefined ? {} : { minEntryId: after }) }, pageSize, cursor, context);
       for (const entry of page.items) if (entry.id !== after) fn(entry);
       cursor = page.next;
+      if (cursor !== undefined) await options?.betweenPages?.();
     } while (cursor !== undefined);
   }
 
