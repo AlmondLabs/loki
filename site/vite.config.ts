@@ -10,7 +10,7 @@ const { version } = JSON.parse(readFileSync(here("../package.json"), "utf8")) as
 export default defineConfig({
   root: here("."),
   base: "./",
-  build: { outDir: here("dist"), emptyOutDir: true },
+  build: { outDir: here("dist"), emptyOutDir: true, reportCompressedSize: false },
   plugins: [react(), tailwindcss()],
   define: { __LOKI_VERSION__: JSON.stringify(version), __LOKI_REPO__: JSON.stringify("") },
   resolve: { alias: { "@": here("../app/src") } },

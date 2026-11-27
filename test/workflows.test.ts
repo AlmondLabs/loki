@@ -33,7 +33,7 @@ const install = parseYaml(readFileSync(join(import.meta.dirname, "..", ".github"
 const runs = (job: Job) => job.steps.map((s) => s.run ?? "").join("\n");
 const JOBS_THAT_ONLY_DECIDE_OR_REPORT = ["mac-scope", "windows-result"];
 const checking = (wf: Workflow) => Object.entries(wf.jobs).filter(([name]) => !JOBS_THAT_ONLY_DECIDE_OR_REPORT.includes(name));
-const SHARD = " --shard=${{ matrix.shard }}/2";
+const SHARD = " --shard=${{ matrix.shard }}/3";
 
 describe("ci: a PR's checks", () => {
   const ci = workflow("ci");
@@ -93,9 +93,9 @@ describe("ci: a PR's checks", () => {
     expect(Object.keys(ci.jobs).sort()).toEqual(["build", "desktop", "format", "lint", "mac", "mac-scope", "test", "typecheck", "windows", "windows-result"]);
   });
 
-  test("Windows runs the suite in two shards, and its required check passes only when both did", () => {
+  test("Windows runs the suite in three shards, and its required check passes only when all three did", () => {
     const windows = must(ci.jobs.windows, "windows");
-    expect(windows.strategy).toEqual({ "fail-fast": false, matrix: { shard: [1, 2] } });
+    expect(windows.strategy).toEqual({ "fail-fast": false, matrix: { shard: [1, 2, 3] } });
     const steps = windows.steps.filter((s) => s.run?.includes("bun run"));
     expect(steps.filter((s) => s.run?.endsWith(SHARD))).toHaveLength(1);
     expect(steps.filter((s) => s.if?.includes("matrix.shard == 1")).map((s) => s.run)).toEqual(["bun run --silent budget bun run build:mod"]);
@@ -104,6 +104,13 @@ describe("ci: a PR's checks", () => {
     expect(result.needs).toBe("windows");
     expect(result.if).toBe("${{ !cancelled() }}");
     expect(runs(result)).toBe('test "${{ needs.windows.result }}" = success');
+  });
+
+  test("the bundles job skips build:site on a PR that does not touch the site", () => {
+    const build = must(ci.jobs.build, "build");
+    const site = build.steps.find((s) => s.run?.includes("build:site"));
+    expect(site?.if).toContain("steps.scope.outputs.site_changed != 'false'");
+    expect(site?.if).toContain("github.event_name != 'pull_request'");
   });
 });
 

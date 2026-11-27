@@ -131,12 +131,17 @@ jobs:
           else
             echo "docs_only=true" >> "$GITHUB_OUTPUT"
           fi
+          if git diff --name-only HEAD^1 HEAD | grep -qE '^(site/|app/src/kit/|package\.json$|bun\.lock$|tsconfig)'; then
+            echo "site_changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "site_changed=false" >> "$GITHUB_OUTPUT"
+          fi
       - id: install
         if: steps.scope.outputs.docs_only != 'true'
         uses: ./.github/actions/install
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: bun run --silent budget bun run build:app
-      - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+      - if: ${{ !cancelled() && steps.install.outcome == 'success' && (github.event_name != 'pull_request' || steps.scope.outputs.site_changed != 'false') }}
         run: bun run --silent budget bun run build:site
       - id: bundle
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
@@ -182,12 +187,12 @@ jobs:
   # Outside (Windows): it starts processes several times slower than Linux, and the suite's git and daemon tests start
   # many.
   windows:
-    name: tests (windows-latest, ${{ matrix.shard }}/2)
+    name: tests (windows-latest, ${{ matrix.shard }}/3)
     runs-on: windows-latest
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2]
+        shard: [1, 2, 3]
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
@@ -206,7 +211,7 @@ jobs:
         if: steps.scope.outputs.docs_only != 'true'
         uses: ./.github/actions/install
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: bun run --silent budget ${{ github.event_name == 'pull_request' && 'bun run test:pr' || 'bun run test' }} --shard=${{ matrix.shard }}/2
+        run: bun run --silent budget ${{ github.event_name == 'pull_request' && 'bun run test:pr' || 'bun run test' }} --shard=${{ matrix.shard }}/3
       - if: ${{ !cancelled() && steps.install.outcome == 'success' && matrix.shard == 2 }}
         run: bun run --silent budget bun run test:node
       - id: bundle

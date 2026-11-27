@@ -19,14 +19,27 @@ describe("which tests a PR runs", () => {
     expect(s).toEqual({ all: false, files: ["app/src/y.tsx", "core/x.ts", "test/build.test.ts", "test/tokens.test.ts"] });
   });
 
-  test("anything else runs the whole suite: a stylesheet, a config, the lockfile, a workflow, a doc, a deletion, a rename", () => {
+  test("docs and test fixture modules keep selection incremental", () => {
+    const s = selectTests(
+      [
+        { status: "A", path: "docs/plans/2026-11-28-plan.md" },
+        { status: "M", path: "docs/manual.md" },
+        { status: "D", path: "docs/old.md" },
+        { status: "M", path: "README.md" },
+        { status: "M", path: "core/x.ts" },
+        { status: "M", path: "test/fixtures/fake-mcp.mjs" },
+      ],
+      tests,
+    );
+    expect(s).toEqual({ all: false, files: ["core/x.ts", "test/build.test.ts", "test/fixtures/fake-mcp.mjs", "test/tokens.test.ts"] });
+  });
+
+  test("anything else runs the whole suite: a stylesheet, a config, the lockfile, a workflow, a deletion, a rename", () => {
     for (const change of [
       { status: "M", path: "app/src/kit/tokens.css" },
       { status: "M", path: "vitest.config.ts" },
       { status: "M", path: "bun.lock" },
       { status: "M", path: ".github/workflows/ci.yml" },
-      { status: "M", path: "docs/design.md" },
-      { status: "M", path: "test/fixtures/fake-mcp.mjs" },
       { status: "D", path: "core/x.ts" },
       { status: "R", path: "core/y.ts" },
     ])
