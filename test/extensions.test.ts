@@ -37,7 +37,6 @@ describe("the built-in tools", () => {
       expect(names.sort()).toEqual(
         [
           "user_ask",
-          "background_run",
           "background_watch",
           "bash",
           "changes_read",
@@ -50,11 +49,14 @@ describe("the built-in tools", () => {
           "memory_read",
           "memory_search",
           "memory_write",
+          "plan",
           "read",
           "schedule_create",
           "schedule_delete",
           "schedule_list",
           "subagent",
+          "subagent_status",
+          "subagent_stop",
           "web_fetch",
           "web_search",
           "write",
@@ -76,11 +78,11 @@ describe("the built-in tools", () => {
       const names = extensions.flatMap((e) => (e.tools ?? []).map((t) => t.name));
       expect(names.filter((n) => !kinds.has(n))).toEqual([]);
       expect(Object.fromEntries([...kinds].filter(([, k]) => k !== "read"))).toEqual({
-        background_run: "command",
         bash: "command",
         edit: "edit",
         schedule_create: "command",
         schedule_delete: "command",
+        subagent_stop: "command",
         write: "edit",
       });
     } finally {
@@ -88,22 +90,38 @@ describe("the built-in tools", () => {
     }
   });
 
-  test("run, watch and subagent ask for a description of the call, as a required string", () => {
+  test("watch and subagent tools ask for a description of the call as a required string, and wrapped bash adds background and wait_ms", async () => {
     const { extensions, dir } = builtins();
+    const faux = fauxProvider();
+    const models = createModels();
+    models.setProvider(faux.provider);
+    const registry = createRegistry();
+    for (const e of extensions) registry.install(e);
+    const store = await AgentStore.open({ storage: new MemoryStorage() }, { models, registry }, BACKGROUND_CONTEXT);
     try {
       const described = extensions
         .flatMap((e) => e.tools ?? [])
-        .filter((t) => ["background_run", "background_watch", "subagent"].includes(t.name))
+        .filter((t) => ["background_watch", "subagent", "subagent_status", "subagent_stop"].includes(t.name))
         .map((t) => {
           const schema = t.parameters as { properties?: Partial<Record<string, { type?: string }>>; required?: string[] };
           return [t.name, schema.properties?.description?.type, schema.required?.includes("description")];
         });
       expect(described.sort()).toEqual([
-        ["background_run", "string", true],
         ["background_watch", "string", true],
         ["subagent", "string", true],
+        ["subagent_status", "string", true],
+        ["subagent_stop", "string", true],
       ]);
+
+      const chat = await store.createChat("c", { agent: { model: { provider: faux.provider.id, modelId: faux.getModel().id } } }, BACKGROUND_CONTEXT);
+      const bash = (await chat.agent(BACKGROUND_CONTEXT)).tools.find((t) => t.name === "bash");
+      const bashSchema = (bash?.parameters ?? {}) as { properties?: Partial<Record<string, { type?: string }>>; required?: string[] };
+      expect(bashSchema.properties?.description?.type).toBe("string");
+      expect(bashSchema.required?.includes("description")).toBe(true);
+      expect(bashSchema.properties?.background?.type).toBe("boolean");
+      expect(bashSchema.properties?.wait_ms?.type).toBe("number");
     } finally {
+      await store.close(BACKGROUND_CONTEXT);
       rmSync(dir, { recursive: true, force: true });
     }
   });

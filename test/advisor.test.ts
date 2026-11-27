@@ -20,13 +20,16 @@ const FORBIDDEN = [
   "edit",
   "memory_write",
   "memory_edit",
+  "plan",
   "subagent",
+  "subagent_status",
+  "subagent_stop",
   "chat_message",
   "suggestion_create",
   "user_ask",
   "codemode",
   "schedule_create",
-  "background_run",
+  "background_watch",
 ];
 
 const sent = (text: string) => JSON.stringify(text).slice(1, -1);
@@ -158,6 +161,13 @@ describe("a chat's advisor", () => {
       expect(normal).toContain(sent(REPLIES_PROMPT));
       expect(normal).toContain(sent("The canvas beside"));
       expect(normal).not.toContain(sent(ADVISOR_PROMPT));
+
+      const [bgDenied, waitDenied] = await s.turn(chat, [
+        ["bash", { command: "ls", background: true }],
+        ["bash", { command: "ls", wait_ms: 100 }],
+      ]);
+      expect(bgDenied).toMatchObject({ failed: true, text: expect.stringContaining("An advisor runs only commands that read") as unknown });
+      expect(waitDenied).toMatchObject({ failed: true, text: expect.stringContaining("An advisor runs only commands that read") as unknown });
     } finally {
       await s.cleanup();
     }

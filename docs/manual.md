@@ -723,7 +723,7 @@ Jira ticket (plans 096 and 097, in Apple's language since plan 2026-11-12-1505).
   Script, Web; an MCP tool's server; Failed in red when it failed), and a file step shows only the file's name, with
   the folder added when two steps would show the same name; hovering shows the whole path. A tool loki has no word for
   shows its name as words ("Advisor consult") and Tool. Claude Code's and Codex's steps take their icon and word from the kind of
-  call the agent reports. A finished background task opens to the whole command it ran, then its output. An agent's **plan** shows as a card with how far it is ("1 of 3
+  call the agent reports. A finished background task opens to the whole command it ran, then its output. On loki's own engine, a long-running `bash` command can auto-background after `wait_ms` (or start in the background right away with `background: true`), and `background_watch` inspects, feeds, stops or lists tasks (when `task_id` is omitted). Helpers started with `subagent` can also run in the background (`async: true`), isolate edits in a git worktree (`workspace: "worktree"`), or continue an existing `subagent_id`, and are checked with `subagent_status` or stopped with `subagent_stop`. An agent's **plan** (on loki's own engine via the built-in `plan` tool, as on ACP agents) shows as a card with how far it is ("1 of 3
   done"); a later turn whose plan has not changed says "plan as before" on one line. What an agent **thought** shows
   folded as "Thought for 12 seconds" (or "Thought" when its time was not heard live), opening to the thought.
 - **Decisions** sit above the box: an approval (Deny, Always Allow…, Allow), a question, a reply the agent proposes on

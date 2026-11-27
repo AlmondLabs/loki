@@ -1,5 +1,5 @@
 import type { Context } from "@earendil-works/chord";
-import { defineExtension, defineTool, type Extension, type ToolExecutionApi } from "@earendil-works/pi-durable";
+import { defineExtension, defineTool, type Extension, type ToolExecutionApi, type ToolRegistration } from "@earendil-works/pi-durable";
 import { execFile, execFileSync, spawn, type ChildProcess } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
@@ -8,11 +8,12 @@ import { StringDecoder } from "node:string_decoder";
 import { AgentInfoDoc, ChatDoc } from "./kernel/index.ts";
 import { shellTitle } from "../core/shell-title.ts";
 import { withStepDescription } from "./step-description.ts";
-import { withKind } from "./tool-kinds.ts";
+import { isRecord, withKind } from "./tool-kinds.ts";
 
 const KEEP = 256 * 1024;
 const KEEP_FINISHED_MS = 60 * 60_000;
 const KEEP_FINISHED = 32;
+const MAX_WAIT_MS = 600_000;
 
 interface Task {
   id: string;
@@ -24,9 +25,27 @@ interface Task {
   output: string;
   read: number;
   exit: { code: number | null; signal: string | null } | null;
+  startedAt: number;
   endedAt: number;
   stopping?: NodeJS.Signals;
   waiters: Set<() => void>;
+}
+
+export interface StartAndWaitResult {
+  id: string;
+  finished: boolean;
+  exitCode: number | null;
+  signal: string | null;
+  output: string;
+}
+
+export interface BackgroundTaskSummary {
+  id: string;
+  description: string;
+  command: string;
+  running: boolean;
+  exitCode: number | null;
+  signal: string | null;
 }
 
 export type Notify = (agentId: string, chatId: string, text: string) => void;
@@ -78,7 +97,20 @@ export class BackgroundTasks {
     // Outside (bash): it keeps `sleep 30`, a dev server under `npm run`, as children that hold the output open after the
     // shell itself is gone, so off Windows the task gets its own process group, and stopping it stops them too.
     const child = spawn(shell(), ["-c", command], { cwd, stdio: ["pipe", "pipe", "pipe"], env: process.env, detached: process.platform !== "win32" });
-    const task: Task = { id, agentId, chatId, command, description, child, output: "", read: 0, exit: null, endedAt: 0, waiters: new Set() };
+    const task: Task = {
+      id,
+      agentId,
+      chatId,
+      command,
+      description,
+      child,
+      output: "",
+      read: 0,
+      exit: null,
+      startedAt: Date.now(),
+      endedAt: 0,
+      waiters: new Set(),
+    };
     const take = (text: string) => {
       if (!text) return;
       task.output += text;
@@ -118,6 +150,62 @@ export class BackgroundTasks {
     });
     this.tasks.set(id, task);
     return id;
+  }
+
+  async startAndWait(
+    agentId: string,
+    chatId: string,
+    cwd: string,
+    command: string,
+    description: string,
+    waitMs: number,
+    signal?: AbortSignal,
+  ): Promise<StartAndWaitResult> {
+    if (signal?.aborted) throw new Error("Command aborted.");
+    const id = this.start(agentId, chatId, cwd, command, description);
+    if (waitMs <= 0) return { id, finished: false, exitCode: null, signal: null, output: "" };
+    const task = this.get(id, agentId);
+    if (!task.exit) {
+      await new Promise<void>((resolve) => {
+        const finish = () => {
+          clearTimeout(timer);
+          task.waiters.delete(check);
+          signal?.removeEventListener("abort", finish);
+          resolve();
+        };
+        const check = () => {
+          if (task.exit) finish();
+        };
+        const timer = setTimeout(finish, waitMs);
+        task.waiters.add(check);
+        signal?.addEventListener("abort", finish, { once: true });
+      });
+    }
+    if (signal?.aborted && !task.exit) {
+      this.kill(task);
+      throw new Error("Command aborted.");
+    }
+    if (task.exit) {
+      this.tasks.delete(id);
+      return { id, finished: true, exitCode: task.exit.code, signal: task.exit.signal, output: task.output };
+    }
+    const output = task.output.slice(task.read);
+    task.read = task.output.length;
+    return { id, finished: false, exitCode: null, signal: null, output };
+  }
+
+  list(agentId: string): BackgroundTaskSummary[] {
+    return [...this.tasks.values()]
+      .filter((t) => t.agentId === agentId)
+      .sort((a, b) => Number(Boolean(a.exit)) - Number(Boolean(b.exit)) || b.startedAt - a.startedAt)
+      .map((t) => ({
+        id: t.id,
+        description: t.description,
+        command: t.command,
+        running: t.exit === null,
+        exitCode: t.exit?.code ?? null,
+        signal: t.exit?.signal ?? null,
+      }));
   }
 
   private get(id: string, agentId: string): Task {
@@ -242,50 +330,93 @@ async function caller(api: ToolExecutionApi, context: Context) {
 }
 
 const text = (t: string) => ({ output: [{ type: "text" as const, text: t }] });
-const idParam = { task_id: { type: "string" } };
 
 const STOP_WAIT_MS = GRACE_MS + 1_000;
+
+export function wrapBashWithBackground(bash: ToolRegistration, tasks: BackgroundTasks): ToolRegistration {
+  const schema = isRecord(bash.parameters) ? bash.parameters : {};
+  const properties = isRecord(schema.properties) ? schema.properties : {};
+  return {
+    ...bash,
+    description: `${bash.description} Set wait_ms to auto-background after waiting, or background: true to run in background (manage with background_watch).`,
+    parameters: {
+      ...schema,
+      properties: {
+        ...properties,
+        background: { type: "boolean" },
+        wait_ms: { type: "number" },
+      },
+    },
+    execute: async (rawArgs, api, context) => {
+      const { description, background, wait_ms, ...rest } = isRecord(rawArgs) ? rawArgs : {};
+      if (background === true || (typeof wait_ms === "number" && Number.isFinite(wait_ms))) {
+        const waitMs = background === true ? 0 : Math.min(Math.max(Number(wait_ms) || 0, 0), MAX_WAIT_MS);
+        const command = typeof rest.command === "string" ? rest.command : "";
+        const { agentId, chatId, cwd } = await caller(api, context);
+        const res = await tasks.startAndWait(agentId, chatId, cwd, command, typeof description === "string" ? description : "", waitMs, context.abortSignal);
+        if (res.finished) {
+          if (res.exitCode !== 0 || res.signal) {
+            const detail = res.output.trimEnd();
+            const status = res.signal ? `signal ${res.signal}` : `code ${res.exitCode ?? 1}`;
+            throw new Error(`${detail ? `${detail}\n\n` : ""}Command exited with ${status}`);
+          }
+          return text(res.output || "(no output)");
+        }
+        if (waitMs === 0 && !res.output) return text(`started background task ${res.id}`);
+        return text(
+          `Command still running in background as task ${res.id} (you will be notified when it finishes; use background_watch to check output, send input, or stop it).${res.output ? `\n\nOutput so far:\n${res.output}` : ""}`,
+        );
+      }
+      return bash.execute(rest, api, context);
+    },
+  };
+}
+
+function formatTaskList(list: readonly BackgroundTaskSummary[]): string {
+  if (!list.length) return "No background tasks.";
+  return list
+    .map((t) => {
+      const state = t.running ? "running" : t.signal ? `stopped (${t.signal})` : `exited with ${t.exitCode}`;
+      const label = t.description || shellTitle(t.command);
+      return `${t.id} [${state}] ${label}`;
+    })
+    .join("\n");
+}
 
 export function backgroundExtension(tasks: BackgroundTasks): Extension {
   return defineExtension({
     name: "loki.background",
     tools: [
       withKind(
-        "command",
-        withStepDescription(
-          defineTool({
-            name: "background_run",
-            description:
-              "Start a shell command that keeps running in the background (a server, a long build, a watcher). You get its task id; you are told when it ends.",
-            parameters: { type: "object", properties: { command: { type: "string" } }, required: ["command"] } as never,
-            execute: async (args, api, context) => {
-              const { command, description } = args as { command: string; description: string };
-              const { agentId, chatId, cwd } = await caller(api, context);
-              const id = tasks.start(agentId, chatId, cwd, command, description);
-              return text(`started background task ${id}`);
-            },
-          }),
-        ),
-      ),
-      withKind(
         "read",
         withStepDescription(
           defineTool({
             name: "background_watch",
             description:
-              "A background task's output since you last read it, and whether it is still running. It waits first: until the output matches `pattern` (a regular expression), the task ends, or `timeout_ms` runs out (default 30000; 0 reads at once). `input` is written to the task's input before the wait (add \\n to end a line); `stop: true` stops the task and waits for it to end.",
+              "List background tasks (no task_id), or wait for output matching pattern, exit, or timeout_ms (default 30000; 0 reads now); input writes stdin, stop: true stops.",
             parameters: {
               type: "object",
-              properties: { ...idParam, pattern: { type: "string" }, timeout_ms: { type: "number" }, input: { type: "string" }, stop: { type: "boolean" } },
-              required: ["task_id"],
+              properties: {
+                task_id: { type: "string" },
+                pattern: { type: "string" },
+                timeout_ms: { type: "number" },
+                input: { type: "string" },
+                stop: { type: "boolean" },
+              },
+              required: [],
             } as never,
             execute: async (args, api, context) => {
-              const a = args as { task_id: string; pattern?: string; timeout_ms?: number; input?: string; stop?: boolean };
+              const a = args as { task_id?: string; pattern?: string; timeout_ms?: number; input?: string; stop?: boolean };
               const { agentId } = await caller(api, context);
-              if (a.input !== undefined) tasks.write(a.task_id, agentId, a.input);
-              if (a.stop) tasks.stop(a.task_id, agentId);
-              const ms = a.stop ? STOP_WAIT_MS : Math.min(Math.max(a.timeout_ms ?? 30_000, 0), 600_000);
-              return text(await tasks.wait(a.task_id, agentId, a.stop ? undefined : a.pattern, ms, context.abortSignal));
+              const taskId = typeof a.task_id === "string" ? a.task_id.trim() : "";
+              if (!taskId) {
+                if (a.input !== undefined || a.stop === true) throw new Error("task_id is required when sending input or stopping a task");
+                return text(formatTaskList(tasks.list(agentId)));
+              }
+              if (a.input !== undefined) tasks.write(taskId, agentId, a.input);
+              if (a.stop) tasks.stop(taskId, agentId);
+              const ms = a.stop ? STOP_WAIT_MS : Math.min(Math.max(a.timeout_ms ?? 30_000, 0), MAX_WAIT_MS);
+              return text(await tasks.wait(taskId, agentId, a.stop ? undefined : a.pattern, ms, context.abortSignal));
             },
           }),
         ),

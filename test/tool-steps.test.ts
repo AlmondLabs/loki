@@ -46,6 +46,10 @@ describe("the line for a run of tools", () => {
     expect(stepTarget({ role: "tool", text: "Read · app/src/x.ts" })).toBe("app/src/x.ts");
     expect(stepTarget({ role: "tool", text: "Bash" })).toBeNull();
     expect(stepVerb("background_run")).toBe("Started in background");
+    expect(stepVerb("subagent_status")).toBe("Checked an agent");
+    expect(stepVerb("subagent_stop")).toBe("Stopped an agent");
+    expect(stepIcon("subagent_status")).toBe("bot");
+    expect(stepIcon("subagent_stop")).toBe("bot");
   });
 
   test("pi's shell tool reads as a command too, and a step's sheet is titled by its tool (plan 038)", () => {
@@ -184,6 +188,10 @@ describe("loki's tools, and Claude Code's names for the same steps", () => {
       expect(stepIcon(loki), loki).toBe(stepIcon(claude));
     }
     expect(stepVerb("background_run")).toBe("Started in background");
+    expect(stepVerb("subagent_status")).toBe("Checked an agent");
+    expect(stepVerb("subagent_stop")).toBe("Stopped an agent");
+    expect(stepIcon("subagent_status")).toBe("bot");
+    expect(stepIcon("subagent_stop")).toBe("bot");
     expect(stepVerb("TaskOutput")).toBe("Read a command's output");
     expect(stepVerb("TaskStop")).toBe("Stopped a command");
     expect(stepVerb("background_output")).toBe("Used background output");

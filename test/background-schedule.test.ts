@@ -4,8 +4,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Context } from "@earendil-works/chord";
 import { validateToolArguments } from "@earendil-works/pi-ai/utils/validation";
-import type { JsonObject, ToolExecutionApi } from "@earendil-works/pi-durable";
-import { BackgroundTasks, backgroundExtension, shell } from "../daemon/background.ts";
+import { defineTool, type JsonObject, type ToolExecutionApi } from "@earendil-works/pi-durable";
+import { BackgroundTasks, backgroundExtension, shell, wrapBashWithBackground } from "../daemon/background.ts";
+import { withStepDescription } from "../daemon/step-description.ts";
 import { AgentInfoDoc } from "../daemon/kernel/index.ts";
 import { dueBetween, matches, parseCron, Schedules } from "../daemon/schedule.ts";
 import { extractHarnessEvents } from "../core/harness.ts";
@@ -102,48 +103,94 @@ describe("background tasks", () => {
     expect(tasks.output(running, "agent-a")).toContain("[running]");
     tasks.stopAll();
   });
+
+  test("startAndWait returns fast output inline without duplicating notice, and auto-backgrounds on timeout with notice on completion", async () => {
+    const notices: string[] = [];
+    const tasks = new BackgroundTasks((_a, _c, text) => notices.push(text));
+    const fast = await tasks.startAndWait("agent-a", "c", tmpdir(), "echo quick", "Quick check", 2000);
+    expect(fast).toMatchObject({ finished: true, exitCode: 0, signal: null });
+    expect(fast.output).toContain("quick");
+    expect(tasks.list("agent-a")).toEqual([]);
+    await new Promise((r) => setTimeout(r, 40));
+    expect(notices).toEqual([]);
+
+    const slow = await tasks.startAndWait("agent-a", "c", tmpdir(), "echo booted; sleep 0.2; echo finished", "Boot server", 60);
+    expect(slow.finished).toBe(false);
+    expect(slow.id).toMatch(/^bg-/);
+    expect(tasks.list("agent-a").map((t) => t.id)).toEqual([slow.id]);
+    const until = Date.now() + 3000;
+    while (!notices.length && Date.now() < until) await new Promise((r) => setTimeout(r, 10));
+    expect(notices).toHaveLength(1);
+    expect(notices[0]).toContain(`<task-id>${slow.id}</task-id>`);
+    expect(notices[0]).toContain("<status>completed</status>");
+  });
 });
 
-describe("the background tools (plan 095)", () => {
+describe("the background tools (plan 095 + auto-background bash)", () => {
   const api = {
     conversationId: 1,
     snapshot: (doc: unknown) => Promise.resolve(doc === AgentInfoDoc ? { id: "agent-a" } : { id: "c" }),
     agent: () => Promise.resolve({ cwd: tmpdir() }),
   } as unknown as ToolExecutionApi;
   const context = {} as Context;
+  const baseBash = defineTool({
+    name: "bash",
+    description: "Run a shell command",
+    parameters: { type: "object", properties: { command: { type: "string" } }, required: ["command"] } as never,
+    execute: (args) => Promise.resolve({ output: [{ type: "text", text: `sync:${String((args as { command?: string }).command)}` }] }),
+  });
+  const bashTool = (tasks: BackgroundTasks) => withStepDescription(wrapBashWithBackground(baseBash, tasks));
   const tool = (tasks: BackgroundTasks, name: string) =>
     must(
       backgroundExtension(tasks).tools?.find((t) => t.name === name),
       name,
     );
-  const call = async (tasks: BackgroundTasks, name: string, args: Record<string, unknown>): Promise<string> => {
-    const result = (await tool(tasks, name).execute(args, api, context)) as { output: Array<{ text: string }> };
+  const callWatch = async (tasks: BackgroundTasks, args: Record<string, unknown>): Promise<string> => {
+    const result = (await tool(tasks, "background_watch").execute(args, api, context)) as { output: Array<{ text: string }> };
+    return result.output.map((o) => o.text).join("");
+  };
+  const callBash = async (tasks: BackgroundTasks, args: Record<string, unknown>): Promise<string> => {
+    const result = (await bashTool(tasks).execute(args, api, context)) as { output: Array<{ text: string }> };
     return result.output.map((o) => o.text).join("");
   };
 
-  test("two tools: run starts a task; watch reads it, types into it and stops it, and a stop's answer is its notice", async () => {
+  test("backgroundExtension exposes background_watch; bash handles background: true and wait_ms, and watch lists/reads/feeds/stops", async () => {
     const notices: string[] = [];
     const tasks = new BackgroundTasks((_a, _c, text) => notices.push(text));
-    expect(backgroundExtension(tasks).tools?.map((t) => t.name)).toEqual(["background_run", "background_watch"]);
-    const id = must(/bg-\w+/.exec(await call(tasks, "background_run", { command: "read line; echo got $line; sleep 30; echo after" }))?.[0], "id");
-    expect(await call(tasks, "background_watch", { task_id: id, timeout_ms: 0 })).toContain("[running]");
-    expect(await call(tasks, "background_watch", { task_id: id, input: "hello\n", pattern: "got hello", timeout_ms: 2000 })).toContain("got hello");
-    expect(await call(tasks, "background_watch", { task_id: id, stop: true })).toContain("[stopped (SIGTERM)]");
+    expect(backgroundExtension(tasks).tools?.map((t) => t.name)).toEqual(["background_watch"]);
+    expect(await callWatch(tasks, {})).toBe("No background tasks.");
+    expect(await callBash(tasks, { command: "echo hi", description: "Sync echo" })).toBe("sync:echo hi");
+
+    const started = await callBash(tasks, {
+      command: "read line; echo got $line; sleep 30; echo after",
+      description: "Interactive wait",
+      background: true,
+    });
+    const id = must(/bg-\w+/.exec(started)?.[0], "id");
+    expect(await callWatch(tasks, {})).toContain(`${id} [running] Interactive wait`);
+    expect(await callWatch(tasks, { task_id: id, timeout_ms: 0 })).toContain("[running]");
+    expect(await callWatch(tasks, { task_id: id, input: "hello\n", pattern: "got hello", timeout_ms: 2000 })).toContain("got hello");
+    expect(await callWatch(tasks, { task_id: id, stop: true })).toContain("[stopped (SIGTERM)]");
     expect(notices).toEqual([]);
+    await expect(callWatch(tasks, { stop: true })).rejects.toThrow("task_id is required");
   });
 
-  test("a call without a description is given an empty one before it is checked, and passes; one with a description keeps it", () => {
-    const run = tool(new BackgroundTasks(() => {}), "background_run");
-    const check = (args: JsonObject): unknown => validateToolArguments(run, { type: "toolCall", id: "call-1", name: "background_run", arguments: args });
+  test("wrapped bash accepts a missing description in prepareArguments and passes validation", () => {
+    const wrapped = bashTool(new BackgroundTasks(() => {}));
+    const check = (args: JsonObject): unknown => validateToolArguments(wrapped, { type: "toolCall", id: "call-1", name: "bash", arguments: args });
     expect(() => check({ command: "ls" })).toThrow("description");
-    expect(run.prepareArguments?.({ command: "ls" })).toEqual({ command: "ls", description: "" });
-    expect(check({ command: "ls", description: "" })).toEqual({ command: "ls", description: "" });
-    expect(run.prepareArguments?.({ command: "ls", description: "List files" })).toEqual({ command: "ls", description: "List files" });
+    expect(wrapped.prepareArguments?.({ command: "ls" })).toEqual({ command: "ls", description: "" });
+    expect(check({ command: "ls", description: "", background: true })).toEqual({ command: "ls", description: "", background: true });
+    expect(wrapped.prepareArguments?.({ command: "ls", description: "List files", wait_ms: 500 })).toEqual({
+      command: "ls",
+      description: "List files",
+      wait_ms: 500,
+    });
   });
 
-  test("a task keeps the description it was started with, and an empty one when it had none", async () => {
+  test("a backgrounded bash task keeps the description it was started with, and an empty one when it had none", async () => {
     const tasks = new BackgroundTasks(() => {});
-    const described = must(/bg-\w+/.exec(await call(tasks, "background_run", { command: "true", description: "Do nothing" }))?.[0], "id");
+    const described = must(/bg-\w+/.exec(await callBash(tasks, { command: "true", description: "Do nothing", background: true }))?.[0], "id");
     const bare = tasks.start("agent-a", "c", tmpdir(), "true");
     expect(tasks["tasks"].get(described)?.description).toBe("Do nothing");
     expect(tasks["tasks"].get(bare)?.description).toBe("");

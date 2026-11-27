@@ -147,15 +147,17 @@ export function extractHarnessEvents(whole: string): HarnessEvent[] {
   for (const m of text.matchAll(/<task-notification>([\s\S]*?)<\/task-notification>/g)) {
     const body = m[1];
     const tag = (name: string) => new RegExp(`<${name}>([\\s\\S]*?)<\\/${name}>`).exec(body)?.[1]?.trim() ?? null;
+    const kind = tag("kind");
     const id = tag("task-id");
     const status = tag("status");
     const summary = tag("summary");
     const command = tag("command");
     const result = tag("result");
     const title = summary ? decodeEntities(summary) : null;
-    const trimmed = title && shellTitle(title);
+    const trimmed = kind !== "subagent" && title ? shellTitle(title) : title;
+    const label = kind === "subagent" ? "subagent" : "background task";
     out.push({
-      text: `background task${id ? ` ${id}` : ""}${status ? ` ${status}` : ""}`,
+      text: `${label}${id ? ` ${id}` : ""}${status ? ` ${status}` : ""}`,
       ...(command
         ? { summary: title, command: decodeEntities(command) }
         : title && trimmed !== title

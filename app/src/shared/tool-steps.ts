@@ -68,6 +68,8 @@ const CATALOGUE: Readonly<Partial<Record<string, Entry>>> = {
   WebSearch: entry("Searched the web", "Web", "globe", "web"),
   WebFetch: entry("Fetched", "Fetched", "globe", "web", { url: true }),
   subagent: AGENT,
+  subagent_status: entry("Checked an agent", "Agent", "bot", "agent", { untitled: "An agent" }),
+  subagent_stop: entry("Stopped an agent", "Stopped", "bot", "agent", { untitled: "An agent" }),
   Task: AGENT,
   Agent: AGENT,
   SendAgentMessage: entry("Messaged an agent", "Agent", "bot", "agent"),
