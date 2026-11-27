@@ -6,6 +6,7 @@ import { GROUPS, PAGES, PAGE_ICON, pageAfterKey, pageTitle, pagesMatching, saved
 import { PageList } from "../app/src/settings/page-list.tsx";
 import { Phone, type PhoneApi } from "../app/src/settings/phone.tsx";
 import { GlobalKeyRow, FlowPage, type ReturnTimesApi } from "../app/src/settings/settings.tsx";
+import { ReflectionSettings } from "../app/src/settings/reflection.tsx";
 import { PopUp } from "../app/src/settings/layout.tsx";
 import { RETURN_TIMES_DEFAULT, type ReturnTimes } from "../core/attention/rest.ts";
 import { must } from "./fixtures/must.ts";
@@ -48,6 +49,7 @@ describe("Preferences: the section list", () => {
       "Flow",
       "Accounts",
       "Learn",
+      "Reflection",
       "Labels",
       "About",
       "Usage",
@@ -72,7 +74,8 @@ describe("Preferences: the section list", () => {
     expect(pagesMatching("shortcuts")).toEqual(["keys"]);
     expect(pagesMatching("zzz")).toEqual([]);
     expect(pagesMatching("inbox")).toEqual(["flow"]);
-    expect(pagesMatching("flow")).toEqual(["flow", "accounts", "learn"]);
+    expect(pagesMatching("flow")).toEqual(["flow", "accounts", "learn", "reflection"]);
+    expect(pagesMatching("reflection")).toEqual(["reflection"]);
   });
 });
 
@@ -264,5 +267,14 @@ describe("Preferences › Flow: read and later return times for each kind of car
     expect(sent).toEqual([{ ...RETURN_TIMES_DEFAULT, later: { chat: "1d", email: "2d", slack: "1d", jira: "1d" } }]);
     must(controls(FlowPage({ returnTimes: api })).get("Read rests chats for"), "chats' read control").onPick("10m");
     expect(sent[1]).toEqual({ ...RETURN_TIMES_DEFAULT, read_first: { chat: "10m", email: "1h" } });
+  });
+});
+
+describe("Preferences › Reflection: global reflection and fallback settings", () => {
+  test("says it is reading its settings before the daemon answers", () => {
+    const never = () => new Promise<never>(() => {});
+    const html = renderToStaticMarkup(createElement(ReflectionSettings, { reflect: { get: never, set: never, run: never } }));
+    expect(html).toContain("Reading the settings…");
+    expect(html).not.toContain("did not answer");
   });
 });

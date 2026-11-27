@@ -145,15 +145,23 @@ export function FlowView({
 export function AgentsView({
   desk,
   catchUp,
+  models,
+  onLoadModels,
+  onNewChat,
   onOpenChat,
   onAskToUpdate,
-  onShowChats,
+  onOpenPreferences,
+  onNotice,
 }: {
   desk: Workspace;
   catchUp: CatchUp;
+  models: ModelEntry[] | null;
+  onLoadModels: () => void;
+  onNewChat: (agentId: string) => void;
   onOpenChat: OpenChat;
   onAskToUpdate: (agentId: string, text: string) => void;
-  onShowChats: () => void;
+  onOpenPreferences: (page: SettingsPage) => void;
+  onNotice: (message: string) => void;
 }) {
   return (
     <Suspense fallback={null}>
@@ -164,6 +172,7 @@ export function AgentsView({
         desks={desk.desks.list}
         initialAgentId={desk.agentId}
         onOpenChat={(agentId, conversationId) => onOpenChat(agentId, conversationId, { chat: true })}
+        onNewChat={onNewChat}
         onAskToUpdate={onAskToUpdate}
         onUpdateAgent={catchUp.updateAgent}
         write={{
@@ -173,12 +182,13 @@ export function AgentsView({
           removeMemory: desk.calls.memory.remove,
           revertMemory: desk.calls.memory.revert,
         }}
-        reflect={catchUp.reflection}
-        listModels={catchUp.listModels}
-        onShowChats={onShowChats}
+        models={models}
+        onLoadModels={onLoadModels}
         mcp={desk.calls.mcp}
         accounts={desk.calls.accounts}
         macs={desk.macs.view ? [desk.macs.view.me, ...desk.macs.view.peers] : undefined}
+        onOpenPreferences={onOpenPreferences}
+        onNotice={onNotice}
       />
     </Suspense>
   );
@@ -247,6 +257,7 @@ export function preferencesProps({
     working: chatWorking(catchUp.items),
     shortcut,
     recall,
+    reflect: catchUp.reflection,
     usage: { ...desk.usage, agents: catchUp.agents },
     returnTimes: { times: desk.attention.returnTimes, set: desk.attention.setReturnTimes },
     lanes: { lanes: desk.attention.lanes, set: desk.attention.setLanes },

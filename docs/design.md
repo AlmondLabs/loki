@@ -377,14 +377,16 @@ Internals keep the name desk.
   Only the view on screen draws the composer. Each chat remembers its tab for ⌘[ ⌘]; an open always lands on
   Messages. The pane stays mounted, hidden, behind the other sections, so the mod link, the camera and the
   thread's scroll keep their state; its panels inherit that hiding and never set themselves visible.
-- **Agents** on the three columns (plan 2026-11-14-1330, KTD9): the agents are the sidebar's sources, the list column
-  holds the chosen page's items on `ContentList` (Memory's files flat under their folders, Changes' commits,
-  Reflection's runs, Skills under Self and Other) with New Agent in its toolbar, and the detail the item chosen, under
-  a toolbar with the agent's name and the pages (Profile, Memory, Changes, Reflection, Skills) as centred tab views.
-  Profile has no items, so its form spans the list and detail columns, and the list comes back on the other pages; so
-  do the new-agent form and the invitation before the first agent. One owner (`agents/agents.tsx`) holds the file,
-  the commit, the run and the skill chosen, so the list and the detail read the same choice. Each page's empty list
-  says so in a sentence. Until 2026-11-14 the agents were a list under the places, with the last thing each said.
+- **Agents** on the three columns (plan 2026-11-14-1330, KTD9; redesigned 2026-11-28): the agents are the sidebar's sources
+  with **New Agent** ("+") on the Agents heading (opening in a `Sheet`), the list column holds the chosen page's items
+  on `ContentList` (Profile's live chats, Memory's files flat under their folders with search, Changes' commits with
+  `FilterPills` and search, Skills under Self and Installed with search), and the detail shows the item chosen (or
+  Profile's grouped settings cards with `ModelSelect` and `PopUp`) under a toolbar with the agent's name, the four
+  pages (Profile, Memory, Changes, Skills) as centred tab views, and the page's actions in the trailing `ToolbarGroup`.
+  Global Reflection settings live in Preferences › Reflection, and agent notices use `notify()`. Before the first agent,
+  an invitation spans the detail pane. One owner (`agents/agents.tsx`) holds the file, the commit and the skill chosen,
+  so the list and the detail read the same choice. Each page's empty list says so in a sentence. Until 2026-11-14 the
+  agents were a list under the places, with the last thing each said.
 - **Learn** on the three columns (plan 2026-11-14-1330, KTD10): its views are the sidebar's sources, and the list
   column holds the view's items on `ContentList`: Review the due queue, the card under your hands selected; Leads the
   open leads, then Lessons Under Way; All Cards every card, the newest edit first, with Search (front, back and tags)

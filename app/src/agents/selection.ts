@@ -37,7 +37,7 @@ export function createAgentsSelection(store: Store | null): AgentsSelection {
   const savedAgent = store ? tryStore(() => store.getItem(AGENT_ID_KEY), null) : null;
   let state: AgentsSelectionState = {
     agent: savedAgent ? { kind: "agent", id: savedAgent } : { kind: "none" },
-    page: isAgentPage(savedPage) ? savedPage : DEFAULT_AGENT_PAGE,
+    page: savedPage === "reflection" ? "changes" : isAgentPage(savedPage) ? savedPage : DEFAULT_AGENT_PAGE,
     creating: false,
   };
   const subs = new Listeners();
@@ -74,8 +74,8 @@ export function shownAgent(pick: AgentPick, initialAgentId: string | null, agent
   return firstAgentId(agents);
 }
 
-export function agentsHasList(state: AgentsSelectionState, agentCount: number): boolean {
-  return agentCount > 0 && !state.creating && state.page !== "profile";
+export function agentsHasList(_state: AgentsSelectionState, agentCount: number): boolean {
+  return agentCount > 0;
 }
 
 export function useAgentsSelection(selection: AgentsSelection = agentsSelection): AgentsSelectionState {

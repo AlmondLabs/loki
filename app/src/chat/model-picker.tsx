@@ -206,6 +206,7 @@ export interface ModelChoicesProps {
   loading: boolean;
   query: string;
   touch?: boolean;
+  scopeLabel?: string;
   onView: (view: PickerView) => void;
   onHarness?: (harness: string | null) => void;
   onQuery: (query: string) => void;
@@ -223,6 +224,7 @@ export function ModelChoices({
   loading,
   query,
   touch = false,
+  scopeLabel = "For this conversation",
   onView,
   onHarness = () => {},
   onQuery,
@@ -388,7 +390,7 @@ export function ModelChoices({
       </div>
       {!touch && (
         <div role="presentation" className="loki-model-foot">
-          <Meta>{`For this conversation · ${tabs.filter((t) => !t.locked).length > 1 && view === "models" ? "←→ harness · " : ""}↑↓ ${formatKeys("enter")} · ${formatKeys("escape")}`}</Meta>
+          <Meta>{`${scopeLabel} · ${tabs.filter((t) => !t.locked).length > 1 && view === "models" ? "←→ harness · " : ""}↑↓ ${formatKeys("enter")} · ${formatKeys("escape")}`}</Meta>
         </div>
       )}
     </div>

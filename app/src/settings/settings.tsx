@@ -15,6 +15,8 @@ import { ProviderSettings } from "./providers";
 import { Phone, type PhoneApi } from "./phone";
 import { Macs, type MacsApi } from "./macs";
 import { Skills, type GlobalSkillsApi } from "./skills";
+import { ReflectionSettings } from "./reflection";
+import type { ReflectionControls } from "../agents/types";
 import type { DaemonStatus } from "../shell/bootstrap";
 import { useHarnessFacts, type InstallReport } from "../shell/use-harness-facts";
 import type { LokiUpdate, UpdateState } from "../shell/use-loki-update";
@@ -98,6 +100,7 @@ export function Settings({
   working,
   shortcut,
   recall,
+  reflect,
   usage,
   returnTimes,
   lanes,
@@ -131,6 +134,7 @@ export function Settings({
   working: boolean;
   shortcut: GlobalShortcut;
   recall: LearnModel;
+  reflect?: ReflectionControls;
   usage: UsageApi;
   returnTimes: ReturnTimesApi;
   lanes: LanesApi;
@@ -171,6 +175,8 @@ export function Settings({
     macs: () => <Macs macs={macs} connected={modConnection === "open"} />,
     skills: () => <SkillsPage globalSkills={globalSkills} />,
     learn: () => <RecallPage recall={recall} />,
+    reflection: () =>
+      chatLink === "open" && reflect ? <ReflectionSettings reflect={reflect} /> : <Setting label="Not linked" help="loki's daemon is not linked yet." />,
     appearance: () => <AppearancePage />,
     chat: () => (
       <ChatPage
