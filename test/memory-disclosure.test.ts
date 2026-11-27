@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { CORE_BUDGET, CORE_RULE, coreSize, memorySection, overBudget } from "../daemon/memory.ts";
+import { CORE_BUDGET, CORE_RULE, SHARED_BUDGET, coreSize, memorySection, overBudget } from "../daemon/memory.ts";
 import { DOCTOR_INSTRUCTIONS, doctorPrompt } from "../daemon/doctor.ts";
 import { reflectionJob } from "../daemon/reflection.ts";
 import { briefDescription } from "../mod/skills.ts";
@@ -60,6 +60,22 @@ describe("memory beyond the core is listed by when to read it (plan 034)", () =>
       expect(coreSize(join(root, "nope"))).toBeUndefined();
     }),
   );
+
+  test(
+    "binary files are omitted from the listing, and shared notes are included ahead of core files",
+    withMemory({ "system/persona.md": "I am careful.\n", "profile.png": "\u0000PNG" }, (root) => {
+      const shared = mkdtempSync(join(tmpdir(), "loki-shared-"));
+      try {
+        writeFileSync(join(shared, "preferences.md"), "Use numbered lists.\n");
+        const text = must(memorySection(root, "tools", shared), "the memory section");
+        expect(text).toContain('<file path="shared/preferences.md">\nUse numbered lists.\n</file>');
+        expect(text.indexOf("shared/preferences.md")).toBeLessThan(text.indexOf("system/persona.md"));
+        expect(text).not.toContain("profile.png");
+      } finally {
+        rmSync(shared, { recursive: true, force: true });
+      }
+    }),
+  );
 });
 
 describe("reflection keeps the core within its budget", () => {
@@ -79,6 +95,21 @@ describe("reflection keeps the core within its budget", () => {
       const prompt = must(await reflectionJob.prompt(input(root)), "the prompt");
       expect(prompt).toContain("come to 14 KB, over their budget of 12 KB");
       expect(prompt.indexOf("- system/gotchas.md (12 KB)")).toBeLessThan(prompt.indexOf("- system/persona.md (2 KB)"));
+    }),
+  );
+
+  test(
+    "shared notes over their budget are reported alongside core",
+    withMemory({ "system/persona.md": "x".repeat(100) }, (root) => {
+      const shared = mkdtempSync(join(tmpdir(), "loki-shared-budget-"));
+      try {
+        writeFileSync(join(shared, "preferences.md"), "x".repeat(SHARED_BUDGET + 1024));
+        const note = must(overBudget(root, shared), "overBudget");
+        expect(note).toContain("shared notes (shared/) come to 7 KB, over their budget of 6 KB");
+        expect(note).toContain("- shared/preferences.md (7 KB)");
+      } finally {
+        rmSync(shared, { recursive: true, force: true });
+      }
     }),
   );
 });

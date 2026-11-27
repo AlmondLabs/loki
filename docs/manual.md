@@ -318,7 +318,7 @@ are on is read.
   chats, counting what recurs across them, the tool calls that failed included, each with the try that fixed it, so a
   mistake the agent keeps making becomes a note on what to do instead (and reads a chat right after its context is
   compacted); the list holds reflection's runs among the latest changes, and the one you choose is read under the
-  settings, with the last change reflection made when none is that recent; `/reflect` in a chat does it now. Every chat has the agent's core notes (`system/`) in full, and reflection keeps them under 12 KB by moving what not every chat needs into other notes. Those are listed by their one-line description, and the agent reads one when it fits the work; the skills are listed with descriptions cut to 200 characters, under the folder each group is in, and the agent reads a skill's `SKILL.md` with `read` for the rest; the chat shows that read as a step named after the skill (**Read skill** in a summary), as it does a Claude Code chat's skill. **Skills**:
+  settings, with the last change reflection made when none is that recent; `/reflect` in a chat does it now. Reflection also reads your edits and rejections on proposed replies and consistent Flow triage patterns so those preferences carry across chats. Every chat has shared cross-agent preferences (`shared/`, kept under 6 KB) and the agent's core notes (`system/`, kept under 12 KB) in full, and reflection moves what not every chat needs into other notes. Those are listed by their one-line description, and the agent reads one when it fits the work (`memory_read` paginates large files, and `memory_search` ranks keyword and phrase matches across `shared/` and the agent's notes); the skills are listed with descriptions cut to 200 characters, under the folder each group is in, and the agent reads a skill's `SKILL.md` with `read` for the rest; the chat shows that read as a step named after the skill (**Read skill** in a summary), as it does a Claude Code chat's skill. **Skills**:
   one row each in the list, in two groups — **self**, the ones the agent (or you) wrote ("write" over the skill adds one, "install" takes a
   source: `owner/repo/path` on GitHub, a GitHub or git URL, or a folder on this Mac), and
   **other**, installed from somewhere named on the row (a checkout linked into `~/.agents/skills`, a repo the `skills`
@@ -951,10 +951,10 @@ box can run — loki's own (`/model`, `/mode`, `/suggestions`, `/flow` (`/inbox`
   summary holds the turn up the row reads "compacting the chat", and a summary that fails says "compaction failed"
   and why.
 - `/remember [what]` asks the agent to save something to its memory; `/reflect` runs reflection on this chat now.
-- `/doctor` reviews the agent's whole memory and cleans it up. It tidies (merges what says the
-  same thing, splits or merges files by subject and size, drops one-off details of past tasks) and makes judgement
+- `/doctor` reviews the agent's whole memory and shared cross-agent preferences (`shared/`) and cleans them up. It tidies (merges what says the
+  same thing, drops redundant `system/` routing stubs, turns dense preference prose into scannable rules, splits or merges files by subject and size, drops one-off task status logs) and makes judgement
   calls (facts whose date has passed, contradictions, where the newer or more specific one wins, a persona that drifted
-  from the rest of memory). It also keeps the core notes (`system/`) under their 12 KB, moving what not every chat
+  from the rest of memory). It always reads `shared/` and `system/` first (skipping skills and binary files), keeping `shared/` under 6 KB and `system/` under 12 KB by moving what not every chat
   needs into described notes, all in one review where reflection takes a few runs. It edits directly, each change a commit by "Doctor"; the command's row shows its report,
   one line per change, and Agents › Changes lists the commits, each with revert. It runs in the agent's hidden
   `doctor-<agent>` chat, in the same queue as reflection and Learn but ahead of the passes waiting there, and only when

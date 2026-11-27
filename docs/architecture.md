@@ -177,11 +177,14 @@ every chat gets, the chats, then the mods.
    keeps its id for life, and its widgets, Inbox marks, pins and suggestions are keyed by it. An update that changes
    what pi-durable's schema holds migrates it on open, after a whole copy to `stores/backup-schema-<version>-<date>/`
    (`daemon/store-backup.ts`).
-2. **Agent records and memory (`daemon/store/agents.ts`, `daemon/memory.ts`).** Under `~/.loki/backend`:
-   `agents/<id in base64>.json` for the record (`backendName`) and `memfs/<id>/memory/` for the memory repo. The memory
-   repo's `system/` files go into the prompt; the rest is listed by path. A section read from disk is reused for ten
-   seconds, and a commit to any memory repo clears it at once (`daemon/section-cache.ts`). Each change is a git commit,
-   by the agent, by "Reflection", or by "Doctor".
+2. **Agent records and memory (`daemon/store/agents.ts`, `daemon/memory.ts`, `daemon/memory-search.ts`).** Under `~/.loki/backend`:
+   `agents/<id in base64>.json` for the record (`backendName`), `memfs/<id>/memory/` for the agent's memory repo, and
+   `shared-memory/` (`shared/` in the memory tools) for cross-agent user preferences. `shared/*.md` and the agent's
+   `system/` files go into the prompt in full; the rest (excluding `skills/` and binary files) is listed by path and
+   description. `memory_read` supports `offset`/`limit` line pagination, and `memory_search` ranks keyword and exact
+   phrase matches across `shared/` and the agent's repo. A section read from disk is reused for ten seconds, and a
+   commit to any memory repo clears it at once (`daemon/section-cache.ts`). Each change is a git commit, by the agent,
+   by "Reflection", or by "Doctor".
 3. **Models and keys (`daemon/providers.ts`, `daemon/credentials.ts`).** Every provider pi-ai knows. Credentials (API
    keys, or the tokens from a provider's sign-in, such as ChatGPT, OpenRouter or GitHub Copilot) are kept in the OS
    keychain through `@napi-rs/keyring`, one entry per provider under the service "loki". A key is tried before it is
@@ -233,8 +236,9 @@ every chat gets, the chats, then the mods.
    keeps running after its turn; the agent reads its output, writes to it, waits on it or stops it, and its chat
    gets a `<task-notification>` when it ends. Scheduled prompts are kept in `~/.loki/state/crons.json` and checked
    once a minute; a slot missed while loki was closed fires once at the next start.
-9. **The background passes (`daemon/passes.ts`).** Reflection (`daemon/reflection.ts`) keeps each agent's memory; Learn
-   (`daemon/learn.ts`) writes the person's cards. Same process, different objectives: once a minute the runner looks
+9. **The background passes (`daemon/passes.ts`).** Reflection (`daemon/reflection.ts`) keeps each agent's memory and
+   `shared/` preferences (reading edited/rejected reply proposals and Flow triage patterns since `signals_at` via
+   `daemon/preference-signals.ts`); Learn (`daemon/learn.ts`) writes the person's cards. Same process, different objectives: once a minute the runner looks
    over the chats, and a chat quiet for half an hour with new material past a pass's cursor is due for it (reflection
    also takes a chat right after its context is compacted). A run takes all of one agent's due chats at once, each
    chat's new stretch its own part, so a pass sees what recurs or conflicts across conversations; an agent gets a batch

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
@@ -13,7 +13,7 @@ import { ChatProjection } from "../daemon/chats.ts";
 import { PassRunner, type PassSummary } from "../daemon/passes.ts";
 import { PassState } from "../daemon/passes-state.ts";
 import { createAgent } from "../daemon/store/agents.ts";
-import { editMemoryFile, memoryExtension, memoryRoot } from "../daemon/memory.ts";
+import { editMemoryFile, memoryExtension, memoryRoot, sharedMemoryRoot } from "../daemon/memory.ts";
 import { DOCTOR_INSTRUCTIONS } from "../daemon/doctor.ts";
 import { PASS_RUN_TIMEOUT_MS } from "../core/frames.ts";
 
@@ -171,6 +171,29 @@ describe("the memory review (/doctor)", () => {
       expect(failed.report).toMatch(/did not finish/);
       rmSync(s.root, { recursive: true, force: true });
       expect(await s.runner.runDoctor(s.agentId)).toEqual({ outcome: "nothing", changes: 0, report: "this agent has no memory to review yet" });
+    } finally {
+      await s.cleanup();
+    }
+  });
+
+  test("even with huge reference files, skills, and binaries, /doctor always sees shared/ and system/ in full", async () => {
+    const s = await setup();
+    try {
+      await editMemoryFile(s.dir, s.agentId, "shared/preferences.md", "Keep replies short.\n", "Add shared prefs");
+      await editMemoryFile(s.dir, s.agentId, "reference/aaa-huge.md", `---\ndescription: Huge archive\n---\n${"x".repeat(90_000)}`, "Add huge");
+      mkdirSync(join(s.root, "skills", "demo"), { recursive: true });
+      writeFileSync(join(s.root, "skills", "demo", "SKILL.md"), "---\ndescription: demo\n---\nskill body\n");
+      writeFileSync(join(s.root, "profile.png"), Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x00]));
+      s.faux.setResponses([s.reply(fauxAssistantMessage("Memory looks healthy."))]);
+      const r = await s.runner.runDoctor(s.agentId);
+      expect(r.outcome).toBe("nothing");
+      const first = JSON.stringify(s.asked[0]);
+      expect(first).toContain('path=\\"shared/preferences.md\\"');
+      expect(first).toContain('path=\\"system/persona.md\\"');
+      expect(first).toContain("- reference/aaa-huge.md (90034 chars) — Huge archive");
+      expect(first).not.toContain("skills/demo/SKILL.md");
+      expect(first).not.toContain("profile.png");
+      expect(existsSync(join(sharedMemoryRoot(s.dir), "preferences.md"))).toBe(true);
     } finally {
       await s.cleanup();
     }

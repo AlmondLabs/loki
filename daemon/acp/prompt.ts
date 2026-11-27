@@ -1,4 +1,4 @@
-import { memoryRoot, memorySection } from "../memory.ts";
+import { memoryRoot, memorySection, sharedMemoryRoot } from "../memory.ts";
 import { briefDescription } from "../../mod/skills.ts";
 import { sections } from "../section-cache.ts";
 import { skillsOf } from "../skills.ts";
@@ -7,8 +7,9 @@ import { LOKI_TOOLS_SERVER } from "./loki-tools.ts";
 
 export function agentPrompt(backendDir: string, agentId: string, name: string | null, withTools: boolean, globalSkillsDir?: string): string {
   const root = memoryRoot(backendDir, agentId);
+  const sharedRoot = sharedMemoryRoot(backendDir);
   const how = withTools ? "tools" : "files";
-  const memory = sections.get(`memory\u0000${root}\u0000${how}`, () => memorySection(root, how));
+  const memory = sections.get(`memory\u0000${root}\u0000${sharedRoot}\u0000${how}`, () => memorySection(root, how, sharedRoot));
   const skills = skillsOf(backendDir, agentId, globalSkillsDir);
   const who = `You are ${name ?? "one of the person's agents"}, an agent of theirs in loki, working here through this harness. What follows is yours from loki.`;
   const skillText = skills.length

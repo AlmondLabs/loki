@@ -10,7 +10,7 @@ import { createRegistry, MemoryStorage } from "@earendil-works/pi-durable";
 import { AgentStore } from "../daemon/kernel/index.ts";
 import { StoreManager } from "../daemon/kernel/stores.ts";
 import { ChatProjection } from "../daemon/chats.ts";
-import { memoryExtension, memoryRoot } from "../daemon/memory.ts";
+import { memoryExtension, memoryRoot, sharedMemoryRoot } from "../daemon/memory.ts";
 import { PassRunner, type PassSummary } from "../daemon/passes.ts";
 import { PassState } from "../daemon/passes-state.ts";
 import { reflectionJob } from "../daemon/reflection.ts";
@@ -19,7 +19,7 @@ import { createAgent } from "../daemon/store/agents.ts";
 const ctx = BACKGROUND_CONTEXT;
 const LONG = "I drink tea every morning, never coffee, and I like it strong with no sugar at all. ".repeat(5);
 
-async function setup(opts: { quietMs?: number; enabled?: boolean } = {}) {
+async function setup(opts: { quietMs?: number; enabled?: boolean; collectSignals?: (agentId: string, since: string | null) => string | null } = {}) {
   const dir = mkdtempSync(join(tmpdir(), "loki-reflection-"));
   const faux = fauxProvider();
   const models = createModels();
@@ -50,6 +50,7 @@ async function setup(opts: { quietMs?: number; enabled?: boolean } = {}) {
     context: ctx,
     jobs: [reflectionJob],
     busy: () => Promise.resolve(false),
+    ...(opts.collectSignals ? { collectSignals: opts.collectSignals } : {}),
     onPass: (p) => events.push(p),
     report: (m) => reports.push(m),
     quietMs: opts.quietMs ?? 0,
@@ -140,6 +141,59 @@ describe("reflection on the background passes", () => {
       expect(s.faux.getPendingResponseCount()).toBe(2);
       expect(await s.runner.runNow("reflection", s.agentId, "c")).toBe("changed");
       expect(s.log().split("\n")[0]).toBe("Reflection|Remember the tea");
+    } finally {
+      await s.cleanup();
+    }
+  });
+
+  test("reflection receives behavioral preference signals, can write shared/, and advances signals_at only on success", async () => {
+    const seenSince: Array<string | null> = [];
+    const s = await setup({
+      collectSignals: (_agentId, since) => {
+        seenSince.push(since);
+        return '<reply-edits>\n- [edited-send] gmail ("Update") @ 2026-11-27T10:00:00.000Z\n  drafted: Long\n  sent: Short\n</reply-edits>';
+      },
+    });
+    try {
+      const prompts: string[] = [];
+      s.faux.setResponses([
+        fauxAssistantMessage("noted"),
+        fauxAssistantMessage("one"),
+        (c: { messages: unknown }) => {
+          prompts.push(JSON.stringify(c.messages));
+          return fauxAssistantMessage(
+            fauxToolCall("memory_write", { path: "shared/preferences.md", content: "- Keep emails short.\n", message: "Save reply preference" }),
+            { stopReason: "toolUse" },
+          );
+        },
+        fauxAssistantMessage("saved shared preference"),
+      ]);
+      await s.say(LONG);
+      // Force a failure first: missing response or thrown error before success.
+      s.runner["deps"].runTimeoutMs = 10;
+      const hang = (_c: unknown, options: { signal?: AbortSignal } | undefined) =>
+        new Promise<never>((_r, reject) => options?.signal?.addEventListener("abort", () => reject(new Error("aborted"))));
+      s.faux.setResponses([fauxAssistantMessage("noted"), hang]);
+      await s.say(LONG);
+      expect(await s.runner.runNow("reflection", s.agentId, "c")).toBe("failed");
+      expect(s.state.signalsAt(s.agentId)).toBeNull();
+
+      s.runner["deps"].runTimeoutMs = undefined;
+      s.faux.setResponses([
+        (c: { messages: unknown }) => {
+          prompts.push(JSON.stringify(c.messages));
+          return fauxAssistantMessage(
+            fauxToolCall("memory_write", { path: "shared/preferences.md", content: "- Keep emails short.\n", message: "Save reply preference" }),
+            { stopReason: "toolUse" },
+          );
+        },
+        fauxAssistantMessage("saved shared preference"),
+      ]);
+      expect(await s.runner.runNow("reflection", s.agentId, "c")).toBe("changed");
+      expect(seenSince).toEqual([null, null]);
+      expect(prompts[0]).toContain("<reply-edits>");
+      expect(s.state.signalsAt(s.agentId)).not.toBeNull();
+      expect(readFileSync(join(sharedMemoryRoot(s.dir), "preferences.md"), "utf8")).toBe("- Keep emails short.\n");
     } finally {
       await s.cleanup();
     }
