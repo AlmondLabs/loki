@@ -57,13 +57,13 @@ describe("an agent chat", () => {
     expect(turn?.kind === "turn" && turn.parts.map((p) => p.kind)).toEqual(["steps", "event", "message"]);
   });
 
-  test("an advisor answer with no words of yours starts the agent's next turn, and heads it (plan 2026-11-24-1736, R3)", () => {
+  test("a subagent completion row with no words of yours starts the agent's next turn, and heads it", () => {
     const at = "2026-11-11T10:00:00.000Z";
-    const advisor: TranscriptRow = { role: "event", text: "Advisor answered · the agent asked", summary: "Looks right.", event: "advisor", at };
+    const subagent: TranscriptRow = { role: "event", text: "subagent kestrel completed", summary: "Looks right.", event: "subagent", at };
     const turns = turnsOf([
       { role: "user", text: "fix it", at },
-      { role: "assistant", text: "Asked the advisor.", at },
-      advisor,
+      { role: "assistant", text: "Asked a worker.", at },
+      subagent,
       { role: "tool", text: "Edit", tool: { name: "Edit", output: "ok" }, at },
       { role: "assistant", text: "Done.", at },
     ]).filter((t) => t.kind === "turn");
@@ -71,15 +71,15 @@ describe("an agent chat", () => {
     expect(turns[1].parts.map((p) => p.kind)).toEqual(["event", "steps", "message"]);
   });
 
-  test("after your words, the advisor's line opens the turn your words began; two such lines head one turn", () => {
+  test("after your words, the subagent line opens the turn your words began; two such lines head one turn", () => {
     const at = "2026-11-11T10:00:00.000Z";
-    const line = (event: "advisor" | "chat_message"): TranscriptRow => ({ role: "event", text: event, event, at });
-    const yours = turnsOf([{ role: "user", text: "go", at }, line("advisor"), { role: "assistant", text: "On it.", at }]).filter((t) => t.kind === "turn");
+    const line = (event: "subagent" | "chat_message"): TranscriptRow => ({ role: "event", text: event, event, at });
+    const yours = turnsOf([{ role: "user", text: "go", at }, line("subagent"), { role: "assistant", text: "On it.", at }]).filter((t) => t.kind === "turn");
     expect(yours).toHaveLength(1);
     const both = turnsOf([
       { role: "user", text: "go", at },
       { role: "assistant", text: "Ok.", at },
-      line("advisor"),
+      line("subagent"),
       line("chat_message"),
       { role: "assistant", text: "Both read.", at },
     ]).filter((t) => t.kind === "turn");
@@ -87,12 +87,12 @@ describe("an agent chat", () => {
     expect(both[1].parts.map((p) => p.kind)).toEqual(["event", "event", "message"]);
   });
 
-  test("a New line before an advisor answer that opens a turn stays above the turn, not inside it", () => {
+  test("a New line before a subagent completion that opens a turn stays above the turn, not inside it", () => {
     const at = "2026-11-11T10:00:00.000Z";
     const rows: TranscriptRow[] = [
       { role: "user", text: "go", at },
-      { role: "assistant", text: "Asked.", at },
-      { role: "event", text: "Advisor answered · the agent asked", event: "advisor", at },
+      { role: "assistant", text: "Started.", at },
+      { role: "event", text: "subagent kestrel completed", event: "subagent", at },
       { role: "assistant", text: "Read it.", at },
     ];
     const turns = threadTurns(

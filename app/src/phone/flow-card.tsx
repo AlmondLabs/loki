@@ -5,7 +5,7 @@ import { LabelChips } from "../chat/labels";
 import type { AttentionItem, PendingQuestion } from "../../../core/attention/model.ts";
 import { idOf } from "../../../core/attention/queue.ts";
 import { useConversation, type ChatViews, type HandoffSource, type OutsideSource } from "../../../core/attention/use-attention.ts";
-import { OpenAdvisor, OpenChat } from "../chat/transcript";
+import { OpenWorker, OpenChat } from "../chat/transcript";
 import { openConversation } from "./router";
 import { Conversation, Thread } from "../chat/conversation";
 import { bumpTick, chipText, tickOf, waitingCount, type ChatTick } from "../chat/suggestion-card";
@@ -610,10 +610,10 @@ export function CardConversation({
   const layout = useThreadLayout({ agentId: item.agent_id, conversationId: item.id, agentName: item.agent_name }, view.rows, item, item.viewedAt);
   const cfg = cardConversationConfig(item, view, banner, card, onHold);
   const message = useMessageActions({ user: "You", assistant: item.agent_name ?? "Agent" });
-  const openAdvisor = useCallback((advisorChat: string) => openConversation(item.agent_id, advisorChat), [item.agent_id]);
+  const openWorker = useCallback((workerChat: string) => openConversation(item.agent_id, workerChat), [item.agent_id]);
   return message.wrap(
     <OpenChat.Provider value={openConversation}>
-      <OpenAdvisor.Provider value={openAdvisor}>
+      <OpenWorker.Provider value={openWorker}>
         {message.sheet}
         <Conversation
           touch
@@ -632,7 +632,7 @@ export function CardConversation({
           fold
           describe={dragWords(item)}
         />
-      </OpenAdvisor.Provider>
+      </OpenWorker.Provider>
     </OpenChat.Provider>,
   );
 }

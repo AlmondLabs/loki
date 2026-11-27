@@ -8,7 +8,7 @@ import type { SlashCommand } from "../../../core/attention/commands.ts";
 import { useConversation, type ChatViews, type HandoffSource, type OutsideSource } from "../../../core/attention/use-attention.ts";
 import type { ModelEntry } from "../chat/model-picker";
 import { Conversation } from "../chat/conversation";
-import { OpenAdvisor, OpenChat } from "../chat/transcript";
+import { OpenWorker, OpenChat } from "../chat/transcript";
 import { bumpTick, tickOf, waitingCount, type ChatTick, type SuggestionSource } from "../chat/suggestion-card";
 import { useInlineWidgets, type InlineWidgetSource } from "../chat/use-inline-widgets";
 import { scopeFor } from "../../../core/canvas-core.ts";
@@ -61,7 +61,7 @@ interface FlowPlaceProps {
   onStop?: (item: AttentionItem) => Promise<string | null>;
   onAnswer: (item: AttentionItem, requestId: string, answers: Record<string, string | string[]>) => void;
   onOpenChat: (agentId: string, conversationId: string) => void;
-  onOpenAdvisor?: (agentId: string, conversationId: string) => void;
+  onOpenWorker?: (agentId: string, conversationId: string, workerChat?: string) => void;
   modelFor?: (agentId: string, conversationId: string) => string | null;
   reasoningEffortFor?: (agentId: string, conversationId: string) => ReasoningEffort | null;
   models?: ModelEntry[] | null;
@@ -314,7 +314,7 @@ function Card({
 }) {
   const { agent_id: agentId, id } = current;
   const thread = useConversation(deck.chats, agentId, id);
-  const { onPickModel, onPickMode, modelFor, modeFor, reasoningEffortFor, onStop, onOpenAdvisor } = deck;
+  const { onPickModel, onPickMode, modelFor, modeFor, reasoningEffortFor, onStop, onOpenWorker } = deck;
   const question = current.pendingQuestion;
   const { widgets, inline } = useInlineWidgets(deck.widgetSource, scopeFor(id, agentId), thread.rows, current.agent_name ?? null);
   const layout = useMemo(() => ({ widgets, inline }), [widgets, inline]);
@@ -323,11 +323,14 @@ function Card({
   const moves: ChatMoves = { current, typing, ...deckMoves, onOpenChat: deck.onOpenChat, onClose: deck.onClose };
   const { onOpenChat, onClose } = deck;
   const openChat = useCallback((agent: string, conversation: string) => (onOpenChat(agent, conversation), onClose()), [onOpenChat, onClose]);
-  const openAdvisor = useMemo(() => (onOpenAdvisor ? () => (onOpenAdvisor(agentId, id), onClose()) : null), [onOpenAdvisor, agentId, id, onClose]);
+  const openWorker = useMemo(
+    () => (onOpenWorker ? (workerChat?: string) => (onOpenWorker(agentId, id, workerChat), onClose()) : null),
+    [onOpenWorker, agentId, id, onClose],
+  );
   return (
     <div className="loki-flow-card">
       <OpenChat.Provider value={openChat}>
-        <OpenAdvisor.Provider value={openAdvisor}>
+        <OpenWorker.Provider value={openWorker}>
           <Conversation
             view={{
               rows: thread.rows,
@@ -377,7 +380,7 @@ function Card({
             suggestionsTick={suggestionsTick}
             suggestions={{ source: deck.chats, rt: current.runtime }}
           />
-        </OpenAdvisor.Provider>
+        </OpenWorker.Provider>
       </OpenChat.Provider>
       {picker && <div className="loki-card-picker">{picker}</div>}
     </div>

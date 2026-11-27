@@ -15,12 +15,11 @@ export const HARNESS_COMMANDS: SlashCommand[] = [
   { id: "remember", description: "remember something from this conversation", args: "[what]", where: "harness" },
   { id: "reflect", description: "reflect on this conversation now: a pass that commits what it keeps to memory", where: "harness" },
   { id: "doctor", description: "review the agent's memory and clean it up: duplicates, stale facts, contradictions", where: "harness" },
-  { id: "advisor", description: "ask this chat's advisor", args: "[question]", where: "harness" },
 ];
 
-const LOKI_RUN = new Set(["reflect", "doctor", "advisor"]);
+const LOKI_RUN = new Set(["reflect", "doctor"]);
 
-const PHONE_COMMANDS = new Set(["advisor"]);
+const PHONE_COMMANDS = new Set<string>();
 
 export const LOKI_COMMANDS: SlashCommand[] = [
   { id: "model", description: "choose the model for this conversation", where: "loki", action: "chat.model" },

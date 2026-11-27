@@ -1,5 +1,4 @@
 import type { EventKind, FileRef, PlanItem, ToolStep } from "./attention/transcript.ts";
-import { answerOf, type AdvisorAnswer } from "./advisor.ts";
 import { shellTitle } from "./shell-title.ts";
 
 const ANSWER_BLOCK = /<loki-advisor-answer\b[^>]*>[\s\S]*?<\/loki-advisor-answer>/g;
@@ -63,34 +62,10 @@ export interface HarnessEvent {
   command?: string;
   detail: string | null;
   link?: { agent_id: string; conversation_id: string };
-  advisor_chat?: string;
+  subagent_chat?: string;
   event?: EventKind;
   /** Set on what the person did before writing (their canvas gestures, the suggestion they sent from): placed before their words. */
   yours?: true;
-}
-
-const LINE_CHARS = 300;
-
-function plainLine(text: string): string | null {
-  const first = text
-    .split("\n")
-    .filter((l) => !l.trimStart().startsWith("```"))
-    .map((l) =>
-      l
-        .replace(/^\s*(?:#{1,6}\s+|>\s*|[-*+]\s+|\d+[.)]\s+)/, "")
-        .replace(/(\*\*|__|`)/g, "")
-        .trim(),
-    )
-    .find(Boolean);
-  if (!first) return null;
-  return first.length > LINE_CHARS ? `${first.slice(0, LINE_CHARS - 1).trimEnd()}…` : first;
-}
-
-function advisorEvent(a: AdvisorAnswer): HarnessEvent {
-  const who = a.from === "person" ? "you asked" : "the agent asked";
-  return a.state === "answered"
-    ? { text: `Advisor answered · ${who}`, summary: plainLine(a.text), detail: a.text, advisor_chat: a.advisor_chat, event: "advisor" }
-    : { text: `Advisor couldn't answer · ${who}`, summary: a.reason, detail: null, advisor_chat: a.advisor_chat, event: "advisor" };
 }
 
 function canvasWords(lines: readonly string[]): string {
@@ -100,7 +75,6 @@ function canvasWords(lines: readonly string[]): string {
 }
 
 export function extractHarnessEvents(whole: string): HarnessEvent[] {
-  const answers = [...whole.matchAll(ANSWER_BLOCK)].flatMap((m) => answerOf(m[0]) ?? []);
   const text = whole.replace(ANSWER_BLOCK, "");
   const out: HarnessEvent[] = [];
   for (const m of text.matchAll(/<lo[ck]i-desk(?:\s+desk="[^"]*")?[^>]*>([\s\S]*?)<\/lo[ck]i-desk>/g)) {
@@ -139,7 +113,6 @@ export function extractHarnessEvents(whole: string): HarnessEvent[] {
       link: { agent_id: message.from_agent, conversation_id: message.from_chat },
       event: "chat_message",
     });
-  out.push(...answers.map(advisorEvent));
   for (const m of text.matchAll(/<skill_content(?:\s+name="([^"]*)")?[^>]*>([\s\S]*?)<\/skill_content>/g)) {
     const body = m[2].trim();
     out.push({ text: "skill loaded", summary: m.at(1) ?? null, detail: body || null });
@@ -149,13 +122,15 @@ export function extractHarnessEvents(whole: string): HarnessEvent[] {
     const tag = (name: string) => new RegExp(`<${name}>([\\s\\S]*?)<\\/${name}>`).exec(body)?.[1]?.trim() ?? null;
     const kind = tag("kind");
     const id = tag("task-id");
+    const subagentChat = tag("chat-id");
     const status = tag("status");
     const summary = tag("summary");
     const command = tag("command");
     const result = tag("result");
     const title = summary ? decodeEntities(summary) : null;
-    const trimmed = kind !== "subagent" && title ? shellTitle(title) : title;
-    const label = kind === "subagent" ? "subagent" : "background task";
+    const isSubagent = kind === "subagent" || subagentChat !== null;
+    const trimmed = !isSubagent && title ? shellTitle(title) : title;
+    const label = isSubagent ? "subagent" : "background task";
     out.push({
       text: `${label}${id ? ` ${id}` : ""}${status ? ` ${status}` : ""}`,
       ...(command
@@ -164,6 +139,7 @@ export function extractHarnessEvents(whole: string): HarnessEvent[] {
           ? { summary: trimmed, command: title }
           : { summary: title }),
       detail: result ? decodeEntities(result) : null,
+      ...(isSubagent ? { event: "subagent" as const, ...(subagentChat ? { subagent_chat: decodeEntities(subagentChat) } : {}) } : {}),
     });
   }
   return out;
@@ -272,7 +248,6 @@ const capLabel = (target: string, keepEnd: boolean): string => {
 };
 
 const TITLED_BY: Partial<Record<string, readonly string[]>> = {
-  advisor_consult: ["text"],
   suggestion_create: ["title"],
   chat_message: ["text"],
   reply_propose: ["text"],

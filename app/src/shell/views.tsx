@@ -65,7 +65,7 @@ export function FlowView({
   onPickModel,
   onPickMode,
   onOpenChat,
-  onOpenAdvisor,
+  onOpenWorker,
   onClose,
   notice,
   kind,
@@ -81,7 +81,7 @@ export function FlowView({
   onPickModel: PickModel;
   onPickMode: PickMode;
   onOpenChat: OpenChat;
-  onOpenAdvisor: (agentId: string, conversationId: string) => void;
+  onOpenWorker: (agentId: string, conversationId: string, workerChat?: string) => void;
   onClose: () => void;
 }) {
   return (
@@ -117,7 +117,7 @@ export function FlowView({
           if (item) catchUp.decided(item, "open", via());
           onOpenChat(agentId, conversationId, { chat: true });
         }}
-        onOpenAdvisor={onOpenAdvisor}
+        onOpenWorker={onOpenWorker}
         chats={catchUp}
         loadHistory={(item) => void catchUp.loadHistory(item)}
         widgetSource={desk}

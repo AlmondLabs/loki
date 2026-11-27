@@ -178,21 +178,6 @@ describe("the chat store (plan 052)", () => {
     expect(d.sent).toEqual(["and the tests"]);
   });
 
-  test("a message to an advisor chat while it answers a consult shows as waiting, then goes when the advisor takes it (KTD6)", async () => {
-    const d = daemon();
-    await flush();
-    const advisor: Runtime = { agent_id: "ada", conversation_id: "advisor-c1" };
-    d.eventsFor(advisor, { kind: "loop", state: "running" });
-    d.store.send(advisor, "look at the retry too");
-    await flush();
-    expect(d.sent).toEqual([]);
-    expect(d.store.threadRows("ada", "advisor-c1")?.map((r) => [r.text, r.queued ?? false])).toEqual([["look at the retry too", true]]);
-    d.eventsFor(advisor, { kind: "loop", state: "idle" });
-    await flush();
-    expect(d.sent).toEqual(["look at the retry too"]);
-    expect(d.store.threadRows("ada", "advisor-c1")?.map((r) => [r.text, r.queued ?? false])).toEqual([["look at the retry too", false]]);
-  });
-
   test("a new approval is reported once; deciding it clears the card, which comes back when the daemon refuses", async () => {
     const d = daemon();
     await flush();

@@ -1,6 +1,5 @@
 import { defineExtension, wrapTool, type Extension, type ToolRegistration } from "@earendil-works/pi-durable";
 import { createCodingTools } from "@earendil-works/pi-durable/tools";
-import { advisorExtension } from "./advisor.ts";
 import type { Approvals } from "./approvals.ts";
 import { askExtension } from "./ask.ts";
 import { backgroundExtension, wrapBashWithBackground, type BackgroundTasks } from "./background.ts";
@@ -9,6 +8,7 @@ import { shrinkingProcessor } from "./image-shrink.ts";
 import { historyExtension, type ChatHistory } from "./history-tools.ts";
 import { memoryExtension } from "./memory.ts";
 import { planExtension } from "./plan.ts";
+import { readOnlyExtension } from "./read-only-gate.ts";
 import { repliesExtension } from "./replies.ts";
 import { scheduleExtension, type Schedules } from "./schedule.ts";
 import { skillsExtension } from "./skills.ts";
@@ -57,7 +57,7 @@ export function builtinExtensions(deps: BuiltinDeps): Extension[] {
     historyExtension(deps.history),
     changesExtension(),
     repliesExtension(),
-    advisorExtension(deps.backendDir),
+    readOnlyExtension(deps.backendDir),
     ...(deps.scripts ?? []),
   ];
 }

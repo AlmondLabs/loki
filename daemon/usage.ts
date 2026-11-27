@@ -2,8 +2,8 @@ import type { Context } from "@earendil-works/chord";
 import type { CommitPublication, ConversationId, UsageState } from "@earendil-works/pi-durable";
 import { createReadStream, readFileSync } from "node:fs";
 import { createInterface } from "node:readline";
-import { isAdvisorChat } from "../core/advisor.ts";
 import { isWriterChat } from "../core/learn/model.ts";
+import { isSubagentChat } from "../core/subagents.ts";
 import { hourOf, type UsageOrigin, type UsageRow } from "../core/usage.ts";
 import { doctorChatId } from "./doctor.ts";
 import { ACP_PASS_SUFFIX } from "./memory.ts";
@@ -127,11 +127,11 @@ const ORIGIN_OF_TURN: Partial<Record<string, UsageOrigin>> = {
   recall: "learn",
   reflection: "reflection",
   doctor: "doctor",
-  advisor: "advisor",
+  advisor: "helpers",
 };
 
 export function originOfChat(chatId: string, agentId: string): UsageOrigin {
-  if (isAdvisorChat(chatId)) return "advisor";
+  if (isSubagentChat(chatId) || chatId.startsWith("advisor-")) return "helpers";
   if (isWriterChat(chatId)) return "learn";
   const own = chatId.endsWith(ACP_PASS_SUFFIX) ? chatId.slice(0, -ACP_PASS_SUFFIX.length) : chatId;
   if (own === `reflection-${agentId}`) return "reflection";
@@ -245,7 +245,27 @@ export class UsageLedger {
       return;
     }
     const file = raw as Partial<LedgerFile> | null;
-    for (const row of Array.isArray(file?.rows) ? file.rows : []) this.rowsByKey.set(keyOf(row), row);
+    for (const row of Array.isArray(file?.rows) ? file.rows : []) {
+      const origin = (row.origin as string) === "advisor" ? "helpers" : row.origin;
+      const normalized = origin === row.origin ? row : { ...row, origin };
+      const existing = this.rowsByKey.get(keyOf(normalized));
+      if (existing) {
+        existing.input_tokens += normalized.input_tokens;
+        existing.cache_read_tokens += normalized.cache_read_tokens;
+        existing.cache_write_tokens += normalized.cache_write_tokens;
+        existing.output_tokens += normalized.output_tokens;
+        existing.reasoning_tokens += normalized.reasoning_tokens;
+        existing.cost.input += normalized.cost.input;
+        existing.cost.cache_read += normalized.cost.cache_read;
+        existing.cost.cache_write += normalized.cost.cache_write;
+        existing.cost.output += normalized.cost.output;
+        existing.cost.other += normalized.cost.other;
+        existing.cost.total += normalized.cost.total;
+        existing.cache_read_as_input += normalized.cache_read_as_input;
+      } else {
+        this.rowsByKey.set(keyOf(normalized), normalized);
+      }
+    }
     this.seen = file?.seen && typeof file.seen === "object" ? file.seen : {};
     this.seededUntil = typeof file?.seeded_until === "string" ? file.seeded_until : null;
     this.prune();

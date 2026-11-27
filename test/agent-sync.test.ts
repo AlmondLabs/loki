@@ -4,7 +4,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { applyShared, homeOf, later, merge, readRecord, readTombstones, sharedAgents, stamp } from "../daemon/store/agent-sync.ts";
 import { writeRecord } from "../daemon/store/agents.ts";
-import { must } from "./fixtures/must.ts";
 
 const BOOK = "aaaaaaaa-1111-4111-8111-111111111111";
 const MINI = "bbbbbbbb-2222-4222-8222-222222222222";
@@ -88,25 +87,16 @@ describe("taking another Mac's agents", () => {
     }
   });
 
-  test("an advisor model set on one Mac reaches the other, and so does clearing it", async () => {
+  test("an agent's model synced on one Mac reaches the other", async () => {
     const base = { id: FRIDAY, name: "Friday", model: "acp:claude/default" };
     const book = backend({ [FRIDAY]: { ...base, home_mac: BOOK } });
     const mini = backend({ [FRIDAY]: { ...base, home_mac: BOOK } });
     const set = { at: "2026-11-22T10:00:00Z", mac: BOOK };
-    const cleared = { at: "2026-11-22T11:00:00Z", mac: BOOK };
     try {
-      const advised = { ...base, home_mac: BOOK, advisor_model: "openai/gpt-6.1-sol", advisor_reasoning_effort: "high" };
-      writeRecord(book.dir, FRIDAY, stamp(advised, ["advisor_model", "advisor_reasoning_effort"], set));
+      const updated = { ...base, home_mac: BOOK, model: "openai/gpt-6.1-sol" };
+      writeRecord(book.dir, FRIDAY, stamp(updated, ["model"], set));
       expect((await applyShared(mini.dir, { agents: sharedAgents(book.dir, BOOK), tombstones: [] }, () => Promise.resolve())).updated).toEqual([FRIDAY]);
-      expect(readRecord(mini.dir, FRIDAY)).toMatchObject({ advisor_model: "openai/gpt-6.1-sol", advisor_reasoning_effort: "high" });
-
-      const record = must(readRecord(book.dir, FRIDAY), "Friday's record on the book");
-      const clear = { ...record, advisor_model: undefined, advisor_reasoning_effort: undefined };
-      writeRecord(book.dir, FRIDAY, stamp(clear, ["advisor_model", "advisor_reasoning_effort"], cleared));
-      await applyShared(mini.dir, { agents: sharedAgents(book.dir, BOOK), tombstones: [] }, () => Promise.resolve());
-      const onMini = must(readRecord(mini.dir, FRIDAY), "Friday's record on the mini");
-      expect(onMini).not.toHaveProperty("advisor_model");
-      expect(onMini).not.toHaveProperty("advisor_reasoning_effort");
+      expect(readRecord(mini.dir, FRIDAY)).toMatchObject({ model: "openai/gpt-6.1-sol" });
     } finally {
       book.done();
       mini.done();

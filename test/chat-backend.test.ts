@@ -18,12 +18,7 @@ import { ModRegistry } from "../daemon/mods/registry.ts";
 import { applyChatEvent, emptyLive, type ChatEvent } from "../core/attention/model.ts";
 import { isScheduledPrompt, TOOL_TEXT_MAX } from "../core/harness.ts";
 import { daemonTimeReminder } from "../core/attention/content.ts";
-import { readRecord, stampsOf } from "../daemon/store/agent-sync.ts";
-import type { PayloadOf } from "../core/frames.ts";
 import { must } from "./fixtures/must.ts";
-import { consultOf } from "../core/advisor.ts";
-import { writeRecord } from "../daemon/store/agents.ts";
-import { AGENT, consultSetup } from "./fixtures/advisor-consult.ts";
 
 const ctx = BACKGROUND_CONTEXT;
 
@@ -288,78 +283,6 @@ describe("the daemon's chats", () => {
     }
   });
 
-  test("an advisor's answer goes in at the chat's own power, once per consult, and leaves the chat's draft alone", async () => {
-    const s = await setup();
-    try {
-      const agent = await s.chats.createAgent({ name: "Ada", description: null, persona: null, model: s.handle });
-      const { conversationId } = await s.chats.create(agent.id, null, null);
-      await s.chats.open(agent.id, conversationId);
-      const store = await s.stores.get(agent.id);
-      const info = async () => store.chatInfo(must(await store.chat(conversationId, ctx), "the chat").id, ctx);
-      s.faux.setResponses([s.reply("one"), s.reply("two"), s.reply("three")]);
-      const held = { agent_id: agent.id, conversation_id: conversationId, text: "from another chat", images: [], send_id: "m1", context: null };
-      expect(await s.chats.sendHeld(held, "standard")).toBeNull();
-      await until(() => kinds(s.pushed).filter((k) => k === "turn_end").length === 1);
-      const draft = { text: "half a thought", suggestion_id: "s1", source: { agent_id: agent.id, conversation_id: "elsewhere" } };
-      await s.chats.update({
-        agent_id: agent.id,
-        conversation_id: conversationId,
-        title: undefined,
-        archived: undefined,
-        hidden: undefined,
-        labels: undefined,
-        draft,
-      });
-      const advice = {
-        sendId: "consult-1",
-        block: "<loki-advisor-answer>the answer</loki-advisor-answer>",
-        context: "<system-reminder>triage</system-reminder>",
-      };
-      await s.chats.advise(agent.id, conversationId, advice);
-      await s.chats.advise(agent.id, conversationId, advice);
-      await until(() => kinds(s.pushed).filter((k) => k === "turn_end").length === 2);
-      expect((await info())?.turn_cap).toBeNull();
-      expect((await info())?.draft).toEqual(draft);
-      expect(s.sent).toHaveLength(2);
-      expect(s.sent[1].match(/the answer/g)).toHaveLength(1);
-      expect(s.sent[1]).toContain("triage");
-    } finally {
-      await s.cleanup();
-    }
-  });
-
-  test("a message to an advisor chat sent with steer waits for its running turn instead (KTD6)", async () => {
-    const s = await setup();
-    try {
-      const agent = await s.chats.createAgent({ name: "Ada", description: null, persona: null, model: s.handle });
-      const store = await s.stores.get(agent.id);
-      await store.createChat("advisor-c", { hidden: true, advisor_for: "c", agent: { model: must(modelRef(s.handle), "a model") } }, ctx);
-      await s.chats.open(agent.id, "advisor-c");
-      let release = () => {};
-      const asked = { yet: false };
-      s.faux.setResponses([
-        async () => {
-          asked.yet = true;
-          await new Promise<void>((r) => (release = r));
-          return fauxAssistantMessage(fauxToolCall("read", { path: "nowhere.ts" }), { stopReason: "toolUse" });
-        },
-        s.reply("the consult's answer"),
-        s.reply("the person's answer"),
-      ]);
-      const send = { agent_id: agent.id, conversation_id: "advisor-c", images: [], context: null };
-      await s.chats.send({ ...send, text: "the consult", send_id: "c1" });
-      await until(() => asked.yet);
-      await s.chats.send({ ...send, text: "the person", send_id: "p1", steer: true });
-      release();
-      await until(() => s.sent.length === 2);
-      expect(s.sent).toHaveLength(2);
-      expect(s.sent[0]).not.toContain("the person");
-      expect(s.sent[1]).toContain("the person");
-    } finally {
-      await s.cleanup();
-    }
-  });
-
   test("a message sent with steer while a tool runs joins that turn, read before the agent goes on", async () => {
     let typed = async () => {};
     const s = await setup({
@@ -578,25 +501,6 @@ describe("the daemon's chats", () => {
     }
   });
 
-  test("an agent's advisor model and effort are saved stamped for the other Macs, and clearing the model removes both", async () => {
-    const s = await setup({ macId: "mac-book" });
-    try {
-      const agent = await s.chats.createAgent({ name: "Ira", description: null, persona: null, model: s.handle });
-      const record = () => readRecord(join(s.dir, "backend"), agent.id) ?? {};
-      const change = (p: Partial<PayloadOf<"chat_agent_update">>) =>
-        s.chats.updateAgent({ agent_id: agent.id, name: undefined, description: undefined, model: undefined, home_mac: undefined, ...p });
-      await change({ advisor_model: "openai/gpt-6.1-sol", advisor_reasoning_effort: "high" });
-      expect(record()).toMatchObject({ advisor_model: "openai/gpt-6.1-sol", advisor_reasoning_effort: "high", model: s.handle });
-      expect(stampsOf(record())).toMatchObject({ advisor_model: { mac: "mac-book" }, advisor_reasoning_effort: { mac: "mac-book" } });
-      await change({ advisor_model: null });
-      expect(record()).not.toHaveProperty("advisor_model");
-      expect(record()).not.toHaveProperty("advisor_reasoning_effort");
-      expect(record()).toMatchObject({ model: s.handle });
-    } finally {
-      await s.cleanup();
-    }
-  });
-
   test("a chat started here with the picker, away from its agent's home, stays out of the hand-over to that home", async () => {
     const s = await setup({ macId: "mac-book" });
     try {
@@ -687,68 +591,6 @@ describe("the daemon's chats", () => {
       expect(saw).toContain("Local time on the user's Mac, as loki sends this:");
       expect(saw.indexOf("post the standup")).toBeLessThan(saw.indexOf("Local time on the user's Mac"));
       expect(isScheduledPrompt(`${prompt}\n\n${daemonTimeReminder()}`)).toBe(true);
-    } finally {
-      await s.cleanup();
-    }
-  });
-});
-
-describe("/advisor", () => {
-  const advisor = (s: Awaited<ReturnType<typeof consultSetup>>, args: string | null = null) =>
-    s.first.chats.command({ agent_id: AGENT, conversation_id: s.chatId, command: "advisor", args });
-
-  test("with a question, it sends the person's question to the chat's advisor and leaves the folder unread", async () => {
-    const read: Array<string | undefined> = [];
-    const s = await consultSetup({ changes: (folder) => (read.push(folder), Promise.resolve({ notice: "unused" })) });
-    try {
-      expect(await advisor(s, "is this migration safe?")).toEqual({ success: true, output: "sent to this chat's advisor; its answer comes back here" });
-      await s.settled(s.first);
-      expect(s.seen.advisor.map(consultOf)).toEqual([{ from: "person", text: "is this migration safe?" }]);
-      expect(await s.ledger(s.first)).toMatchObject([{ from: "person", first_line: "is this migration safe?", state: "answered" }]);
-      expect(read).toEqual([]);
-    } finally {
-      await s.cleanup();
-    }
-  });
-
-  test("alone, it sends the chat's folder's changes for review", async () => {
-    const read: Array<string | undefined> = [];
-    const list = "Review what changed in this chat's folder.\nUncommitted changes:\n- a.ts (+1 -0)";
-    const s = await consultSetup({ changes: (folder) => (read.push(folder), Promise.resolve({ text: list })) });
-    try {
-      expect((await advisor(s)).success).toBe(true);
-      await s.settled(s.first);
-      expect(read).toEqual([s.folder]);
-      expect(s.seen.advisor.map(consultOf)).toEqual([{ from: "person", text: list }]);
-    } finally {
-      await s.cleanup();
-    }
-  });
-
-  test("alone, with nothing to review, the row says so, and nothing goes to the advisor or the chat's model", async () => {
-    const s = await consultSetup({ changes: () => Promise.resolve({ notice: "Nothing has changed in this chat's folder to review." }) });
-    try {
-      expect(await advisor(s)).toEqual({ success: true, output: "Nothing has changed in this chat's folder to review." });
-      expect(await advisor(s, "   ")).toEqual({ success: true, output: "Nothing has changed in this chat's folder to review." });
-      expect(await s.ledger(s.first)).toEqual([]);
-      expect(await s.first.store.chat(`advisor-${s.chatId}`, BACKGROUND_CONTEXT)).toBeUndefined();
-      expect(s.seen).toMatchObject({ chat: [], advisor: [] });
-      expect(await s.userTexts(s.first)).toEqual([]);
-    } finally {
-      await s.cleanup();
-    }
-  });
-
-  test("for an agent on Claude Code with no advisor model, the row says to set one in Agents › Profile, and nothing is queued", async () => {
-    const s = await consultSetup();
-    try {
-      const backend = join(s.root, "home", ".loki", "backend");
-      writeRecord(backend, AGENT, { id: AGENT, name: "Ada", model: "acp:claude-code/default", model_settings: {}, tags: [] });
-      const r = await advisor(s, "is this safe?");
-      expect(r.success).toBe(false);
-      expect(r.output).toContain("set an advisor model in Agents › Profile");
-      expect(await s.ledger(s.first)).toEqual([]);
-      expect(s.seen).toMatchObject({ chat: [], advisor: [] });
     } finally {
       await s.cleanup();
     }

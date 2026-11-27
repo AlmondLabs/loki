@@ -17,7 +17,7 @@ import { threadId } from "./transcript-window";
 import { streamBlocks } from "./stream-blocks";
 import { EventDetail, ToolSteps } from "./tool-steps";
 import { isWorkRow, toolRuns } from "../shared/tool-steps";
-import { CheckIcon, CopyIcon, LightbulbIcon, LoaderCircleIcon } from "lucide-react";
+import { BotIcon, CheckIcon, CopyIcon, LoaderCircleIcon } from "lucide-react";
 import { Marker, MarkerContent, MarkerIcon } from "@/ui/marker";
 
 export type { TranscriptRow };
@@ -419,16 +419,16 @@ function SuggestedRow({ row: m, arrived }: { row: TranscriptRow; arrived?: true 
   );
 }
 
-export const OpenAdvisor = createContext<((advisorChat: string) => void) | null>(null);
+export const OpenWorker = createContext<((subagentChat: string) => void) | null>(null);
 
-export function AdvisorAnswerRow({ row: m, arrived }: { row: TranscriptRow; arrived?: true }) {
-  const open = useContext(OpenAdvisor);
-  const advisorChat = m.advisor_chat;
-  const go = open && advisorChat ? () => open(advisorChat) : undefined;
+export function SubagentEventRow({ row: m, arrived }: { row: TranscriptRow; arrived?: true }) {
+  const open = useContext(OpenWorker);
+  const subagentChat = m.subagent_chat;
+  const go = open && subagentChat ? () => open(subagentChat) : undefined;
   return (
-    <Marker data-row="event" data-arrived={arrived} render={go ? <button type="button" onClick={go} title="Open the advisor chat" /> : undefined}>
+    <Marker data-row="event" data-arrived={arrived} render={go ? <button type="button" onClick={go} title="Open in Workers" /> : undefined}>
       <MarkerIcon>
-        <LightbulbIcon />
+        <BotIcon />
       </MarkerIcon>
       <MarkerContent className="truncate">
         {m.text}
@@ -530,8 +530,8 @@ export function CommandRow({ row: m, arrived }: { row: TranscriptRow; arrived?: 
 
 export function kindedEvent(m: TranscriptRow, arrived?: true): ReactNode {
   switch (m.event) {
-    case "advisor":
-      return <AdvisorAnswerRow row={m} arrived={arrived} />;
+    case "subagent":
+      return <SubagentEventRow row={m} arrived={arrived} />;
     case "command":
       return <CommandRow row={m} arrived={arrived} />;
     case "canvas":
@@ -548,7 +548,7 @@ export function kindedEvent(m: TranscriptRow, arrived?: true): ReactNode {
 function EventRow({ row: m, arrived }: { row: TranscriptRow; arrived?: true }) {
   const kinded = kindedEvent(m, arrived);
   if (kinded) return kinded;
-  if (m.advisor_chat) return <AdvisorAnswerRow row={m} arrived={arrived} />;
+  if (m.subagent_chat) return <SubagentEventRow row={m} arrived={arrived} />;
   if (m.text === SUGGESTED) return <SuggestedRow row={m} arrived={arrived} />;
   return <DetailEventRow row={m} arrived={arrived} />;
 }

@@ -1,7 +1,7 @@
 import { linksSeenFrom, type ChatLink } from "../../../core/chat-links.ts";
 import { LinkHeader } from "../chat/link-header";
-import { AdvisorHeader } from "../chat/advisor-header";
-import type { AdvisorView } from "../../../core/advisor.ts";
+import { WorkersHeader } from "../chat/workers-header";
+import type { SubagentView } from "../../../core/subagents.ts";
 import { useCallback, useEffect, useEffectEvent, useState, type ComponentProps, type ReactNode } from "react";
 import type { LabelView } from "../../../core/labels.ts";
 import { LabelsSheet } from "./labels-sheet";
@@ -10,7 +10,7 @@ import { keyOf, type AttentionItem, type PendingApproval, type PendingQuestion }
 import type { Attachment } from "../../../core/attention/content.ts";
 import type { ChatEngineView, ModelSelection, ReasoningEffort } from "../../../core/models.ts";
 import type { ModelEntry } from "../chat/model-picker";
-import { OpenAdvisor, OpenChat } from "../chat/transcript";
+import { OpenWorker, OpenChat } from "../chat/transcript";
 import type { WholeRow } from "../../../core/attention/transcript.ts";
 import { Conversation, type ChatStatus, type ConversationView } from "../chat/conversation";
 import type { SuggestionsProps } from "../chat/suggestion-card";
@@ -52,7 +52,7 @@ export interface ThreadView {
   loadFailed?: (() => void) | null;
   loadStep?: (row: number) => Promise<WholeRow | null>;
   links?: ChatLink[];
-  advisor?: AdvisorView | null;
+  subagents?: SubagentView[];
 }
 
 export function ConversationScreen({
@@ -155,10 +155,10 @@ export function ConversationScreen({
   const asked = view.question;
   const approval = view.pending;
   const canUndo = !!onNotDone && !!item && doneAction(item) === "undone";
-  const openAdvisor = useCallback((advisorChat: string) => openConversation(thread.agentId, advisorChat), [thread.agentId]);
+  const openWorker = useCallback((workerChat: string) => openConversation(thread.agentId, workerChat), [thread.agentId]);
 
   return (
-    <OpenAdvisor.Provider value={openAdvisor}>
+    <OpenWorker.Provider value={openWorker}>
       <ThreadHeader
         thread={thread}
         view={view}
@@ -168,9 +168,9 @@ export function ConversationScreen({
         onBack={onBack}
         onActions={() => setActionsOpen(true)}
         links={
-          view.links?.length || view.advisor ? (
+          view.links?.length || view.subagents?.length ? (
             <div className="loki-phone-links loki-chat-strips">
-              <AdvisorHeader advisor={view.advisor} touch />
+              <WorkersHeader subagents={view.subagents} touch />
               {view.links?.length ? (
                 <LinkHeader links={linksSeenFrom(view.links, rt)} onClose={onCloseLink ? (id) => onCloseLink(rt, id) : undefined} touch />
               ) : null}
@@ -285,7 +285,7 @@ export function ConversationScreen({
       {labeling && labels?.onChange && (
         <LabelsSheet current={labels.current} list={labels.list} onChange={labels.onChange} onClose={() => setLabeling(false)} />
       )}
-    </OpenAdvisor.Provider>
+    </OpenWorker.Provider>
   );
 }
 

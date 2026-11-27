@@ -47,51 +47,29 @@ describe("an agent's advisor model", () => {
     const updates: Array<PayloadOf<"chat_agent_update">> = [];
     const { bridge } = bridgeWith({ chat: backend(updates) });
     const c = client("d1");
-    const advisor = { advisor_model: "openai/gpt-6.1-sol", advisor_reasoning_effort: "high" };
-    bridge.onMessage(c, { type: "chat_agent_update", request_id: "r1", agent_id: AGENT, ...advisor });
+    bridge.onMessage(c, { type: "chat_agent_update", request_id: "r1", agent_id: AGENT, model: "openai/gpt-6.1-sol" });
     await settled();
     expect(c.sent.at(-1)).toMatchObject({ type: "chat_done", request_id: "r1" });
-    expect(updates.at(-1)).toMatchObject({ agent_id: AGENT, ...advisor });
-
-    bridge.onMessage(c, { type: "chat_agent_update", request_id: "r2", agent_id: AGENT, advisor_model: "acp:claude/default" });
-    await settled();
-    expect(c.sent.at(-1)).toEqual({ type: "error", request_id: "r2", message: "an advisor model is one of loki's own models, not an ACP agent's" });
-    expect(updates).toHaveLength(1);
+    expect(updates.at(-1)).toMatchObject({ agent_id: AGENT, model: "openai/gpt-6.1-sol" });
   });
 
-  test("an empty advisor model clears it", async () => {
-    const updates: Array<PayloadOf<"chat_agent_update">> = [];
-    const { bridge } = bridgeWith({ chat: backend(updates) });
-    const c = client("d1");
-    bridge.onMessage(c, { type: "chat_agent_update", request_id: "r1", agent_id: AGENT, advisor_model: "" });
-    bridge.onMessage(c, { type: "chat_agent_update", request_id: "r2", agent_id: AGENT, advisor_model: null });
-    await settled();
-    expect(updates.map((u) => u.advisor_model)).toEqual([null, null]);
-  });
-
-  test("the app sends the advisor model and its effort, and null to clear them", async () => {
+  test("the app updates agent fields cleanly", async () => {
     const sent: unknown[] = [];
     const app = new FrameChatClient({
       request: ((type: string, payload: unknown) => (sent.push({ type, ...(payload as object) }), Promise.resolve({ ok: true, reply: {} }))) as never,
       onChatEvent: () => () => {},
     });
-    await app.updateAgent(AGENT, { advisor_model: "openai/gpt-6.1-sol", advisor_reasoning_effort: "high" });
-    await app.updateAgent(AGENT, { advisor_model: null });
-    await app.updateAgent(AGENT, { advisor_reasoning_effort: null });
-    expect(sent).toEqual([
-      { type: "chat_agent_update", agent_id: AGENT, advisor_model: "openai/gpt-6.1-sol", advisor_reasoning_effort: "high" },
-      { type: "chat_agent_update", agent_id: AGENT, advisor_model: null },
-      { type: "chat_agent_update", agent_id: AGENT, advisor_reasoning_effort: null },
-    ]);
+    await app.updateAgent(AGENT, { name: "Friday", description: "Helper", model: "openai/gpt-6.1-sol" });
+    expect(sent).toEqual([{ type: "chat_agent_update", agent_id: AGENT, name: "Friday", description: "Helper", model: "openai/gpt-6.1-sol" }]);
     app.close();
   });
 
-  test("a model picked in an advisor chat leaves the agent's usual models alone; the same pick in its chat records it", async () => {
+  test("a model picked in a subagent chat leaves the agent's usual models alone; the same pick in its chat records it", async () => {
     const recorded: string[] = [];
     const usualModels = { read: () => ({}), record: (agentId: string, handle: string) => (recorded.push(`${agentId} ${handle}`), {}) };
     const { bridge } = bridgeWith({ chat: backend([]), usualModels });
     const c = client("d1");
-    bridge.onMessage(c, { type: "chat_model", request_id: "r1", agent_id: AGENT, conversation_id: "advisor-c1", handle: "openai/gpt-6.1-sol" });
+    bridge.onMessage(c, { type: "chat_model", request_id: "r1", agent_id: AGENT, conversation_id: "c1~subagent~kestrel", handle: "openai/gpt-6.1-sol" });
     await settled();
     expect(c.sent.at(-1)).toMatchObject({ type: "chat_done", request_id: "r1" });
     expect(recorded).toEqual([]);

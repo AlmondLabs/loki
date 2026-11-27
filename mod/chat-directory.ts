@@ -1,4 +1,4 @@
-import { advisedChat } from "../core/advisor.ts";
+import { parentChatOfSubagent } from "../core/subagents.ts";
 import { scopeFor, type Scope } from "../core/canvas-core.ts";
 
 export interface ChatRef {
@@ -103,8 +103,8 @@ export class ChatDirectory {
 }
 
 const holderOf = (chat: ChatRef): ChatRef => {
-  const advised = advisedChat(chat.conversation_id);
-  return advised === null ? chat : { ...chat, conversation_id: advised };
+  const parent = parentChatOfSubagent(chat.conversation_id);
+  return parent === null ? chat : { ...chat, conversation_id: parent };
 };
 
 export const scopeOf = (chat: ChatRef | Scope): Scope => {

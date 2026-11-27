@@ -146,7 +146,7 @@ describe("changes_read's runner", () => {
   });
 });
 
-describe("the change list for /advisor alone", () => {
+describe("folderChanges summary", () => {
   const entries = (...parts: string[]) => parts.map((p) => `${p}\0`).join("");
 
   function repo(answers: { status?: string; unstaged?: string; staged?: string; upstream?: Answer; log?: string; range?: string; checkout?: Answer }) {
@@ -260,8 +260,8 @@ describe("changes_read as a tool", () => {
         changesExtension().tools?.find((t) => t.name === CHANGES_TOOL),
         "the tool",
       );
-      const advisor = await (await store.createChat("advisor-normal", { title: null, agent: { modelTools: { add: [tool] } } }, ctx)).agent(ctx);
-      expect(advisor.tools.map((t) => t.name)).toContain(CHANGES_TOOL);
+      const worker = await (await store.createChat("c~subagent~kestrel", { title: null, agent: { modelTools: { add: [tool] } } }, ctx)).agent(ctx);
+      expect(worker.tools.map((t) => t.name)).toContain(CHANGES_TOOL);
     } finally {
       await store.close(ctx);
       rmSync(dir, { recursive: true, force: true });
@@ -271,7 +271,7 @@ describe("changes_read as a tool", () => {
   test("output past bash's budget is saved whole in the chat's tool-results folder; shorter output is not", async () => {
     const dir = mkdtempSync(join(tmpdir(), "loki-changes-"));
     try {
-      const resultsDir = join(dir, "tool-results", "advisor-c");
+      const resultsDir = join(dir, "tool-results", "c~subagent~kestrel");
       const env = new ChatEnv({ cwd: dir, resultsDir });
       expect(await fullOutputFile(env, "short\n", ctx)).toBeNull();
       const long = Array.from({ length: 3000 }, (_, i) => `line ${i}`).join("\n");

@@ -6,8 +6,6 @@ import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { builtinModels } from "@earendil-works/pi-ai/providers/all";
 import { registerBunOAuthFlows } from "@earendil-works/pi-ai/bun-oauth";
 import { homedir } from "node:os";
-import { Advisors } from "./advisor.ts";
-import { AdvisorConsults } from "./advisor-consults.ts";
 import { DaemonChats } from "./chat-backend.ts";
 import { ChatImages } from "./chat-images.ts";
 import { Approvals, kindOf } from "./approvals.ts";
@@ -129,7 +127,7 @@ const subagents = new SubagentManager({
       .deliver(agentId, chatId, text, "steer")
       .then((delivery) => delivery?.outcome)
       .catch((e: unknown) => report(`subagent notice not delivered: ${String(e)}`)),
-  harnessFor: async (agentId) => (await stores.get(agentId)).harness,
+  storeFor: (agentId) => stores.get(agentId),
   context,
   worktreesDir: join(args.dir, "worktrees"),
 });
@@ -138,7 +136,7 @@ const approvals = new Approvals({
   widgetsDir: process.env.LOKI_WIDGETS_DIR ?? join(args.dir, "widgets"),
   kindOfTool: (name) => builtinToolKinds.get(name) ?? kindOf(name, mcp.annotations(name) ?? mods.annotations(name)),
   alwaysPath: join(args.dir, "state", "approvals.json"),
-  advisorFolders: { dataDir: args.dir, backendDir: backend, home: homedir() },
+  readOnlyFolders: { dataDir: args.dir, backendDir: backend, home: homedir() },
   scriptMayCall: (name) => mods.isScriptCallable(name),
 });
 const chatImages = new ChatImages(join(args.dir, "chat-images"));
@@ -244,14 +242,6 @@ const acp = new AcpChats({
   cacheFile: join(args.dir, "state", "acp-offered.json"),
   report,
 });
-const advisors = new AdvisorConsults({
-  advisors: new Advisors({ stores, registry: mods.registry, backendDir: backend, home: homedir(), context, canRun }),
-  stores,
-  agents: () => listAgents(backend),
-  context,
-  deliver: (agentId, chatId, advice) => chat.advise(agentId, chatId, advice),
-  report,
-});
 const chat: DaemonChats = new DaemonChats({
   stores,
   mods,
@@ -271,7 +261,6 @@ const chat: DaemonChats = new DaemonChats({
   background,
   subagents,
   usualModel: (agentId) => topUsualModel(agentId),
-  advisors,
 });
 chats.follow(stores, report);
 const eventsLog = join(args.dir, "logs", "events.jsonl");
@@ -353,7 +342,6 @@ await mods.load({
 });
 mcp.start();
 void lokiTools.start().catch((error: unknown) => report(`loki tools did not start: ${String(error)}`));
-void advisors.start().catch((error: unknown) => report(`advisor consults did not settle: ${String(error)}`));
 const sources = (f: string) => f.endsWith(".ts") && !f.includes(".loki-build");
 const watching = checkout
   ? [

@@ -1,7 +1,7 @@
 import { Type } from "typebox";
 import { parseLink, isLinkDuration } from "../chat-links.ts";
 import { LABEL_COLORS, chatLabels, labelName } from "../labels.ts";
-import { isReasoningEffort, type ReasoningEffort } from "../models.ts";
+import type { ReasoningEffort } from "../models.ts";
 import type { SavedDraft } from "../frame-types.ts";
 import {
   AgentIdSchema,
@@ -323,25 +323,16 @@ export const chatFrames = {
       ? { name: m.name.trim(), description: strOr(m.description, null), persona: strOr(m.persona, null), model: strOr(m.model, null) }
       : "name required",
   ),
-  chat_agent_update: request(
-    "chat_done",
-    "an agent's name, description, model, home Mac, or advisor model and effort; an empty or null advisor model clears both, and an ACP agent's is refused",
-    (m: Raw) => {
-      if (!isAgentId(m.agent_id)) return "agent_id required";
-      const advisorModel = m.advisor_model === null || m.advisor_model === "" ? null : strOr(m.advisor_model, undefined);
-      if (advisorModel?.startsWith("acp:")) return "an advisor model is one of loki's own models, not an ACP agent's";
-      const advisorEffort = m.advisor_reasoning_effort === null || isReasoningEffort(m.advisor_reasoning_effort) ? m.advisor_reasoning_effort : undefined;
-      return {
-        agent_id: m.agent_id,
-        name: strOr(m.name, undefined),
-        description: strOr(m.description, undefined),
-        model: strOr(m.model, undefined),
-        home_mac: strOr(m.home_mac, undefined),
-        ...(advisorModel === undefined ? {} : { advisor_model: advisorModel }),
-        ...(advisorEffort === undefined ? {} : { advisor_reasoning_effort: advisorEffort }),
-      };
-    },
-  ),
+  chat_agent_update: request("chat_done", "an agent's name, description, model, or home Mac", (m: Raw) => {
+    if (!isAgentId(m.agent_id)) return "agent_id required";
+    return {
+      agent_id: m.agent_id,
+      name: strOr(m.name, undefined),
+      description: strOr(m.description, undefined),
+      model: strOr(m.model, undefined),
+      home_mac: strOr(m.home_mac, undefined),
+    };
+  }),
   chat_agent_delete: request("chat_done", "delete an agent, its memory and its chats", agent),
   chat_passes_get: request(
     "chat_passes",
@@ -372,7 +363,7 @@ export const chatFrames = {
   }),
   chat_command: request(
     "chat_command_done",
-    "run a slash command in a chat: compact, clear, remember, reflect, doctor or advisor",
+    "run a slash command in a chat: compact, clear, remember, reflect, or doctor",
     (m: Raw) => {
       const c = chatRef(m);
       if (typeof c === "string") return c;

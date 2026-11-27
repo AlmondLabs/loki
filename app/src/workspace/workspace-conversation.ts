@@ -46,7 +46,7 @@ export function deskConversation(
     loadStep: deskChat?.loadStep,
     home: row?.home ? (row.home_name ?? "another Mac") : null,
     links: deskRuntime && deskChat ? linksSeenFrom(deskChat.links, deskRuntime) : undefined,
-    advisor: deskChat?.advisor ?? null,
+    subagents: deskChat?.subagents ?? [],
   };
   const actions: ConversationActions = {
     onSend: (text, images) =>

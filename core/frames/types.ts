@@ -2,7 +2,7 @@ import type { ChatEvent } from "../attention/model.ts";
 import type { ChatEngineView, ModelEntry, ReasoningEffort } from "../models.ts";
 import type { ChatLink, LinkDuration } from "../chat-links.ts";
 import type { Scope, CanvasState, WidgetLogEntry, WidgetManifestEntry } from "../canvas-core.ts";
-import type { AdvisorView } from "../advisor.ts";
+import type { SubagentView } from "../subagents.ts";
 import type { FocusEntry } from "../attention/focus.ts";
 import type { Lane } from "../attention/lanes.ts";
 import type { Rest, ReturnTimes } from "../attention/rest.ts";
@@ -116,8 +116,8 @@ export interface ChatState {
   reply_proposals?: ReplyProposal[];
   /** The chat's live links to other chats (plan 067); absent from a mod that predates them. */
   links?: ChatLink[];
-  /** The chat's advisor as its strip shows it, null when it has none; absent from a mod that predates advisors. */
-  advisor?: AdvisorView | null;
+  /** This chat's helper subagents for the Workers tab. */
+  subagents?: SubagentView[];
 }
 
 /** The answer to a request, by reply name: the payload beside `type` and `request_id`. */

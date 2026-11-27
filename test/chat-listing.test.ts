@@ -102,9 +102,9 @@ describe("which chats show", () => {
     expect(l.flow().map((r) => r.id)).toEqual(["conv-1"]);
   });
 
-  test("a chat's advisor chat stays out of the Chats list and Flow, even once a message to it remembered its scope (R22)", () => {
-    rows = [chat("conv-1", IRA), chat("advisor-conv-1", IRA, { hidden: true, lastMessageAt: "2026-11-22T10:00:00Z" })];
-    desks.remember("advisor-conv-1", IRA);
+  test("a chat's subagent chat stays out of the Chats list and Flow, even once a message to it remembered its scope", () => {
+    rows = [chat("conv-1", IRA), chat("conv-1~subagent~kestrel", IRA, { hidden: true, lastMessageAt: "2026-11-22T10:00:00Z" })];
+    desks.remember("conv-1~subagent~kestrel", IRA);
     const l = listing();
     expect(l.summaries().map((d) => d.scope)).toEqual([SHARED_SCOPE, "conv-1"]);
     expect(l.flow().map((r) => r.id)).toEqual(["conv-1"]);

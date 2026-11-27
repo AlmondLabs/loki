@@ -1,5 +1,5 @@
 import type { ChatLink } from "../chat-links.ts";
-import type { AdvisorView } from "../advisor.ts";
+import type { SubagentView } from "../subagents.ts";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { WholeRow } from "./transcript.ts";
 import type { Runtime } from "./protocol.ts";
@@ -116,7 +116,7 @@ export interface ChatFace {
   suggestions: Suggestion[];
   replyProposals?: ReplyProposal[];
   links: ChatLink[];
-  advisor?: AdvisorView | null;
+  subagents?: SubagentView[];
 }
 
 export interface ChatView extends ChatFace {
@@ -478,6 +478,7 @@ export const savedDrafts = createSavedDrafts();
 const NO_SUGGESTIONS: Suggestion[] = [];
 const NO_REPLIES: ReplyProposal[] = [];
 const NO_LINKS: ChatLink[] = [];
+const NO_SUBAGENTS: SubagentView[] = [];
 
 export function useAttention(opts: UseAttentionOptions) {
   const optsRef = useRef(opts);
@@ -585,7 +586,7 @@ export function useAttention(opts: UseAttentionOptions) {
         suggestions: l?.suggestions ?? NO_SUGGESTIONS,
         replyProposals: l?.replyProposals ?? rowReplies.get(key) ?? NO_REPLIES,
         links: l?.links ?? NO_LINKS,
-        advisor: l?.advisor ?? null,
+        subagents: l?.subagents ?? NO_SUBAGENTS,
       };
     },
     [live, older, failed, store, rowReplies],

@@ -412,8 +412,6 @@ describe("one line for every step: title, tag, icon", () => {
     expect(line(tool("memory_edit", "reference/farmart/crm.md"))).toEqual(["crm.md", "Memory", "pencil"]);
     expect(line(tool("web_search", "bun 1.3 release"))).toEqual(["bun 1.3 release", "Web", "globe"]);
     expect(line(tool("subagent", "", { description: "Fix the forecast helper" }))).toEqual(["Fix the forecast helper", "Agent", "bot"]);
-    expect(line(tool("advisor_consult", "Is this safe?"))).toEqual(["Is this safe?", "Advisor", "bot"]);
-    expect(line(tool("advisor_consult", ""))).toEqual(["Review the changes", "Advisor", "bot"]);
     expect(line(tool("user_ask", "Which branch?"))).toEqual(["Which branch?", "Asked you", "question"]);
     expect(line(tool("codemode", ""))).toEqual(["A script", "Script", "code"]);
     expect(line(tool("codemode", "", { description: "Count open PRs" }))).toEqual(["Count open PRs", "Script", "code"]);
@@ -464,10 +462,8 @@ describe("one line for every step: title, tag, icon", () => {
 
 describe("core titles the tools whose few words live in their own argument", () => {
   test("by text, title, subject, message or a patch's first file", () => {
-    expect(toolLabel("advisor_consult", { text: "Is this safe?\nmore" })).toBe("advisor_consult · Is this safe?");
     expect(toolLabel("suggestion_create", { title: "Review the plan", text: "…", agent_id: "a" })).toBe("suggestion_create · Review the plan");
     expect(toolLabel("message_propose", { account: "x", subject: "Lunch", text: "Hi" })).toBe("message_propose · Lunch");
     expect(toolLabel("memory_apply_patch", { patch: "*** Begin Patch\n*** Update File: people/ada.md\n@@" })).toBe("memory_apply_patch · people/ada.md");
-    expect(toolLabel("advisor_consult", {})).toBe("advisor_consult");
   });
 });

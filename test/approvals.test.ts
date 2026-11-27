@@ -7,15 +7,19 @@ import { createModels } from "@earendil-works/pi-ai/models";
 import { fauxAssistantMessage, fauxProvider, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
 import { createRegistry, defineExtension, defineTool, MemoryStorage } from "@earendil-works/pi-durable";
 import { Approvals, asks } from "../daemon/approvals.ts";
+import { BackgroundTasks } from "../daemon/background.ts";
 import type { PermissionMode } from "../core/chat-links.ts";
 import { askExtension } from "../daemon/ask.ts";
-import { AgentStore } from "../daemon/kernel/index.ts";
+import { builtinExtensions } from "../daemon/extensions.ts";
+import { AgentStore, ChatDoc } from "../daemon/kernel/index.ts";
+import { readOnlyRefusal, READ_ONLY_EXTENSION, READ_ONLY_TOOLS } from "../daemon/read-only-gate.ts";
+import { Schedules } from "../daemon/schedule.ts";
 import { subagentExtension } from "../daemon/subagents.ts";
 import { offersAlways, type ChatEvent } from "../core/attention/model.ts";
 import { scriptExtensions, scriptSandbox } from "../daemon/scripts.ts";
-import { advisorRefusal } from "../daemon/advisor-gate.ts";
-import { resultsDirOf } from "../daemon/tool-results.ts";
-import { AGENT, advisorSetup } from "./fixtures/advisor.ts";
+import { chatEnvs, resultsDirOf } from "../daemon/tool-results.ts";
+
+const AGENT = "agent-local-ada";
 
 const ctx = BACKGROUND_CONTEXT;
 
@@ -538,20 +542,109 @@ describe("approvals for scripts", () => {
   });
 });
 
-describe("an advisor chat's gate", () => {
-  type Setup = Awaited<ReturnType<typeof advisorSetup>>;
-  const advisorOf = async (s: Setup, chatId: string, cwd?: string) => {
-    await s.store.createChat(chatId, { agent: { model: s.model, ...(cwd ? { cwd } : {}) } }, ctx);
-    const result = await s.advisors.open(AGENT, chatId);
-    if ("refused" in result) throw new Error(result.refused);
-    return result.chat;
+async function readOnlySetup() {
+  const root = mkdtempSync(join(tmpdir(), "loki-read-only-"));
+  const dataDir = join(root, "home", ".loki");
+  const backend = join(dataDir, "backend");
+  const home = join(root, "home");
+  const folder = join(root, "work");
+  const skillDir = join(backend, "memfs", AGENT, "memory", "skills", "review");
+  mkdirSync(folder, { recursive: true });
+  mkdirSync(skillDir, { recursive: true });
+  mkdirSync(join(dataDir, "stores"), { recursive: true });
+  writeFileSync(join(dataDir, "stores", `${AGENT}.sqlite`), "sqlite-data");
+  writeFileSync(join(folder, "a.ts"), "export const answer = 42;\n");
+  writeFileSync(join(skillDir, "SKILL.md"), "Read the diff first.\n");
+
+  const pushed: ChatEvent[] = [];
+  const approvals = new Approvals({
+    readOnlyFolders: { dataDir, backendDir: backend, home },
+  });
+  approvals.attach((_agentId, _convId, events) => pushed.push(...events));
+  const faux = fauxProvider();
+  const models = createModels();
+  models.setProvider(faux.provider);
+  const registry = createRegistry();
+  for (const ext of builtinExtensions({
+    approvals,
+    backendDir: backend,
+    background: new BackgroundTasks(() => {}),
+    schedules: new Schedules(join(root, "crons.json"), () => Promise.resolve(null)),
+    history: { thread: () => [], compactedSince: () => false },
+  })) {
+    registry.install(ext);
+  }
+  const store = await AgentStore.open({ storage: new MemoryStorage() }, { models, registry, env: chatEnvs(dataDir) }, ctx);
+  await store.setAgent({ id: AGENT, name: "Ada" }, ctx);
+  const model = { provider: faux.provider.id, modelId: faux.getModel().id };
+
+  const turn = async (chat: Awaited<ReturnType<AgentStore["createChat"]>>, calls: Array<[string, Parameters<typeof fauxToolCall>[1]]>) => {
+    const start = (await store.entries(chat, ctx)).length;
+    faux.setResponses([
+      ...calls.map(([name, args], i) => fauxAssistantMessage(fauxToolCall(name, args, { id: `call-${i}` }), { stopReason: "toolUse" })),
+      fauxAssistantMessage("Done."),
+    ]);
+    await (await chat.submit({ type: "input", content: "inspect" }, ctx)).wait(ctx);
+    return (await store.entries(chat, ctx))
+      .slice(start)
+      .filter((e) => e.kind === "pi.tool-result")
+      .map((e) => ({ failed: e.model?.some((m) => m.role === "toolResult" && m.isError) ?? false, text: JSON.stringify(e.model) }));
+  };
+
+  return {
+    root,
+    dataDir,
+    backend,
+    home,
+    folder,
+    pushed,
+    approvals,
+    registry,
+    store,
+    model,
+    turn,
+    cleanup: async () => {
+      await store.close(ctx);
+      rmSync(root, { recursive: true, force: true });
+    },
+  };
+}
+
+describe("a read-only subagent chat's gate", () => {
+  type Setup = Awaited<ReturnType<typeof readOnlySetup>>;
+  const workerOf = async (s: Setup, chatId: string, cwd?: string) => {
+    const snap = s.registry.snapshot();
+    const readOnlyExt = snap.extension(READ_ONLY_EXTENSION);
+    if (!readOnlyExt) throw new Error("missing read-only extension");
+    const byName = new Map(snap.tools().map(({ tool }) => [tool.name, tool]));
+    const readOnlyTools = READ_ONLY_TOOLS.flatMap((n) => byName.get(n) ?? []);
+    const chat = await s.store.createChat(
+      chatId,
+      {
+        hidden: true,
+        agent: {
+          model: s.model,
+          cwd: cwd ?? s.home,
+          extensions: { add: [readOnlyExt] },
+          tools: readOnlyTools,
+        },
+      },
+      ctx,
+    );
+    await chat.commit(async (tx) => {
+      const info = await tx.doc(ChatDoc, chat.id);
+      info.read_only = true;
+      info.subagent_for = "c";
+    }, ctx);
+    await chat.configure({ modelTools: readOnlyTools }, ctx);
+    return chat;
   };
   const cards = (s: Setup) => s.pushed.filter((e) => e.kind === "approval");
 
-  test("a call to write is refused with a reason, changes nothing and shows no card, even once the advisor's tool list is lost", async () => {
-    const s = await advisorSetup();
+  test("a call to write is refused with a reason, changes nothing and shows no card, even once the worker's tool list is lost", async () => {
+    const s = await readOnlySetup();
     try {
-      const chat = await advisorOf(s, "c", s.folder);
+      const chat = await workerOf(s, "c~subagent~kestrel", s.folder);
       const [offList] = await s.turn(chat, [["write", { path: "a.ts", content: "gone" }]]);
       expect(offList).toMatchObject({ failed: true, text: expect.stringContaining("Tool write is not available") as unknown });
       await chat.configure({ tools: null, modelTools: null }, ctx);
@@ -559,7 +652,7 @@ describe("an advisor chat's gate", () => {
       const [write] = await s.turn(chat, [["write", { path: "a.ts", content: "gone" }]]);
       expect(write).toMatchObject({
         failed: true,
-        text: expect.stringContaining("An advisor reads and never changes anything, so it cannot use write.") as unknown,
+        text: expect.stringContaining("A read-only subagent reads and never changes anything, so it cannot use write.") as unknown,
       });
       expect(readFileSync(join(s.folder, "a.ts"), "utf8")).toBe("export const answer = 42;\n");
       expect(cards(s)).toEqual([]);
@@ -569,9 +662,9 @@ describe("an advisor chat's gate", () => {
   });
 
   test("bash may run cat, and is refused rm and git status, with no card", async () => {
-    const s = await advisorSetup();
+    const s = await readOnlySetup();
     try {
-      const chat = await advisorOf(s, "c", s.folder);
+      const chat = await workerOf(s, "c~subagent~kestrel", s.folder);
       const [rm, git] = await s.turn(chat, [
         ["bash", { command: "rm a.ts" }],
         ["bash", { command: "git status" }],
@@ -580,16 +673,18 @@ describe("an advisor chat's gate", () => {
       expect(existsSync(join(s.folder, "a.ts"))).toBe(true);
       expect(cards(s)).toEqual([]);
       const folders = { dataDir: s.dataDir, backendDir: s.backend, home: s.home };
-      expect(await advisorRefusal({ name: "bash", args: { command: "cat a.ts" }, cwd: s.folder, agentId: AGENT, chatId: "advisor-c" }, folders)).toBeNull();
+      expect(
+        await readOnlyRefusal({ name: "bash", args: { command: "cat a.ts" }, cwd: s.folder, agentId: AGENT, chatId: "c~subagent~kestrel" }, folders),
+      ).toBeNull();
     } finally {
       await s.cleanup();
     }
   });
 
   test.runIf(process.platform !== "win32")("bash's cat a.ts runs in the chat's folder", async () => {
-    const s = await advisorSetup();
+    const s = await readOnlySetup();
     try {
-      const [cat] = await s.turn(await advisorOf(s, "c", s.folder), [["bash", { command: "cat a.ts" }]]);
+      const [cat] = await s.turn(await workerOf(s, "c~subagent~kestrel", s.folder), [["bash", { command: "cat a.ts" }]]);
       expect(cat.text).toContain("export const answer = 42;");
       expect(cards(s)).toEqual([]);
     } finally {
@@ -598,14 +693,13 @@ describe("an advisor chat's gate", () => {
   });
 
   test("read refuses a chat store in loki's data folder and reads a file in the chat's folder", async () => {
-    const s = await advisorSetup();
+    const s = await readOnlySetup();
     try {
-      const [store, file] = await s.turn(await advisorOf(s, "c", s.folder), [
+      const [store, file] = await s.turn(await workerOf(s, "c~subagent~kestrel", s.folder), [
         ["read", { path: join(s.dataDir, "stores", `${AGENT}.sqlite`) }],
         ["read", { path: "a.ts" }],
       ]);
       expect(store).toMatchObject({ failed: true, text: expect.stringContaining("inside loki's data folder") as unknown });
-      expect(store.text).not.toContain("the person's whole thread");
       expect(file).toMatchObject({ failed: false, text: expect.stringContaining("export const answer = 42;") as unknown });
       expect(cards(s)).toEqual([]);
     } finally {
@@ -614,11 +708,11 @@ describe("an advisor chat's gate", () => {
   });
 
   test("the home folder's way in, a search above the data folder and a link into it are each refused with a reason and no card", async () => {
-    const s = await advisorSetup();
+    const s = await readOnlySetup();
     try {
       symlinkSync(join(s.dataDir, "stores"), join(s.folder, "stores"), "junction");
-      const inFolder = await s.turn(await advisorOf(s, "c", s.folder), [["read", { path: join("stores", `${AGENT}.sqlite`) }]]);
-      const noFolder = await advisorOf(s, "n");
+      const inFolder = await s.turn(await workerOf(s, "c~subagent~kestrel", s.folder), [["read", { path: join("stores", `${AGENT}.sqlite`) }]]);
+      const noFolder = await workerOf(s, "c~subagent~ember");
       expect((await noFolder.agent(ctx)).cwd).toBe(s.home);
       const fromHome = await s.turn(noFolder, [
         ["bash", { command: `cat ~/.loki/stores/${AGENT}.sqlite` }],
@@ -630,7 +724,6 @@ describe("an advisor chat's gate", () => {
       for (const result of [...inFolder, ...fromHome]) {
         expect(result.failed).toBe(true);
         expect(result.text).toContain("loki's data folder");
-        expect(result.text).not.toContain("the person's whole thread");
       }
       expect(cards(s)).toEqual([]);
     } finally {
@@ -638,25 +731,25 @@ describe("an advisor chat's gate", () => {
     }
   });
 
-  test("the agent's own skill and the advisor's own saved output read; another chat's saved output is refused", async () => {
-    const s = await advisorSetup();
+  test("the agent's own skill and the worker's own saved output read; another chat's saved output is refused", async () => {
+    const s = await readOnlySetup();
     try {
-      const own = resultsDirOf(s.dataDir, "advisor-c");
+      const own = resultsDirOf(s.dataDir, "c~subagent~kestrel");
       const other = resultsDirOf(s.dataDir, "c");
       for (const [dir, text] of [
-        [own, "the advisor's long output"],
+        [own, "the worker's long output"],
         [other, "the chat's long output"],
       ]) {
         mkdirSync(dir, { recursive: true });
         writeFileSync(join(dir, "bash-1.log"), text);
       }
-      const [skill, mine, theirs] = await s.turn(await advisorOf(s, "c", s.folder), [
-        ["read", { path: join(s.memory, "skills", "review", "SKILL.md") }],
+      const [skill, mine, theirs] = await s.turn(await workerOf(s, "c~subagent~kestrel", s.folder), [
+        ["read", { path: join(s.backend, "memfs", AGENT, "memory", "skills", "review", "SKILL.md") }],
         ["read", { path: join(own, "bash-1.log") }],
         ["read", { path: join(other, "bash-1.log") }],
       ]);
       expect(skill).toMatchObject({ failed: false, text: expect.stringContaining("Read the diff first.") as unknown });
-      expect(mine).toMatchObject({ failed: false, text: expect.stringContaining("the advisor's long output") as unknown });
+      expect(mine).toMatchObject({ failed: false, text: expect.stringContaining("the worker's long output") as unknown });
       expect(theirs).toMatchObject({ failed: true, text: expect.stringContaining("loki's data folder") as unknown });
       expect(cards(s)).toEqual([]);
     } finally {
@@ -665,11 +758,11 @@ describe("an advisor chat's gate", () => {
   });
 
   test("globs, searches that follow links, another person's home and paths inside options are judged as the shell would reach them", async () => {
-    const s = await advisorSetup();
+    const s = await readOnlySetup();
     try {
       const folders = { dataDir: s.dataDir, backendDir: s.backend, home: s.home };
       const judge = (name: string, args: Record<string, unknown>) =>
-        advisorRefusal({ name, args, cwd: s.folder, agentId: AGENT, chatId: "advisor-c" }, folders);
+        readOnlyRefusal({ name, args, cwd: s.folder, agentId: AGENT, chatId: "c~subagent~kestrel" }, folders);
       const bash = (command: string) => judge("bash", { command });
       for (const command of ["cat ~/.lo*/stores/x", "cat [t]hread.ts", "cat *.ts | wc -l", "grep x *", "head -n 5 ./*"])
         expect(await bash(command), command).toContain("may not use a wildcard");
@@ -693,7 +786,7 @@ describe("an advisor chat's gate", () => {
         ["web_search", { query: "loki" }],
       ] as const)
         expect(await judge(name, args), name).toBeNull();
-      expect(await advisorRefusal({ name: "read", args: { path: "a.ts" }, cwd: s.folder, agentId: AGENT, chatId: "advisor-c" }, undefined)).toContain(
+      expect(await readOnlyRefusal({ name: "read", args: { path: "a.ts" }, cwd: s.folder, agentId: AGENT, chatId: "c~subagent~kestrel" }, undefined)).toContain(
         "cannot check",
       );
     } finally {

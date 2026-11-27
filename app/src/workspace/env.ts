@@ -58,6 +58,7 @@ export function notYetOn(what: string, os: Platform = platform): string {
 }
 
 export function modBase(): string {
+  if (typeof location === "undefined") return "http://127.0.0.1:41414";
   if (inDesktop) return `http://127.0.0.1:${window.__LOKI__?.modPort ?? 41414}`;
   if (inLan) return location.origin;
   return `${location.origin}/loki`;
@@ -67,25 +68,27 @@ export function modWsBase(): string {
   return modBase().replace(/^http/, "ws");
 }
 
+const storedToken = () => (typeof localStorage !== "undefined" ? localStorage.getItem("loki.token") : null);
+
 export function avatarUrl(agentId: string): string {
-  const token = injectedToken() ?? localStorage.getItem("loki.token") ?? "";
+  const token = injectedToken() ?? storedToken() ?? "";
   const url = `${modBase()}/agents/${encodeURIComponent(agentId)}/profile.png`;
   return token ? `${url}?t=${encodeURIComponent(token)}` : url;
 }
 
 export function chatImageUrl(src: string): string {
   if (/^(data|blob|https?):/.test(src)) return src;
-  const token = injectedToken() ?? localStorage.getItem("loki.token") ?? "";
+  const token = injectedToken() ?? storedToken() ?? "";
   const url = `${modBase()}/chat-images/${encodeURIComponent(src)}`;
   return token ? `${url}?t=${encodeURIComponent(token)}` : url;
 }
 
 export function injectedToken(): string | null {
-  return window.__LOKI__?.token ?? null;
+  return typeof window !== "undefined" ? (window.__LOKI__?.token ?? null) : null;
 }
 
 export function injectedDesk(): string | null {
-  return window.__LOKI__?.desk ?? null;
+  return typeof window !== "undefined" ? (window.__LOKI__?.desk ?? null) : null;
 }
 
 /** A web link, out to the default browser: through the desktop shell (its window opens no other), a new tab otherwise. */

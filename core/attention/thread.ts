@@ -75,7 +75,7 @@ const sameRow = (a: TranscriptRow, b: TranscriptRow) =>
   a.tool === b.tool &&
   a.queued === b.queued &&
   a.link === b.link &&
-  a.advisor_chat === b.advisor_chat &&
+  a.subagent_chat === b.subagent_chat &&
   a.command === b.command &&
   a.at === b.at;
 
@@ -93,7 +93,7 @@ const samePageRow = (a: TranscriptRow, b: TranscriptRow) =>
   sameValue(a.files, b.files) &&
   sameValue(a.tool, b.tool) &&
   sameValue(a.link, b.link) &&
-  a.advisor_chat === b.advisor_chat &&
+  a.subagent_chat === b.subagent_chat &&
   a.command === b.command;
 
 const rowAt = (at: string | null | undefined): { at?: string } => (at ? { at } : {});
@@ -118,7 +118,7 @@ function eventRow(ev: HarnessEvent, at: string | null): TranscriptRow {
     summary: ev.summary,
     detail: ev.detail,
     ...(ev.link ? { link: ev.link } : {}),
-    ...(ev.advisor_chat ? { advisor_chat: ev.advisor_chat } : {}),
+    ...(ev.subagent_chat ? { subagent_chat: ev.subagent_chat } : {}),
     ...(ev.command ? { command: ev.command } : {}),
     ...(ev.event ? { event: ev.event } : {}),
     ...rowAt(at),

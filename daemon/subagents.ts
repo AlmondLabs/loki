@@ -1,21 +1,29 @@
 import { copyJson, type Context } from "@earendil-works/chord";
 import { BACKGROUND_CONTEXT, withAbortSignal, withoutAbortSignal } from "@earendil-works/chord/context";
+import { getSupportedThinkingLevels, type Api, type Model } from "@earendil-works/pi-ai";
 import {
   AgentDoc as PiAgentDoc,
   configure,
   defineExtension,
   defineTool,
+  type Agent,
   type Conversation,
   type ConversationId,
   type Cursor,
   type Extension,
-  type Harness,
+  type ModelRef,
   type ToolExecutionApi,
+  type ToolRegistration,
 } from "@earendil-works/pi-durable";
 import { isAbsolute, resolve } from "node:path";
 import { messageOf } from "../core/errors.ts";
+import { Listeners } from "../core/listeners.ts";
+import { isReasoningEffort, type ReasoningEffort } from "../core/models.ts";
+import { pickSubagentName, subagentChatId, subagentDisplayName, subagentIdOfChat, type SubagentStatus, type SubagentView } from "../core/subagents.ts";
 import { unansweredWhy } from "./chat-events.ts";
-import { AgentInfoDoc, ChatDoc } from "./kernel/index.ts";
+import { AgentInfoDoc, ChatDoc, ChatIndex, READ_ONLY_EXTENSION, type AgentStore, type SubagentMeta } from "./kernel/index.ts";
+import { modelRef, thinkingLevel } from "./loki-engine.ts";
+import { READ_ONLY_TOOLS } from "./read-only-gate.ts";
 import { withStepDescription } from "./step-description.ts";
 import { withKind } from "./tool-kinds.ts";
 import { defaultWorktreeOps, type WorktreeInfo, type WorktreeOps } from "./worktrees.ts";
@@ -24,32 +32,39 @@ const MAX_WAIT_MS = 600_000;
 const KEEP_FINISHED_MS = 60 * 60_000;
 const KEEP_FINISHED = 32;
 const RESULT_CAP = 16 * 1024;
-
-export type SubagentStatus = "running" | "done" | "error" | "stopped";
+const FAST_HINT = /mini|flash|haiku|small|lite|nano|fast/i;
+const STRONG_HINT = /opus|pro|sonnet|gpt-5|o3|o1/i;
 
 export type SubagentNotify = (agentId: string, chatId: string, text: string) => void | Promise<void>;
 
 export interface SubagentManagerOptions {
   notify?: SubagentNotify;
-  harnessFor?: (agentId: string) => Promise<Harness>;
+  storeFor?: (agentId: string) => Promise<AgentStore>;
   context?: Context;
   worktreesDir?: string;
   worktreeOps?: WorktreeOps;
   now?: () => number;
+  pickName?: (used: ReadonlySet<string>) => string;
 }
 
 export interface SubagentRun {
   readonly id: string;
+  readonly name: string;
   readonly agentId: string;
   readonly chatId: string;
+  readonly subagentChatId?: string;
   readonly conversationId: ConversationId;
   conversation?: Conversation;
   description: string;
+  model: string | null;
+  readonly readOnly: boolean;
   readonly cwd?: string;
   worktree: WorktreeInfo | null;
   status: SubagentStatus;
   output: string;
-  startedAt: number;
+  error: string | null;
+  readonly startedAt: number;
+  readonly startedAtIso: string;
   endedAt: number;
   abort: AbortController;
   donePromise?: Promise<void>;
@@ -58,9 +73,32 @@ export interface SubagentRun {
 
 const escapeXml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
+function viewOfRun(run: SubagentRun): SubagentView {
+  return {
+    id: run.id,
+    chat_id: run.subagentChatId ?? subagentChatId(run.chatId, run.id),
+    name: run.name,
+    description: run.description,
+    model: run.model,
+    status: run.status,
+    ...(run.readOnly ? { read_only: true } : {}),
+    ...(run.worktree ? { branch: run.worktree.branch } : {}),
+    started_at: run.startedAtIso,
+    ...(run.error ? { error: run.error } : {}),
+  };
+}
+
+function metaOfRun(run: SubagentRun): SubagentMeta {
+  return {
+    ...viewOfRun(run),
+    ...(run.worktree ? { worktree: run.worktree.path } : {}),
+    ...(run.endedAt ? { ended_at: new Date(run.endedAt).toISOString() } : {}),
+  };
+}
+
 export function subagentNotification(run: SubagentRun): string {
   const status = run.status === "done" ? "completed" : run.status === "stopped" ? "stopped" : "failed";
-  const summary = run.description || "Helper task";
+  const summary = run.description || run.name;
   const header = run.worktree ? `[worktree: ${run.worktree.path} | branch: ${run.worktree.branch}]\n\n` : "";
   const full = `${header}${run.output}`.trim();
   const body = full.length > RESULT_CAP ? full.slice(0, RESULT_CAP) : full;
@@ -68,6 +106,7 @@ export function subagentNotification(run: SubagentRun): string {
     "<task-notification>",
     "<kind>subagent</kind>",
     `<task-id>${run.id}</task-id>`,
+    ...(run.subagentChatId ? [`<chat-id>${escapeXml(run.subagentChatId)}</chat-id>`] : []),
     `<status>${status}</status>`,
     `<summary>${escapeXml(summary)}</summary>`,
     `<result>${escapeXml(body)}</result>`,
@@ -77,9 +116,9 @@ export function subagentNotification(run: SubagentRun): string {
 
 function formatRunResult(run: SubagentRun): string {
   const meta = [`subagent ${run.id}`, `status: ${run.status}`];
-  if (run.worktree) {
-    meta.push(`branch: ${run.worktree.branch}`, `worktree: ${run.worktree.path}`);
-  }
+  if (run.model) meta.push(`model: ${run.model}`);
+  if (run.readOnly) meta.push("read-only");
+  if (run.worktree) meta.push(`branch: ${run.worktree.branch}`, `worktree: ${run.worktree.path}`);
   const head = `[${meta.join(" | ")}]`;
   return run.output ? `${head}\n${run.output}` : head;
 }
@@ -90,35 +129,123 @@ function formatSyncFooter(run: SubagentRun, answer: string): string {
   return `${text}\n\n[subagent ${run.id} | branch: ${run.worktree.branch} | worktree: ${run.worktree.path}]`;
 }
 
+type Thinking = Agent["thinkingLevel"];
+
+function clampThinking(model: Model<Api> | undefined, effort: ReasoningEffort | null): Thinking | undefined {
+  const desired = thinkingLevel(effort);
+  if (!desired || !model) return desired;
+  const supported = getSupportedThinkingLevels(model);
+  if (!supported.length) return desired === "off" ? "off" : undefined;
+  if ((supported as readonly string[]).includes(desired)) return desired;
+  if (desired === "off") return supported[0];
+  return desired === "minimal" || desired === "low" ? supported[0] : supported[supported.length - 1];
+}
+
+function tierScore(m: Model<Api>, tier: "fast" | "strong"): number {
+  const hint = tier === "fast" ? FAST_HINT : STRONG_HINT;
+  if (m.cost.input > 0) return m.cost.input + (hint.test(m.id) ? (tier === "fast" ? -0.0001 : 0.0001) : 0);
+  return hint.test(m.id) ? (tier === "fast" ? 0.01 : 1000) : 100;
+}
+
+function resolveSubagentModel(
+  rawModel: string | undefined,
+  rawEffort: unknown,
+  parentModel: ModelRef | undefined,
+  available: ReadonlyArray<Model<Api>>,
+): { model?: ModelRef; handle: string | null; thinking?: Thinking } {
+  let effort: ReasoningEffort | null = null;
+  if (rawEffort !== undefined) {
+    if (!isReasoningEffort(rawEffort)) {
+      const shown = typeof rawEffort === "string" ? rawEffort : JSON.stringify(rawEffort);
+      throw new Error(`invalid reasoning_effort "${shown}"`);
+    }
+    effort = rawEffort;
+  }
+  const spec = rawModel?.trim();
+  if (!spec || spec === "inherit") {
+    const full = parentModel ? available.find((m) => m.provider === parentModel.provider && m.id === parentModel.modelId) : undefined;
+    return {
+      handle: parentModel ? `${parentModel.provider}/${parentModel.modelId}` : null,
+      ...(effort ? { thinking: clampThinking(full, effort) } : {}),
+    };
+  }
+  if (spec === "fast" || spec === "strong") {
+    if (!available.length) {
+      return {
+        handle: parentModel ? `${parentModel.provider}/${parentModel.modelId}` : null,
+        thinking: thinkingLevel(effort ?? (spec === "fast" ? "low" : "high")),
+      };
+    }
+    const sameProvider = parentModel ? available.filter((m) => m.provider === parentModel.provider) : [];
+    const pool = sameProvider.length >= 2 ? sameProvider : available;
+    const sorted = [...pool].sort((a, b) => (spec === "fast" ? tierScore(a, "fast") - tierScore(b, "fast") : tierScore(b, "strong") - tierScore(a, "strong")));
+    const picked = sorted[0];
+    return {
+      model: { provider: picked.provider, modelId: picked.id },
+      handle: `${picked.provider}/${picked.id}`,
+      thinking: clampThinking(picked, effort ?? (spec === "fast" ? "low" : "high")),
+    };
+  }
+  const ref = modelRef(spec);
+  if (!ref) throw new Error(`invalid model "${spec}": use "inherit", "fast", "strong", or "provider/modelId"`);
+  const found = available.find((m) => m.provider === ref.provider && m.id === ref.modelId);
+  if (available.length > 0 && !found) {
+    const sample = available
+      .slice(0, 8)
+      .map((m) => `${m.provider}/${m.id}`)
+      .join(", ");
+    throw new Error(`model "${spec}" is not connected (available: ${sample})`);
+  }
+  return {
+    model: ref,
+    handle: `${ref.provider}/${ref.modelId}`,
+    ...(effort ? { thinking: clampThinking(found, effort) } : {}),
+  };
+}
+
 export class SubagentManager {
   private readonly runs = new Map<string, SubagentRun>();
-  private seq = 0;
+  private readonly changes = new Listeners<[agentId: string, parentChatId: string]>();
   private readonly notify: SubagentNotify | undefined;
-  private readonly getHarness: ((agentId: string) => Promise<Harness>) | undefined;
+  private readonly getStore: ((agentId: string) => Promise<AgentStore>) | undefined;
   readonly context: Context;
   private readonly worktreeOps: WorktreeOps | undefined;
   private readonly now: () => number;
+  private readonly pickName: (used: ReadonlySet<string>) => string;
+  private readonly startOffset = Math.floor(Math.random() * 64);
 
   constructor(options: SubagentManagerOptions = {}) {
     this.notify = options.notify;
-    this.getHarness = options.harnessFor;
+    this.getStore = options.storeFor;
     this.context = options.context ?? BACKGROUND_CONTEXT;
     this.worktreeOps = options.worktreeOps ?? (options.worktreesDir ? defaultWorktreeOps(options.worktreesDir) : undefined);
     this.now = options.now ?? (() => Date.now());
+    this.pickName = options.pickName ?? ((used) => pickSubagentName(used, this.startOffset));
   }
 
-  hasHarness(): boolean {
-    return this.getHarness !== undefined;
+  hasStore(): boolean {
+    return this.getStore !== undefined;
   }
 
-  async harnessFor(agentId: string): Promise<Harness> {
-    if (!this.getHarness) throw new Error("Async subagents are not enabled in this runtime.");
-    return this.getHarness(agentId);
+  async storeFor(agentId: string): Promise<AgentStore> {
+    if (!this.getStore) throw new Error("Persistent subagents are not enabled in this runtime.");
+    return this.getStore(agentId);
   }
 
-  nextId(): string {
-    this.seq += 1;
-    return `sub-${this.seq}`;
+  onChange(listener: (agentId: string, parentChatId: string) => void): () => void {
+    return this.changes.add(listener);
+  }
+
+  changed(agentId: string, parentChatId: string): void {
+    this.changes.emit(agentId, parentChatId);
+  }
+
+  allocateName(agentId: string, persistedNames: ReadonlySet<string> = new Set()): string {
+    const used = new Set<string>(persistedNames);
+    for (const run of this.runs.values()) {
+      if (run.agentId === agentId) used.add(run.id);
+    }
+    return this.pickName(used);
   }
 
   async createWorktree(id: string, baseCwd: string): Promise<WorktreeInfo> {
@@ -134,12 +261,23 @@ export class SubagentManager {
   register(run: SubagentRun): void {
     this.prune();
     this.runs.set(run.id, run);
+    this.changed(run.agentId, run.chatId);
+  }
+
+  private persist(run: SubagentRun): void {
+    if (!this.getStore || !run.subagentChatId) return;
+    const chatId = run.subagentChatId;
+    void this.getStore(run.agentId)
+      .then((store) => store.updateChat(chatId, { subagent_meta: metaOfRun(run) }, withoutAbortSignal(this.context)))
+      .catch(() => {});
   }
 
   get(id: string, agentId: string): SubagentRun {
-    const run = this.runs.get(id);
-    if (run?.agentId !== agentId) throw new Error(`no subagent ${id} (subagents end when loki's daemon restarts)`);
-    return run;
+    const direct = this.runs.get(id);
+    if (direct?.agentId === agentId) return direct;
+    const byChat = [...this.runs.values()].find((r) => r.agentId === agentId && r.subagentChatId === id);
+    if (!byChat) throw new Error(`no subagent ${id} (subagents end when loki's daemon restarts)`);
+    return byChat;
   }
 
   list(agentId: string): string {
@@ -150,9 +288,61 @@ export class SubagentManager {
     return mine
       .map((r) => {
         const wt = r.worktree ? ` (branch ${r.worktree.branch})` : "";
-        return `${r.id} [${r.status}]${wt} ${r.description || "Helper task"}`;
+        const ro = r.readOnly ? " [read-only]" : "";
+        return `${r.id} [${r.status}]${ro}${wt} ${r.description || r.name}`;
       })
       .join("\n");
+  }
+
+  async views(agentId: string, parentChatId: string): Promise<SubagentView[]> {
+    const byChatId = new Map<string, SubagentView>();
+    if (this.getStore) {
+      try {
+        const store = await this.getStore(agentId);
+        for (const info of await store.chats(this.context)) {
+          if (info.subagent_for !== parentChatId || !info.subagent_meta) continue;
+          const m = info.subagent_meta;
+          byChatId.set(m.chat_id, {
+            id: m.id,
+            chat_id: m.chat_id,
+            name: m.name,
+            description: m.description,
+            model: m.model,
+            status: m.status === "running" ? "stopped" : m.status,
+            ...(m.read_only ? { read_only: true } : {}),
+            ...(m.branch ? { branch: m.branch } : {}),
+            started_at: m.started_at,
+            ...(m.error ? { error: m.error } : {}),
+          });
+        }
+      } catch {}
+    }
+    for (const run of this.runs.values()) {
+      if (run.agentId !== agentId || run.chatId !== parentChatId) continue;
+      const view = viewOfRun(run);
+      byChatId.set(view.chat_id, view);
+    }
+    return [...byChatId.values()].sort((a, b) => Number(a.status !== "running") - Number(b.status !== "running") || b.started_at.localeCompare(a.started_at));
+  }
+
+  modelChanged(agentId: string, subChatId: string, handle: string): void {
+    const run = [...this.runs.values()].find((r) => r.agentId === agentId && r.subagentChatId === subChatId);
+    if (run) {
+      run.model = handle;
+      this.persist(run);
+      this.changed(run.agentId, run.chatId);
+      return;
+    }
+    if (!this.getStore) return;
+    void this.getStore(agentId)
+      .then(async (store) => {
+        const conv = await store.chat(subChatId, this.context);
+        const info = conv ? await store.chatInfo(conv.id, this.context) : undefined;
+        if (!info?.subagent_for || !info.subagent_meta) return;
+        await store.updateChat(subChatId, { subagent_meta: { ...info.subagent_meta, model: handle } }, this.context);
+        this.changed(agentId, info.subagent_for);
+      })
+      .catch(() => {});
   }
 
   launchAsync(run: SubagentRun, execute: () => Promise<string>): void {
@@ -166,11 +356,15 @@ export class SubagentManager {
         }
       } catch (error) {
         if (run.status === "running") {
+          const msg = messageOf(error);
           run.status = "error";
-          run.output = messageOf(error);
+          run.output = msg;
+          run.error = msg;
           run.endedAt = this.now();
         }
       } finally {
+        this.persist(run);
+        this.changed(run.agentId, run.chatId);
         const watched = run.waiters.size > 0;
         for (const wake of run.waiters) wake();
         if (!watched && run.status !== "stopped" && this.notify) {
@@ -224,7 +418,9 @@ export class SubagentManager {
         worktreeNote = `; kept worktree ${run.worktree.path}`;
       }
     }
-    return `${wasRunning ? `Stopped subagent ${id}` : `Subagent ${id} already ${run.status}`}${worktreeNote}.`;
+    this.persist(run);
+    this.changed(run.agentId, run.chatId);
+    return `${wasRunning ? `Stopped subagent ${run.id}` : `Subagent ${run.id} already ${run.status}`}${worktreeNote}.`;
   }
 
   async stopAgent(agentId: string): Promise<void> {
@@ -284,7 +480,7 @@ async function callerInfo(api: ToolExecutionApi, context: Context) {
     agentId: agentInfo?.id ?? "",
     chatId: chatInfo?.id || `conversation-${api.conversationId}`,
     parentChatDocId: chatInfo?.id ?? "",
-    baseCwd: parentAgent.cwd ?? process.cwd(),
+    parentAgent,
   };
 }
 
@@ -302,6 +498,9 @@ interface SubagentArgs {
   workspace?: "inherit" | "worktree";
   async?: boolean;
   subagent_id?: string;
+  model?: string;
+  reasoning_effort?: ReasoningEffort;
+  read_only?: boolean;
   description?: string;
 }
 
@@ -314,8 +513,7 @@ export function subagentExtension(manager: SubagentManager = new SubagentManager
         withStepDescription(
           defineTool({
             name: "subagent",
-            description:
-              "Delegate a self-contained task to a helper agent (it does not see this chat). Optional: cwd, workspace ('inherit'|'worktree'), async: true (notifies when done), subagent_id (continue a finished helper).",
+            description: "Delegate a task to an isolated named helper; model takes inherit, fast, strong, or provider/id.",
             parameters: {
               type: "object",
               properties: {
@@ -324,51 +522,119 @@ export function subagentExtension(manager: SubagentManager = new SubagentManager
                 workspace: { type: "string", enum: ["inherit", "worktree"] },
                 async: { type: "boolean" },
                 subagent_id: { type: "string" },
+                model: { type: "string" },
+                reasoning_effort: { type: "string" },
+                read_only: { type: "boolean" },
               },
               required: ["prompt"],
             } as never,
             replay: "safe",
             execute: async (rawArgs, api, context) => {
               const args = rawArgs as SubagentArgs;
-              const { agentId, chatId, parentChatDocId, baseCwd } = await callerInfo(api, context);
+              const { agentId, chatId, parentChatDocId, parentAgent } = await callerInfo(api, context);
+              const baseCwd = parentAgent.cwd ?? process.cwd();
               const description = typeof args.description === "string" ? args.description : "";
 
               let run: SubagentRun;
               if (args.subagent_id) {
-                if (args.cwd !== undefined || args.workspace === "worktree") {
-                  throw new Error("cwd and workspace cannot be changed when continuing an existing subagent_id");
+                if (
+                  args.cwd !== undefined ||
+                  args.workspace === "worktree" ||
+                  args.model !== undefined ||
+                  args.reasoning_effort !== undefined ||
+                  args.read_only !== undefined
+                ) {
+                  throw new Error("cwd, workspace, model, reasoning_effort, and read_only cannot be changed when continuing a subagent_id");
                 }
                 const existing = manager.get(args.subagent_id, agentId);
                 if (existing.status === "running") throw new Error(`subagent ${args.subagent_id} is still running`);
                 if (existing.status === "stopped") throw new Error(`subagent ${args.subagent_id} was stopped`);
                 existing.status = "running";
                 existing.output = "";
+                existing.error = null;
                 existing.endedAt = 0;
                 existing.abort = new AbortController();
                 if (description) existing.description = description;
+                manager.changed(agentId, existing.chatId);
                 run = existing;
               } else {
+                if (args.read_only && args.workspace === "worktree") {
+                  throw new Error("read_only subagents cannot use workspace: 'worktree'");
+                }
+                const available = await api.models.getAvailable();
+                const resolvedModel = resolveSubagentModel(args.model, args.reasoning_effort, parentAgent.model, available);
                 const requestedCwd = resolveOptionalCwd(args.cwd, baseCwd);
-                const id = manager.nextId();
+
+                const persistedNames = new Set<string>();
+                let store: AgentStore | undefined;
+                if (manager.hasStore()) {
+                  store = await manager.storeFor(agentId);
+                  for (const info of await store.chats(context)) {
+                    const saved = info.subagent_meta?.id ?? subagentIdOfChat(info.id);
+                    if (saved) persistedNames.add(saved);
+                  }
+                }
+                const id = manager.allocateName(agentId, persistedNames);
+                const name = subagentDisplayName(id);
                 const worktree = args.workspace === "worktree" ? await manager.createWorktree(id, requestedCwd ?? baseCwd) : null;
                 const effectiveCwd = worktree?.cwd ?? requestedCwd;
+                const startedAt = Date.now();
+                const startedAtIso = new Date(startedAt).toISOString();
+
+                const readOnlyTools: ToolRegistration[] | undefined = args.read_only
+                  ? (() => {
+                      const byName = new Map<string, ToolRegistration>(api.registry.tools().map(({ tool }) => [tool.name, tool]));
+                      return READ_ONLY_TOOLS.flatMap((n) => byName.get(n) ?? []);
+                    })()
+                  : undefined;
+                const readOnlyExt = args.read_only ? api.registry.extension(READ_ONLY_EXTENSION) : undefined;
+                if (args.read_only && !readOnlyExt) throw new Error(`${READ_ONLY_EXTENSION} extension is not installed`);
+
                 try {
                   let conversationId: ConversationId;
                   let conversation: Conversation | undefined;
-                  if (manager.hasHarness()) {
-                    const harness = await manager.harnessFor(agentId);
+                  let subChatId: string | undefined;
+
+                  if (store) {
+                    subChatId = subagentChatId(chatId, id);
                     const parentAgentState = await api.snapshot(PiAgentDoc, api.conversationId, context);
-                    conversation = await harness.createConversation(
+                    const initialMeta: SubagentMeta = {
+                      id,
+                      chat_id: subChatId,
+                      name,
+                      description,
+                      model: resolvedModel.handle,
+                      status: "running",
+                      ...(args.read_only ? { read_only: true } : {}),
+                      ...(worktree ? { branch: worktree.branch, worktree: worktree.path } : {}),
+                      started_at: startedAtIso,
+                    };
+                    conversation = await store.harness.createConversation(
                       {
                         ownership: { kind: "ownerless" },
                         init: async (tx, childId) => {
                           if (parentAgentState) Object.assign(await tx.doc(PiAgentDoc, childId), copyJson(parentAgentState));
                           await configure(tx, childId, {
+                            ...(resolvedModel.model ? { model: resolvedModel.model } : {}),
+                            ...(resolvedModel.thinking ? { thinkingLevel: resolvedModel.thinking } : {}),
                             ...(effectiveCwd ? { cwd: effectiveCwd } : {}),
-                            extensions: { remove: [extension, ...withoutAlso] },
+                            extensions: {
+                              ...(readOnlyExt ? { add: [readOnlyExt] } : {}),
+                              remove: [extension, ...withoutAlso],
+                            },
+                            ...(readOnlyTools ? { tools: readOnlyTools, modelTools: readOnlyTools } : {}),
                           });
+                          (await tx.doc(ChatIndex)).chats[subChatId ?? id] = childId;
                           const info = await tx.doc(ChatDoc, childId);
-                          Object.assign(info, { id: parentChatDocId, hidden: true, helper_for: api.conversationId });
+                          Object.assign(info, {
+                            id: subChatId,
+                            title: name,
+                            hidden: true,
+                            helper_for: api.conversationId,
+                            subagent_for: chatId,
+                            ...(args.read_only ? { read_only: true } : {}),
+                            subagent_meta: initialMeta,
+                          });
                         },
                       },
                       context,
@@ -380,26 +646,43 @@ export function subagentExtension(manager: SubagentManager = new SubagentManager
                       if (existing) return existing.id;
                       const created = await tx.createConversation({ ownership: { kind: "task", taskId: api.taskId } });
                       await configure(tx, created.id, {
+                        ...(resolvedModel.model ? { model: resolvedModel.model } : {}),
+                        ...(resolvedModel.thinking ? { thinkingLevel: resolvedModel.thinking } : {}),
                         ...(effectiveCwd ? { cwd: effectiveCwd } : {}),
-                        extensions: { remove: [extension, ...withoutAlso] },
+                        extensions: {
+                          ...(readOnlyExt ? { add: [readOnlyExt] } : {}),
+                          remove: [extension, ...withoutAlso],
+                        },
+                        ...(readOnlyTools ? { tools: readOnlyTools, modelTools: readOnlyTools } : {}),
                       });
                       const info = await tx.doc(ChatDoc, created.id);
-                      Object.assign(info, { id: parentChatDocId, hidden: true, helper_for: api.conversationId });
+                      Object.assign(info, {
+                        id: parentChatDocId,
+                        hidden: true,
+                        helper_for: api.conversationId,
+                        ...(args.read_only ? { read_only: true } : {}),
+                      });
                       return created.id;
                     }, context);
                   }
                   run = {
                     id,
+                    name,
                     agentId,
                     chatId,
+                    ...(subChatId ? { subagentChatId: subChatId } : {}),
                     conversationId,
                     ...(conversation ? { conversation } : {}),
                     description,
+                    model: resolvedModel.handle,
+                    readOnly: Boolean(args.read_only),
                     ...(effectiveCwd ? { cwd: effectiveCwd } : {}),
                     worktree,
                     status: "running",
                     output: "",
-                    startedAt: Date.now(),
+                    error: null,
+                    startedAt,
+                    startedAtIso,
                     endedAt: 0,
                     abort: new AbortController(),
                     waiters: new Set(),
@@ -414,9 +697,8 @@ export function subagentExtension(manager: SubagentManager = new SubagentManager
               await api.details({ conversationId: run.conversationId }, context);
 
               if (args.async) {
-                if (!manager.hasHarness()) throw new Error("Async subagents are not enabled in this runtime.");
-                const harness = await manager.harnessFor(agentId);
-                const conv = run.conversation ?? (await harness.conversation(run.conversationId, context));
+                const store = await manager.storeFor(agentId);
+                const conv = run.conversation ?? (await store.harness.conversation(run.conversationId, context));
                 if (!conv) throw new Error("the helper's conversation is gone");
                 run.conversation = conv;
                 const childContext = withAbortSignal(run.abort.signal, withoutAbortSignal(manager.context));
@@ -431,7 +713,10 @@ export function subagentExtension(manager: SubagentManager = new SubagentManager
               }
 
               const onAbort = () => {
-                if (run.status === "running") run.status = "stopped";
+                if (run.status === "running") {
+                  run.status = "stopped";
+                  run.endedAt = Date.now();
+                }
                 run.abort.abort();
                 if (run.conversation) void run.conversation.abort(withoutAbortSignal(manager.context)).catch(() => {});
               };
@@ -462,13 +747,18 @@ export function subagentExtension(manager: SubagentManager = new SubagentManager
                 return textOut(formatSyncFooter(run, answer));
               } catch (error) {
                 if (run.status === "running") {
+                  const msg = messageOf(error);
                   run.status = "error";
-                  run.output = messageOf(error);
+                  run.output = msg;
+                  run.error = msg;
                   run.endedAt = Date.now();
                 }
                 throw error;
               } finally {
                 context.abortSignal?.removeEventListener("abort", onAbort);
+                if (storeForSyncPersist(manager, run)) {
+                  manager.changed(run.agentId, run.chatId);
+                }
               }
             },
           }),
@@ -525,4 +815,14 @@ export function subagentExtension(manager: SubagentManager = new SubagentManager
     ],
   });
   return extension;
+}
+
+function storeForSyncPersist(manager: SubagentManager, run: SubagentRun): boolean {
+  if (!manager.hasStore() || !run.subagentChatId) return false;
+  const chatId = run.subagentChatId;
+  void manager
+    .storeFor(run.agentId)
+    .then((store) => store.updateChat(chatId, { subagent_meta: metaOfRun(run) }, withoutAbortSignal(manager.context)))
+    .catch(() => {});
+  return true;
 }

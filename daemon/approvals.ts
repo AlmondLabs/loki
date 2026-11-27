@@ -3,7 +3,7 @@ import { AgentDoc as PiAgentDoc, defineExtension, hook, ToolTask, type Extension
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, relative, resolve } from "node:path";
 import { NEVER_ALWAYS_TOOLS, type ChatEvent } from "../core/attention/model.ts";
-import { advisorRefusal, type AdvisorFolders } from "./advisor-gate.ts";
+import { readOnlyRefusal, type ReadOnlyFolders } from "./read-only-gate.ts";
 import { AgentInfoDoc, ChatDoc, type ChatInfo } from "./kernel/index.ts";
 import { lokiModeOf, modeOf, stricterMode, type PermissionMode } from "../core/chat-links.ts";
 import { isReadOnlyCommand } from "./read-only-command.ts";
@@ -12,17 +12,7 @@ import { CODING_TOOL_KINDS, type ToolKind } from "./tool-kinds.ts";
 
 export type { ToolKind } from "./tool-kinds.ts";
 
-const NEVER_ASK = new Set([
-  "plan",
-  "user_ask",
-  "chat_list",
-  "suggestion_create",
-  "chat_message",
-  "advisor_consult",
-  "reply_propose",
-  "message_propose",
-  "ticket_propose",
-]);
+const NEVER_ASK = new Set(["plan", "user_ask", "chat_list", "suggestion_create", "chat_message", "reply_propose", "message_propose", "ticket_propose"]);
 
 export function kindOf(name: string, annotations?: { readOnly?: boolean; destructive?: boolean }): ToolKind {
   const coding = CODING_TOOL_KINDS[name];
@@ -44,7 +34,7 @@ export function asks(mode: PermissionMode, name: string, args: Record<string, un
 function callKind(name: string, args: Record<string, unknown>): ToolKind | undefined {
   if (name === "bash" && isReadOnlyCommand(args.command) && args.background !== true && args.wait_ms === undefined) return "read";
   if (name === "background_watch" && (args.input !== undefined || args.stop === true)) return "command";
-  if (name === "subagent" && args.workspace === "worktree") return "command";
+  if (name === "subagent" && args.workspace === "worktree" && args.read_only !== true) return "command";
   return undefined;
 }
 
@@ -77,7 +67,7 @@ export class Approvals {
   private readonly scriptRuns = new Map<string, { code: string; answer?: Promise<Decision> }>();
 
   private readonly scriptMayCall: ((name: string) => boolean) | undefined;
-  private readonly advisorFolders: AdvisorFolders | undefined;
+  private readonly readOnlyFolders: ReadOnlyFolders | undefined;
 
   constructor(
     opts: {
@@ -85,11 +75,11 @@ export class Approvals {
       kindOfTool?: (name: string) => ToolKind;
       alwaysPath?: string;
       scriptMayCall?: (name: string) => boolean;
-      advisorFolders?: AdvisorFolders;
+      readOnlyFolders?: ReadOnlyFolders;
     } = {},
   ) {
     this.widgetsDir = opts.widgetsDir;
-    this.advisorFolders = opts.advisorFolders;
+    this.readOnlyFolders = opts.readOnlyFolders;
     this.scriptMayCall = opts.scriptMayCall;
     this.alwaysPath = opts.alwaysPath ?? null;
     const stored = this.alwaysPath ? readAlways(this.alwaysPath) : [];
@@ -178,8 +168,8 @@ export class Approvals {
         hook(ToolTask, {
           beforeTool: async (call, api, context) => {
             const own = await api.snapshot(ChatDoc, api.conversationId, context);
-            if (own?.advisor_for !== undefined) {
-              const refused = await this.advisorRefusal(own.id, call.name, call.arguments, api, context);
+            if (own?.read_only === true) {
+              const refused = await this.readOnlyRefusal(own.id, call.name, call.arguments, api, context);
               return refused === null ? undefined : { block: refused };
             }
             const mayCall = call.parent === undefined ? undefined : this.scriptMayCall;
@@ -205,9 +195,9 @@ export class Approvals {
     });
   }
 
-  private async advisorRefusal(chatId: string, name: string, args: Record<string, unknown>, api: HookApi, context: Context): Promise<string | null> {
+  private async readOnlyRefusal(chatId: string, name: string, args: Record<string, unknown>, api: HookApi, context: Context): Promise<string | null> {
     const [agent, settings] = await Promise.all([api.snapshot(AgentInfoDoc, context), api.snapshot(PiAgentDoc, api.conversationId, context)]);
-    return advisorRefusal({ name, args, cwd: settings?.cwd, agentId: agent?.id ?? "", chatId }, this.advisorFolders);
+    return readOnlyRefusal({ name, args, cwd: settings?.cwd, agentId: agent?.id ?? "", chatId }, this.readOnlyFolders);
   }
 
   private async decideCall(

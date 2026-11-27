@@ -1,6 +1,6 @@
 import type { Scope } from "./canvas-core.ts";
-import type { ReasoningEffort } from "./models.ts";
 import type { AskedBy } from "./attention/priority.ts";
+import type { ReasoningEffort } from "./models.ts";
 
 export interface LocalAgent {
   id: string;
@@ -15,10 +15,6 @@ export interface LocalAgent {
   system_head: string | null;
   /** The Mac the agent lives on (plan 023), or null when its record names none: then it lives on the Mac that has it. */
   home_mac: string | null;
-  /** The model a new advisor chat starts on, always one of loki's own; null until the person sets one in Profile. */
-  advisor_model: string | null;
-  /** The effort a new advisor chat starts with; null leaves the model's own. */
-  advisor_reasoning_effort: ReasoningEffort | null;
 }
 
 /** One file of an agent's memory, its path relative to the memory root with forward slashes, as the `agent` frame lists them. */

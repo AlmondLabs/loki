@@ -125,7 +125,7 @@ export type TurnEntry =
   | { kind: "command"; key: string; row: TranscriptRow; arrived: boolean }
   | { kind: "turn"; key: string; parts: TurnPart[]; state: TurnState; failed: number; took: string | null };
 
-const opensTurn = (p: TurnPart): boolean => p.kind === "event" && (p.row.event === "advisor" || p.row.event === "chat_message");
+const opensTurn = (p: TurnPart): boolean => p.kind === "event" && (p.row.event === "subagent" || p.row.event === "chat_message");
 const onlyOpeners = (parts: readonly TurnPart[]): boolean => parts.every((p) => p.kind === "day" || p.kind === "new" || opensTurn(p));
 
 export function threadTurns(entries: ThreadEntry[], { busy, waiting }: { busy: boolean; waiting: boolean }): TurnEntry[] {
