@@ -81,3 +81,13 @@ export function goalSectionLabel(goal: Goal, view: GoalsView): string | undefine
 export function defaultHorizonForView(view: GoalsView): GoalHorizon {
   return GOAL_HORIZONS.includes(view as GoalHorizon) ? (view as GoalHorizon) : "short";
 }
+
+export function resolveDiscoverAgentId(
+  agents: ReadonlyArray<{ id: string }>,
+  pickedId: string | null,
+  partnerAgentId: string | null | undefined,
+): string | null {
+  if (pickedId && agents.some((a) => a.id === pickedId)) return pickedId;
+  if (partnerAgentId && agents.some((a) => a.id === partnerAgentId)) return partnerAgentId;
+  return agents.length > 0 ? agents[0].id : null;
+}

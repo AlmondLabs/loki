@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { GOAL_HORIZONS, HORIZON_LABEL, goalHealth, weeklyHabitProgress, type Goal, type GoalHorizon } from "../../../core/goals.ts";
+import { resolveDiscoverAgentId } from "../goals/views";
 import { Button, Chip, Field, Sheet, TextArea } from "../components";
 import { useNow } from "../components/use-now";
 import type { GoalsModel } from "../shell/use-goals";
@@ -30,14 +31,20 @@ export function PhoneGoals({
   const suggested = allGoals.filter((g) => g.status === "suggested");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
+  const [discovering, setDiscovering] = useState(false);
 
   const selected = allGoals.find((g) => g.id === selectedId) ?? null;
   const back = <BackButton onClick={selected ? () => setSelectedId(null) : onBack} label={selected ? "Goals" : backLabel} />;
-  const firstAgentId = agents.length > 0 ? agents[0].id : null;
+  const defaultAgentId = resolveDiscoverAgentId(agents, null, snap?.settings.partner_agent_id);
 
-  const handleDiscover = async () => {
-    const started = await goals.startDiscover(snap?.settings.partner_agent_id ?? firstAgentId);
+  const handleDiscover = async (agentId: string | null) => {
+    const started = await goals.startDiscover(agentId);
     if (started) onOpenChat(started.agent_id, started.conversation_id, started.brief);
+  };
+
+  const requestDiscover = () => {
+    if (agents.length > 1) setDiscovering(true);
+    else void handleDiscover(defaultAgentId);
   };
 
   const handleWork = async (goalId: string) => {
@@ -81,70 +88,124 @@ export function PhoneGoals({
         banner={banner}
       />
       <Scroll flush memory="goals">
-        {!snap ? (
-          <SkeletonRows label="Loading goals…" rows={4} />
-        ) : allGoals.length === 0 ? (
-          <div className="loki-phone-empty">
-            <p className="loki-phone-headline">No goals yet</p>
-            <p>Set your short, medium, and long term goals with an agent or add one here.</p>
-            <div className="grid gap-2" style={{ marginTop: 12 }}>
-              <Button size="touch" tone="positive" block onClick={() => void handleDiscover()}>
-                Discover Goals
-              </Button>
-              <Button size="touch" tone="paper" block onClick={() => setAdding(true)}>
-                Add a Goal
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <>
-            {suggested.length > 0 && (
-              <RowGroup title="Suggested">
-                {suggested.map((g) => (
-                  <li key={g.id} className="loki-phone-row-item">
-                    <button type="button" className="loki-phone-row" onClick={() => setSelectedId(g.id)}>
-                      <span className="loki-phone-row-copy">
-                        <span className="loki-phone-row-title">
-                          <span className="loki-phone-ellipsis">{g.title}</span>
-                        </span>
-                        <span className="loki-phone-row-preview">{HORIZON_LABEL[g.horizon]} · Tap to adopt or dismiss</span>
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </RowGroup>
-            )}
-
-            {GOAL_HORIZONS.map((horizon) => {
-              const items = active.filter((g) => g.horizon === horizon);
-              if (!items.length) return null;
-              return (
-                <RowGroup key={horizon} title={HORIZON_LABEL[horizon]}>
-                  {items.map((g) => {
-                    const health = goalHealth(g, now);
-                    return (
-                      <li key={g.id} className="loki-phone-row-item">
-                        <button type="button" className="loki-phone-row" onClick={() => setSelectedId(g.id)}>
-                          <span className="loki-phone-row-copy">
-                            <span className="loki-phone-row-title">
-                              <span className="loki-phone-ellipsis">{g.title}</span>
-                              <span className="loki-phone-row-time">{health.label}</span>
-                            </span>
-                            <span className="loki-phone-row-preview">{g.next_step ?? g.progress ?? g.why ?? "No next step yet"}</span>
-                          </span>
-                        </button>
-                      </li>
-                    );
-                  })}
-                </RowGroup>
-              );
-            })}
-          </>
-        )}
+        <PhoneGoalsBody
+          loading={!snap}
+          empty={allGoals.length === 0}
+          suggested={suggested}
+          active={active}
+          agentsCount={agents.length}
+          now={now}
+          onSelect={setSelectedId}
+          onDiscover={requestDiscover}
+          onAdd={() => setAdding(true)}
+        />
       </Scroll>
 
       {adding && <PhoneNewGoalSheet onCreate={(payload) => goals.create(payload)} onClose={() => setAdding(false)} />}
+      {discovering && agents.length > 1 && (
+        <PhoneDiscoverGoalSheet
+          agents={agents}
+          initialAgentId={defaultAgentId}
+          onStart={async (id) => {
+            await handleDiscover(id);
+            setDiscovering(false);
+          }}
+          onClose={() => setDiscovering(false)}
+        />
+      )}
     </div>
+  );
+}
+
+function PhoneGoalsBody({
+  loading,
+  empty,
+  suggested,
+  active,
+  agentsCount,
+  now,
+  onSelect,
+  onDiscover,
+  onAdd,
+}: {
+  loading: boolean;
+  empty: boolean;
+  suggested: readonly Goal[];
+  active: readonly Goal[];
+  agentsCount: number;
+  now: number;
+  onSelect: (id: string) => void;
+  onDiscover: () => void;
+  onAdd: () => void;
+}) {
+  if (loading) return <SkeletonRows label="Loading goals…" rows={4} />;
+  if (empty) {
+    return (
+      <div className="loki-phone-empty">
+        <p className="loki-phone-headline">No goals yet</p>
+        <p>Set your short, medium, and long term goals with an agent or add one here.</p>
+        <div className="grid gap-2" style={{ marginTop: 12 }}>
+          <Button size="touch" tone="positive" block onClick={onDiscover} disabled={agentsCount === 0}>
+            Discover Goals
+          </Button>
+          <Button size="touch" tone="paper" block onClick={onAdd}>
+            Add a Goal
+          </Button>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <>
+      {suggested.length > 0 && (
+        <RowGroup title="Suggested">
+          {suggested.map((g) => (
+            <li key={g.id} className="loki-phone-row-item">
+              <button type="button" className="loki-phone-row" onClick={() => onSelect(g.id)}>
+                <span className="loki-phone-row-copy">
+                  <span className="loki-phone-row-title">
+                    <span className="loki-phone-ellipsis">{g.title}</span>
+                  </span>
+                  <span className="loki-phone-row-preview">{HORIZON_LABEL[g.horizon]} · Tap to adopt or dismiss</span>
+                </span>
+              </button>
+            </li>
+          ))}
+        </RowGroup>
+      )}
+
+      {GOAL_HORIZONS.map((horizon) => {
+        const items = active.filter((g) => g.horizon === horizon);
+        if (!items.length) return null;
+        return (
+          <RowGroup key={horizon} title={HORIZON_LABEL[horizon]}>
+            {items.map((g) => {
+              const health = goalHealth(g, now);
+              return (
+                <li key={g.id} className="loki-phone-row-item">
+                  <button type="button" className="loki-phone-row" onClick={() => onSelect(g.id)}>
+                    <span className="loki-phone-row-copy">
+                      <span className="loki-phone-row-title">
+                        <span className="loki-phone-ellipsis">{g.title}</span>
+                        <span className="loki-phone-row-time">{health.label}</span>
+                      </span>
+                      <span className="loki-phone-row-preview">{g.next_step ?? g.progress ?? g.why ?? "No next step yet"}</span>
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </RowGroup>
+        );
+      })}
+      {agentsCount > 0 && (
+        <div style={{ padding: "8px 16px 24px" }}>
+          <Button size="touch" tone="paper" block onClick={onDiscover}>
+            Discover Goals
+          </Button>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -341,6 +402,56 @@ function PhoneNewGoalSheet({
         </Button>
         <Button size="touch" tone="positive" onClick={() => void submit()} disabled={busy || !title.trim()}>
           {busy ? "Saving…" : "Add Goal"}
+        </Button>
+      </div>
+    </Sheet>
+  );
+}
+
+function PhoneDiscoverGoalSheet({
+  agents,
+  initialAgentId,
+  onStart,
+  onClose,
+}: {
+  agents: ReadonlyArray<{ id: string; name: string }>;
+  initialAgentId: string | null;
+  onStart: (agentId: string) => Promise<void>;
+  onClose: () => void;
+}) {
+  const fallbackAgent = agents.length > 0 ? agents[0].id : "";
+  const [picked, setPicked] = useState(initialAgentId ?? fallbackAgent);
+  const [busy, setBusy] = useState(false);
+
+  const submit = async () => {
+    if (busy || !picked) return;
+    setBusy(true);
+    try {
+      await onStart(picked);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Sheet label="Discover goals" onClose={onClose} placement="bottom" className="loki-phone-sheet">
+      <div className="loki-phone-sheet-copy">
+        <div className="loki-phone-title">Discover goals</div>
+        <p className="loki-phone-meta">Choose which agent to map your goals with.</p>
+      </div>
+      <div className="loki-phone-chips">
+        {agents.map((a) => (
+          <Chip key={a.id} touch active={picked === a.id} onClick={() => setPicked(a.id)}>
+            {a.name}
+          </Chip>
+        ))}
+      </div>
+      <div className="loki-phone-sheet-actions">
+        <Button size="touch" tone="paper" onClick={onClose} disabled={busy}>
+          Cancel
+        </Button>
+        <Button size="touch" tone="positive" onClick={() => void submit()} disabled={busy || !picked}>
+          {busy ? "Starting…" : "Start Discovery"}
         </Button>
       </div>
     </Sheet>

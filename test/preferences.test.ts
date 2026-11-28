@@ -5,7 +5,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { GROUPS, PAGES, PAGE_ICON, pageAfterKey, pageTitle, pagesMatching, savedPage } from "../app/src/settings/pages.ts";
 import { PageList } from "../app/src/settings/page-list.tsx";
 import { Phone, type PhoneApi } from "../app/src/settings/phone.tsx";
-import { GlobalKeyRow, FlowPage, type ReturnTimesApi } from "../app/src/settings/settings.tsx";
+import { GlobalKeyRow, FlowPage, Settings, type ReturnTimesApi, type SettingsProps } from "../app/src/settings/settings.tsx";
 import { ReflectionSettings } from "../app/src/settings/reflection.tsx";
 import { PopUp } from "../app/src/settings/layout.tsx";
 import { RETURN_TIMES_DEFAULT, type ReturnTimes } from "../core/attention/rest.ts";
@@ -277,5 +277,104 @@ describe("Preferences › Reflection: global reflection and fallback settings", 
     const html = renderToStaticMarkup(createElement(ReflectionSettings, { reflect: { get: never, set: never, run: never } }));
     expect(html).toContain("Reading the settings…");
     expect(html).not.toContain("did not answer");
+  });
+});
+
+describe("Preferences sidebar scrolling", () => {
+  test("keeps data-drag-region on a top spacer rather than the scrollable nav container", () => {
+    const ok = () => Promise.resolve();
+    const none = () => Promise.resolve(null);
+    const nope = () => Promise.resolve(false);
+    const html = renderToStaticMarkup(
+      createElement(Settings, {
+        chatLink: "closed",
+        modConnection: "closed",
+        deskCount: 0,
+        providers: null,
+        onLoadProviders: ok,
+        onConnectProvider: none,
+        onDisconnectProvider: none,
+        onModelsChanged: () => {},
+        daemon: null,
+        phone: { status: null, error: null, busy: false, refresh: ok, enable: ok, disable: ok, addDevice: none, renameDevice: ok, forgetDevice: ok },
+        macs: {
+          snapshot: null,
+          error: null,
+          busy: false,
+          code: null,
+          codeError: null,
+          connectError: null,
+          refresh: ok,
+          showCode: ok,
+          clearCode: () => {},
+          connect: nope,
+          rename: ok,
+          forget: ok,
+        },
+        globalSkills: { skills: null, busy: false, error: null, refresh: ok, inspect: none, delete: ok, install: none },
+        mcp: {
+          view: null,
+          error: null,
+          busy: false,
+          secrets: [],
+          approvals: null,
+          refresh: ok,
+          add: ok,
+          update: ok,
+          remove: ok,
+          test: none,
+          saveSecret: ok,
+          deleteSecret: ok,
+          startSignIn: none,
+          signOut: ok,
+          allowAlways: ok,
+          removeAlways: ok,
+        },
+        accounts: {
+          accounts: [],
+          otherMacs: [],
+          error: null,
+          busy: false,
+          customOAuth: false,
+          googleApp: { configured: false },
+          refresh: ok,
+          addGmail: none,
+          addSlack: none,
+          addJira: none,
+          reconnect: none,
+          move: ok,
+          remove: ok,
+          saveGoogleApp: ok,
+          removeGoogleApp: ok,
+        },
+        agents: [],
+        engines: { engines: [], error: null, busy: false, refresh: ok, setDefault: ok },
+        labels: { labels: [], busy: false, refresh: ok, rename: ok, color: ok, remove: ok },
+        update: { state: { status: "idle" }, channel: "stable", check: ok, restart: ok, setChannel: ok },
+        working: false,
+        shortcut: { current: null, available: [], error: null, busy: false, set: ok, clear: ok },
+        recall: {
+          snap: null,
+          error: null,
+          running: false,
+          refresh: ok,
+          configure: nope,
+          runNow: none,
+          dismissLead: ok,
+          deleteCard: ok,
+          reviewCard: ok,
+          exportAnki: () => Promise.resolve(""),
+        },
+        usage: { reply: null, error: null, busy: false, refresh: ok, setRange: () => {}, setFilter: () => {} },
+        returnTimes: { times: RETURN_TIMES_DEFAULT, set: () => {} },
+        lanes: { lanes: [], error: null, busy: false, refresh: ok, move: ok, reorder: ok, rename: ok, remove: ok, setMode: ok },
+        windowed: true,
+        initialPage: "reflection",
+      } as unknown as SettingsProps),
+    );
+    const navMatch = /<nav[^>]*aria-label="Preferences"[^>]*>/.exec(html);
+    expect(navMatch?.[0]).toBeTruthy();
+    expect(navMatch?.[0]).not.toContain("data-drag-region");
+    expect(html).toContain('<div data-drag-region="" aria-hidden="true"');
   });
 });

@@ -4,11 +4,13 @@ import { Button, EmptyPane, Meta, PaneHeader } from "../components";
 import { useNow } from "../components/use-now";
 import { ContentList, NothingSelected, type ContentRow } from "../shell/content-list";
 import { PlaceColumns } from "../shell/place-columns";
+import { PopUp } from "../settings/layout";
 import type { GoalsModel } from "../shell/use-goals";
 import { GoalDetail } from "./goal-detail";
+import { GoalDiscoverSheet } from "./goal-discover-sheet";
 import { GoalEditorSheet } from "./goal-editor-sheet";
 import "./goals.css";
-import { GOALS_VIEW_LABEL, defaultHorizonForView, filterGoalsForView, goalSectionLabel, type GoalsView } from "./views";
+import { GOALS_VIEW_LABEL, defaultHorizonForView, filterGoalsForView, goalSectionLabel, resolveDiscoverAgentId, type GoalsView } from "./views";
 
 function buildGoalRows(visible: readonly Goal[], view: GoalsView, now: number): ContentRow[] {
   return visible.map((g) => {
@@ -24,16 +26,12 @@ function buildGoalRows(visible: readonly Goal[], view: GoalsView, now: number): 
   });
 }
 
-function partnerAgentName(partnerAgentId: string | null | undefined, agents: ReadonlyArray<{ id: string; name: string }>): string {
-  const chosen = partnerAgentId ? agents.find((a) => a.id === partnerAgentId)?.name : undefined;
-  return chosen || (agents.length > 0 ? agents[0].name : "your agent");
-}
-
 function goalsViewState(
   snap: GoalsModel["snap"],
   view: GoalsView,
   query: string,
   selectedId: string | null,
+  pickedAgentId: string | null,
   agents: ReadonlyArray<{ id: string; name: string }>,
 ) {
   const allGoals = snap?.goals ?? [];
@@ -44,15 +42,12 @@ function goalsViewState(
     (view === "active" || view === "short") && shortActiveCount > SHORT_TERM_WIP_LIMIT
       ? `${shortActiveCount} short-term goals active — aim for ${SHORT_TERM_WIP_LIMIT} or fewer in focus`
       : undefined;
-  const firstAgentId = agents.length > 0 ? agents[0].id : null;
-  const discoverAgentId = snap?.settings.partner_agent_id ?? firstAgentId;
   return {
     allGoals,
     visible,
     selected,
     wipLine,
-    partnerName: partnerAgentName(snap?.settings.partner_agent_id, agents),
-    discoverAgentId,
+    discoverAgentId: resolveDiscoverAgentId(agents, pickedAgentId, snap?.settings.partner_agent_id),
     emptyText: snap ? emptyMessageFor(view) : "Loading…",
     isEmptyLoaded: allGoals.length === 0 && Boolean(snap),
     timezone: snap?.settings.timezone ?? null,
@@ -85,10 +80,31 @@ export function Goals({
   const now = useNow();
   const [query, setQuery] = useState("");
   const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
+  const [pickedAgentId, setPickedAgentId] = useState<string | null>(null);
+  const [discovering, setDiscovering] = useState(false);
   const detailRef = useRef<HTMLDivElement>(null);
 
-  const state = goalsViewState(goals.snap, view, query, selectedId, agents);
+  const state = goalsViewState(goals.snap, view, query, selectedId, pickedAgentId, agents);
   const rows = buildGoalRows(state.visible, view, now);
+
+  const handleDiscover = async (agentId: string | null) => {
+    const started = await goals.startDiscover(agentId);
+    if (started) onOpenChat(started.agent_id, started.conversation_id, started.brief);
+  };
+
+  const requestDiscover = () => {
+    if (agents.length > 1) setDiscovering(true);
+    else void handleDiscover(state.discoverAgentId);
+  };
+
+  const listScope =
+    state.allGoals.length > 0 && agents.length > 0 ? (
+      <div className="flex items-center justify-end" style={{ padding: "0 12px 8px" }}>
+        <Button size="sm" onClick={requestDiscover}>
+          Discover Goals
+        </Button>
+      </div>
+    ) : undefined;
 
   const listColumn = (
     <ContentList
@@ -102,17 +118,13 @@ export function Goals({
       onSelect={(id) => onSelect(id)}
       onEnter={() => detailRef.current?.focus()}
       newAction={{ label: "New Goal", run: onOpenNew }}
+      scope={listScope}
       query={query}
       onQuery={setQuery}
       divided
       empty={state.emptyText}
     />
   );
-
-  const handleDiscover = async () => {
-    const started = await goals.startDiscover(state.discoverAgentId);
-    if (started) onOpenChat(started.agent_id, started.conversation_id, started.brief);
-  };
 
   const handleWork = async (goalId: string) => {
     const started = await goals.startWork(goalId);
@@ -123,14 +135,16 @@ export function Goals({
     <div ref={detailRef} tabIndex={-1} className="loki-goals-detail" onPointerDown={(e) => e.stopPropagation()}>
       <GoalsDetailPane
         isEmptyLoaded={state.isEmptyLoaded}
-        partnerName={state.partnerName}
+        discoverAgentId={state.discoverAgentId}
+        onPickDiscoverAgent={setPickedAgentId}
         view={view}
         goals={goals}
         allGoals={state.allGoals}
         agents={agents}
         timezone={state.timezone}
         selected={state.selected}
-        onDiscover={() => void handleDiscover()}
+        onDiscover={(id) => void handleDiscover(id)}
+        onRequestDiscover={requestDiscover}
         onOpenNew={onOpenNew}
         onWork={(id) => void handleWork(id)}
         onEdit={setEditingGoal}
@@ -162,6 +176,18 @@ export function Goals({
           }}
         />
       )}
+
+      {discovering && agents.length > 1 && (
+        <GoalDiscoverSheet
+          agents={agents}
+          initialAgentId={state.discoverAgentId}
+          onStart={async (id) => {
+            await handleDiscover(id);
+            setDiscovering(false);
+          }}
+          onClose={() => setDiscovering(false)}
+        />
+      )}
     </div>
   );
 
@@ -170,7 +196,8 @@ export function Goals({
 
 function GoalsDetailPane({
   isEmptyLoaded,
-  partnerName,
+  discoverAgentId,
+  onPickDiscoverAgent,
   view,
   goals,
   allGoals,
@@ -178,6 +205,7 @@ function GoalsDetailPane({
   timezone,
   selected,
   onDiscover,
+  onRequestDiscover,
   onOpenNew,
   onWork,
   onEdit,
@@ -185,14 +213,16 @@ function GoalsDetailPane({
   onOpenChat,
 }: {
   isEmptyLoaded: boolean;
-  partnerName: string;
+  discoverAgentId: string | null;
+  onPickDiscoverAgent: (id: string) => void;
   view: GoalsView;
   goals: GoalsModel;
   allGoals: readonly Goal[];
   agents: ReadonlyArray<{ id: string; name: string }>;
   timezone: string | null;
   selected: Goal | null;
-  onDiscover: () => void;
+  onDiscover: (agentId: string | null) => void;
+  onRequestDiscover: () => void;
   onOpenNew: () => void;
   onWork: (goalId: string) => void;
   onEdit: (goal: Goal) => void;
@@ -201,23 +231,13 @@ function GoalsDetailPane({
 }) {
   if (isEmptyLoaded) {
     return (
-      <>
-        <PaneHeader title="Goals" />
-        <EmptyPane icon="target" title="Set your direction">
-          <p className="loki-meta loki-meta--wrap">
-            Share your short, medium, and long term goals in a quick conversation with {partnerName}, or add one directly. Every agent will keep them in mind
-            and prepare next steps in Flow.
-          </p>
-          <div className="flex flex-wrap justify-center gap-2">
-            <Button size="md" tone="positive" onClick={onDiscover}>
-              {`Discover Goals with ${partnerName}`}
-            </Button>
-            <Button size="md" onClick={onOpenNew}>
-              Add a Goal
-            </Button>
-          </div>
-        </EmptyPane>
-      </>
+      <GoalsEmptyState
+        agents={agents}
+        discoverAgentId={discoverAgentId}
+        onPickDiscoverAgent={onPickDiscoverAgent}
+        onDiscover={onDiscover}
+        onOpenNew={onOpenNew}
+      />
     );
   }
   if (selected) {
@@ -245,6 +265,9 @@ function GoalsDetailPane({
         title={GOALS_VIEW_LABEL[view]}
         actions={
           <div className="flex items-center gap-2">
+            <Button size="sm" onClick={onRequestDiscover} disabled={agents.length === 0}>
+              Discover Goals
+            </Button>
             <Button size="sm" onClick={() => void goals.runPulse({ kind: "daily" })} disabled={goals.running}>
               {goals.running ? "Checking In…" : "Check In Now"}
             </Button>
@@ -257,6 +280,44 @@ function GoalsDetailPane({
       <div className="flex-1" style={{ position: "relative" }}>
         <NothingSelected noun="Goal" />
       </div>
+    </>
+  );
+}
+
+function GoalsEmptyState({
+  agents,
+  discoverAgentId,
+  onPickDiscoverAgent,
+  onDiscover,
+  onOpenNew,
+}: {
+  agents: ReadonlyArray<{ id: string; name: string }>;
+  discoverAgentId: string | null;
+  onPickDiscoverAgent: (id: string) => void;
+  onDiscover: (agentId: string | null) => void;
+  onOpenNew: () => void;
+}) {
+  const agentLabels = Object.fromEntries(agents.map((a) => [a.id, a.name]));
+  return (
+    <>
+      <PaneHeader title="Goals" />
+      <EmptyPane icon="target" title="Set your direction">
+        <p className="loki-meta loki-meta--wrap">
+          Share your short, medium, and long term goals in a quick conversation with an agent, or add one directly. Every agent will keep them in mind and
+          prepare next steps in Flow.
+        </p>
+        <div className="flex flex-wrap items-center justify-center gap-2">
+          {agents.length > 1 && discoverAgentId && (
+            <PopUp label="Discovery agent" options={agents.map((a) => a.id)} value={discoverAgentId} onPick={onPickDiscoverAgent} labels={agentLabels} />
+          )}
+          <Button size="md" tone="positive" onClick={() => onDiscover(discoverAgentId)} disabled={!discoverAgentId}>
+            Discover Goals
+          </Button>
+          <Button size="md" onClick={onOpenNew}>
+            Add a Goal
+          </Button>
+        </div>
+      </EmptyPane>
     </>
   );
 }

@@ -183,14 +183,15 @@ export function Settings({
       <nav
         aria-label="Preferences"
         className={cn(windowed && "loki-settings-nav", "flex flex-col")}
-        data-drag-region={windowed ? "" : undefined}
         style={{
           minHeight: 0,
-          padding: windowed ? `${TOOLBAR_HEIGHT}px 8px 0` : "8px 8px 0",
+          padding: windowed ? "0 8px 0" : "8px 8px 0",
           borderRight: windowed ? undefined : "1px solid var(--loki-border)",
         }}
       >
-        {!windowed && (
+        {windowed ? (
+          <div data-drag-region="" aria-hidden className="flex-none" style={{ height: TOOLBAR_HEIGHT }} />
+        ) : (
           <h2 className="loki-title" style={{ margin: 0, padding: `4px ${NAV_TEXT_INSET}px 12px` }}>
             Preferences
           </h2>
