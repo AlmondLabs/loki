@@ -155,9 +155,62 @@ describe("Workers UI helpers and views", () => {
     expect(html).toContain("loki-workers-bar");
     expect(html).toContain("kestrel");
     expect(html).toContain("ember");
+    expect(html).toContain("2 / 2");
+    expect(html).toContain('aria-label="Previous Worker"');
+    expect(html).toContain('aria-label="Next Worker"');
     expect(html).toContain("Fix migration ordering");
     expect(html).toContain("loki-subagent/ember");
     expect(html).toContain('aria-pressed="true"');
+
+    const single = renderToStaticMarkup(
+      createElement(WorkersPanel, {
+        catchUp: {
+          status: "open",
+          server: null,
+          commands: [],
+          agents: [],
+          agentsLoaded: true,
+          providers: null,
+          loadProviders: () => Promise.resolve(),
+          listModels: () => Promise.resolve([]),
+          conversation: () => ({
+            rows: [],
+            status: "idle",
+            error: null,
+            older: null,
+            loadFailed: null,
+            pending: null,
+            question: null,
+            engine: null,
+            mode: null,
+            links: [],
+            subagents: [],
+            queued: [],
+            cwd: null,
+          }),
+          subscribe: () => Promise.resolve(),
+          loadThread: () => Promise.resolve(),
+          watchThreads: () => () => {},
+          threadRows: () => [],
+          watchThread: () => () => {},
+          send: () => {},
+          answer: () => {},
+          decide: () => {},
+          execute: () => Promise.resolve({ success: true, output: "" }),
+          cancelQueued: () => {},
+          stop: () => Promise.resolve(null),
+        } as unknown as Parameters<typeof WorkersPanel>[0]["catchUp"],
+        agentId: "agent-a",
+        agentName: "Ada",
+        subagents: [kestrel],
+        selectedChat: kestrel.chat_id,
+        onSelectChat: noop,
+        desk: { modelOf: () => null, reasoningEffortOf: () => null },
+        models: { entries: null },
+      }),
+    );
+    expect(single).not.toContain('aria-label="Previous Worker"');
+    expect(single).not.toContain('aria-label="Next Worker"');
 
     const empty = renderToStaticMarkup(
       createElement(WorkersPanel, {
@@ -172,6 +225,21 @@ describe("Workers UI helpers and views", () => {
       }),
     );
     expect(empty).toBe("");
+  });
+
+  test("WorkersHeader renders a sibling switcher strip when activeChat is set with multiple workers", () => {
+    const html = renderToStaticMarkup(
+      createElement(
+        OpenWorker.Provider,
+        { value: () => {} },
+        createElement(WorkersHeader, { subagents: [kestrel, ember], activeChat: ember.chat_id, touch: true }),
+      ),
+    );
+    expect(html).toContain("loki-workers-strip--switcher");
+    expect(html).toContain("kestrel");
+    expect(html).toContain("ember");
+    expect(html).toContain('aria-pressed="true"');
+    expect(html).toContain('aria-pressed="false"');
   });
 
   test("SubagentEventRow renders a clickable button to open the worker when OpenWorker context exists", () => {

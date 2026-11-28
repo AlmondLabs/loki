@@ -1,5 +1,5 @@
-import { useMemo } from "react";
-import { CheckIcon, CircleAlertIcon, LoaderCircleIcon, LockIcon, SquareIcon } from "lucide-react";
+import { useEffect, useMemo, useRef, type KeyboardEvent } from "react";
+import { CheckIcon, ChevronLeftIcon, ChevronRightIcon, CircleAlertIcon, LoaderCircleIcon, LockIcon, SquareIcon } from "lucide-react";
 import type { ChatEvent } from "../../../core/attention/model.ts";
 import type { TranscriptRow } from "../../../core/attention/transcript.ts";
 import { useThreadRows, type useAttention } from "../../../core/attention/use-attention.ts";
@@ -9,7 +9,9 @@ import { subagentDisplayName, type SubagentStatus, type SubagentView } from "../
 import { Conversation, type ConversationActions, type ConversationView } from "../chat/conversation";
 import type { ModelEntry } from "../chat/model-picker";
 import { draftKey, useDraft } from "../shared/drafts";
+import { keyFor } from "../shell/keymap";
 import { avatarUrl } from "./env";
+import { activeWorkerChat, stepWorkerChat } from "./pane";
 import type { useWorkspace } from "./use-workspace";
 import { useWorkspaceChat, type DeskChatModel } from "./use-workspace-chat";
 
@@ -106,34 +108,83 @@ export function WorkersPanel({
   findTick?: number;
   modelPickerTick?: number;
 }) {
-  const active =
-    (selectedChat ? subagents.find((s) => s.chat_id === selectedChat) : undefined) ?? subagents.find((s) => s.status === "running") ?? subagents.at(0);
+  const activeChat = activeWorkerChat(subagents, selectedChat);
+  const activeIndex = activeChat ? subagents.findIndex((s) => s.chat_id === activeChat) : -1;
+  const active = activeIndex >= 0 ? subagents[activeIndex] : undefined;
+  const pillsRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const selectedEl = pillsRef.current?.querySelector<HTMLElement>('button[aria-pressed="true"]');
+    if (selectedEl && typeof selectedEl.scrollIntoView === "function") selectedEl.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [active?.chat_id]);
   if (!active) return null;
   const workerScope = scopeFor(active.chat_id, agentId);
+  const step = (delta: -1 | 1) => {
+    const next = stepWorkerChat(subagents, active.chat_id, delta);
+    if (next) onSelectChat(next);
+  };
+  const onPillsKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (subagents.length < 2) return;
+    let nextIndex: number | null = null;
+    if (e.key === "ArrowLeft") nextIndex = (activeIndex - 1 + subagents.length) % subagents.length;
+    else if (e.key === "ArrowRight") nextIndex = (activeIndex + 1) % subagents.length;
+    else if (e.key === "Home") nextIndex = 0;
+    else if (e.key === "End") nextIndex = subagents.length - 1;
+    if (nextIndex === null) return;
+    e.preventDefault();
+    onSelectChat(subagents[nextIndex].chat_id);
+    pillsRef.current?.querySelectorAll<HTMLButtonElement>(".loki-worker-pill")[nextIndex]?.focus();
+  };
   return (
     <div className="loki-workers-pane">
-      <div className="loki-workers-bar" role="group" aria-label="Workers">
-        {subagents.map((s) => {
-          const selected = s.chat_id === active.chat_id;
-          const label = s.name || subagentDisplayName(s.id);
-          const modelLabel = shortModel(s.model);
-          return (
+      <div className="loki-workers-bar">
+        <div ref={pillsRef} className="loki-workers-pills" role="group" aria-label="Workers" onKeyDown={onPillsKeyDown}>
+          {subagents.map((s) => {
+            const selected = s.chat_id === active.chat_id;
+            const label = s.name || subagentDisplayName(s.id);
+            const modelLabel = shortModel(s.model);
+            return (
+              <button
+                key={s.chat_id}
+                type="button"
+                className="loki-worker-pill"
+                data-status={s.status}
+                aria-pressed={selected}
+                title={s.description}
+                onClick={() => onSelectChat(s.chat_id)}
+              >
+                <StatusGlyph status={s.status} />
+                <span>{label}</span>
+                {modelLabel && <span className="loki-worker-pill-meta">{modelLabel}</span>}
+                {s.read_only && <LockIcon size={10} aria-label="Read-only" />}
+              </button>
+            );
+          })}
+        </div>
+        {subagents.length > 1 && (
+          <div className="loki-workers-nav">
+            <span className="loki-workers-count" aria-live="polite">
+              {activeIndex + 1} / {subagents.length}
+            </span>
             <button
-              key={s.chat_id}
               type="button"
-              className="loki-worker-pill"
-              data-status={s.status}
-              aria-pressed={selected}
-              title={s.description}
-              onClick={() => onSelectChat(s.chat_id)}
+              className="loki-worker-step"
+              aria-label="Previous Worker"
+              title={`Previous Worker (${keyFor("worker.prev")})`}
+              onClick={() => step(-1)}
             >
-              <StatusGlyph status={s.status} />
-              <span>{label}</span>
-              {modelLabel && <span className="loki-worker-pill-meta">{modelLabel}</span>}
-              {s.read_only && <LockIcon size={10} aria-label="Read-only" />}
+              <ChevronLeftIcon size={14} aria-hidden />
             </button>
-          );
-        })}
+            <button
+              type="button"
+              className="loki-worker-step"
+              aria-label="Next Worker"
+              title={`Next Worker (${keyFor("worker.next")})`}
+              onClick={() => step(1)}
+            >
+              <ChevronRightIcon size={14} aria-hidden />
+            </button>
+          </div>
+        )}
       </div>
       <div className="loki-worker-meta">
         <span className="truncate">{active.description}</span>

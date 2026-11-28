@@ -10,7 +10,7 @@ import { NewChat } from "../workspace/new-chat";
 import { useFirstMessage } from "../workspace/use-first-message";
 import type { Attachment } from "../../../core/attention/content.ts";
 import { useCanvasPane } from "../workspace/use-canvas-pane";
-import { chatKeyTarget } from "../workspace/pane";
+import { chatKeyTarget, stepWorkerChat } from "../workspace/pane";
 import { useWorkspace } from "../workspace/use-workspace";
 import { avatarUrl, inDesktop } from "../workspace/env";
 import { agentSources } from "../agents/agents-column";
@@ -115,7 +115,8 @@ export function Shell() {
   const [unselected, setUnselected] = useState(false);
   const [prefsOpen, setPrefsOpen] = useState(false);
   const [newChat, setNewChat] = useState<{ agentId: string | null; n: number } | null>(null);
-  const hasWorkers = !!(desk.agentId && desk.conversationId && (catchUp.conversation(desk.agentId, desk.conversationId).subagents?.length ?? 0) > 0);
+  const chatSubagents = desk.agentId && desk.conversationId ? (catchUp.conversation(desk.agentId, desk.conversationId).subagents ?? []) : [];
+  const hasWorkers = chatSubagents.length > 0;
   const pane = useCanvasPane(desk.scope, hasWorkers);
   const [focusChat, setFocusChat] = useState(0);
   const [findChat, setFindChat] = useState(0);
@@ -528,6 +529,21 @@ export function Shell() {
       "chat.model": () => chatKey("chat.model", () => setModelPickerTick((n) => n + 1)),
       "chat.mode": () => chatKey("chat.mode", () => setModeMenuTick((n) => n + 1)),
       "chat.suggestions": () => chatKey("chat.suggestions", () => setSuggestionsTick((n) => n + 1)),
+      "worker.toggle": () => {
+        if (onChat && !noChat && hasWorkers) pane.setTab(pane.tab === "workers" ? "messages" : "workers");
+      },
+      "worker.prev": () => {
+        if (!onChat || noChat || !hasWorkers) return;
+        if (pane.tab !== "workers") return pane.setTab("workers");
+        const next = stepWorkerChat(chatSubagents, pane.selectedWorker, -1);
+        if (next) pane.selectWorker(next);
+      },
+      "worker.next": () => {
+        if (!onChat || noChat || !hasWorkers) return;
+        if (pane.tab !== "workers") return pane.setTab("workers");
+        const next = stepWorkerChat(chatSubagents, pane.selectedWorker, 1);
+        if (next) pane.selectWorker(next);
+      },
       "app.update": () => runUpdateItem(update, working, () => showPreferences("loki")),
     },
     { toList, toMessages: pane.escape, closePreferences: () => setPrefsOpen(false) },

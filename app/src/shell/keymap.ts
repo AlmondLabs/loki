@@ -81,6 +81,9 @@ export const KEYMAP: Binding[] = [
   { id: "chat.suggestions", keys: ["cmd+shift+s"], where: "chats", label: "Show Suggestions…", typing: true, menu: "Chat" },
   { id: "chat.allow", keys: ["cmd+enter"], where: "chats", label: "Allow Step", typing: true, menu: "Chat/decide" },
   { id: "chat.deny", keys: ["cmd+shift+backspace"], where: "chats", label: "Deny Step", typing: true, menu: "Chat/decide" },
+  { id: "worker.toggle", keys: ["cmd+\\"], where: "chats", label: "Toggle Workers", typing: true, menu: "Chat/workers" },
+  { id: "worker.prev", keys: ["cmd+shift+["], where: "chats", label: "Previous Worker", typing: true, menu: "Chat/workers" },
+  { id: "worker.next", keys: ["cmd+shift+]"], where: "chats", label: "Next Worker", typing: true, menu: "Chat/workers" },
   { id: "canvas.messages", keys: ["escape"], where: "chats", label: "back to Messages from the Workers tab", note: "handled by the shell" },
 
   { id: "chat.send", keys: ["enter"], where: "chat", label: "send", typing: true, note: "the box" },

@@ -35,6 +35,7 @@ import {
   emptySnapshot,
   flagged,
   formatAnswerSummary,
+  keyKnown,
   outgoing,
   pruneConversationKeys,
   pruneUnknownKeys,
@@ -175,7 +176,7 @@ export class ChatStore {
     const off = client.onChat((rt, events) => {
       const changed = this.heard(client, rt, events);
       const key = keyOf(rt.agent_id, rt.conversation_id);
-      if (changed && !this.known.has(key) && !reloadTimer && this.now() - this.lastReload > 10_000) {
+      if (changed && !keyKnown(this.known, key) && !reloadTimer && this.now() - this.lastReload > 10_000) {
         reloadTimer = setTimeout(() => {
           reloadTimer = null;
           this.reload();

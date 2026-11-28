@@ -239,7 +239,7 @@ export function CanvasPane(props: DeskPaneProps) {
                 id={panelId("workers")}
                 role="tabpanel"
                 aria-label="Workers"
-                className="loki-canvas-pane-panel loki-canvas-pane-messages"
+                className="loki-canvas-pane-panel loki-canvas-pane-workers"
                 style={{ visibility: tab === "workers" ? "inherit" : "hidden" }}
                 aria-hidden={tab !== "workers"}
               >

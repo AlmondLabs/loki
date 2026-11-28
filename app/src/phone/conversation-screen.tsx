@@ -27,7 +27,7 @@ import { useViewed } from "../shared/use-viewed";
 import { doneAction } from "../shell/sidebar-model";
 import { Icon } from "./icons";
 import { threadLine } from "./model";
-import { navigate, openConversation } from "./router";
+import { navigate, openConversation, replace } from "./router";
 import { Avatar } from "./rows";
 import { draftKey, useDraft } from "../shared/drafts";
 import { useTopClearance } from "./ui";
@@ -88,6 +88,7 @@ export function ConversationScreen({
   onViewed,
   suggestions = null,
   onCloseLink,
+  activeWorker = null,
 }: {
   thread: Thread;
   view: ThreadView;
@@ -125,6 +126,7 @@ export function ConversationScreen({
   onViewed?: (agentId: string, conversationId: string) => void;
   suggestions?: Omit<SuggestionsProps, "rt"> | null;
   onCloseLink?: (rt: Runtime, linkId: string) => void;
+  activeWorker?: string | null;
 }) {
   const rt: Runtime = { agent_id: thread.agentId, conversation_id: thread.conversationId };
   const [draft, setDraft] = useDraft(draftKey(thread.agentId, thread.conversationId));
@@ -155,7 +157,13 @@ export function ConversationScreen({
   const asked = view.question;
   const approval = view.pending;
   const canUndo = !!onNotDone && !!item && doneAction(item) === "undone";
-  const openWorker = useCallback((workerChat: string) => openConversation(thread.agentId, workerChat), [thread.agentId]);
+  const openWorker = useCallback(
+    (workerChat: string) =>
+      activeWorker
+        ? replace({ kind: "conversation", agentId: thread.agentId, conversationId: workerChat, prefill: null })
+        : openConversation(thread.agentId, workerChat),
+    [activeWorker, thread.agentId],
+  );
 
   return (
     <OpenWorker.Provider value={openWorker}>
@@ -170,7 +178,7 @@ export function ConversationScreen({
         links={
           view.links?.length || view.subagents?.length ? (
             <div className="loki-phone-links loki-chat-strips">
-              <WorkersHeader subagents={view.subagents} touch />
+              <WorkersHeader subagents={view.subagents} activeChat={activeWorker} touch />
               {view.links?.length ? (
                 <LinkHeader links={linksSeenFrom(view.links, rt)} onClose={onCloseLink ? (id) => onCloseLink(rt, id) : undefined} touch />
               ) : null}
