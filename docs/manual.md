@@ -970,7 +970,7 @@ Goals let loki treat your short-, medium-, and long-term aims as active working 
 static checklist.
 
 - **Discover or add goals.** Open Goals (`⌘3` on the Mac, or **More › Goals** on your phone) and click **Discover
-  Goals** to start a short conversation with loki that turns vague wishes into concrete **short**, **medium**, and
+  Goals** — choosing any agent when you have more than one — to start a short conversation that turns vague wishes into concrete **short**, **medium**, and
   **long** goals, or add one directly with **Add Goal**. Each goal can carry a horizon, deadline, parent goal (so
   short-term work links to medium and long direction), a **WOOP** implementation intention (wish, outcome, obstacle,
   if-then plan), and an optional weekly **lead habit** target.
