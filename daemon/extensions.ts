@@ -4,6 +4,8 @@ import type { Approvals } from "./approvals.ts";
 import { askExtension } from "./ask.ts";
 import { backgroundExtension, wrapBashWithBackground, type BackgroundTasks } from "./background.ts";
 import { changesExtension } from "./changes.ts";
+import { goalsExtension } from "./goals.ts";
+import type { GoalsStore } from "./goals-store.ts";
 import { shrinkingProcessor } from "./image-shrink.ts";
 import { historyExtension, type ChatHistory } from "./history-tools.ts";
 import { memoryExtension } from "./memory.ts";
@@ -26,6 +28,7 @@ export interface BuiltinDeps {
   history: ChatHistory;
   subagents?: SubagentManager;
   scripts?: readonly Extension[];
+  goals?: GoalsStore;
 }
 
 function describedCodingTools(background: BackgroundTasks): Extension[] {
@@ -57,6 +60,7 @@ export function builtinExtensions(deps: BuiltinDeps): Extension[] {
     historyExtension(deps.history),
     changesExtension(),
     repliesExtension(),
+    ...(deps.goals ? [goalsExtension(deps.goals)] : []),
     readOnlyExtension(deps.backendDir),
     ...(deps.scripts ?? []),
   ];

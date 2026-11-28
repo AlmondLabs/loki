@@ -23,6 +23,7 @@ export const READ_ONLY_TOOLS: readonly string[] = [
   "memory_search",
   "history_search",
   "history_read",
+  "goal_list",
   CHANGES_TOOL,
 ];
 const READ_ONLY_TOOL_SET: ReadonlySet<string> = new Set(READ_ONLY_TOOLS);

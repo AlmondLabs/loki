@@ -8,6 +8,7 @@ import { useDaemonStatus } from "./bootstrap";
 import { MODELS_CHANGED_KEY } from "./open-settings";
 import { useGlobalShortcut } from "./use-global-shortcut";
 import { useLokiUpdate } from "./use-loki-update";
+import { useGoals } from "./use-goals";
 import { useLearn } from "./use-learn";
 import { useShellAttention } from "./use-shell-attention";
 import { preferencesProps } from "./views";
@@ -26,6 +27,7 @@ export function SettingsWindow() {
   const desk = useWorkspace();
   const catchUp = useShellAttention(desk);
   const daemon = useDaemonStatus();
+  const goals = useGoals(desk, "settings", (m) => void notify(m));
   const recall = useLearn(desk, "settings", (m) => void notify(m));
   const update = useLokiUpdate();
   const shortcut = useGlobalShortcut();
@@ -67,6 +69,7 @@ export function SettingsWindow() {
     onModelsChanged: markModelsChanged,
     update,
     shortcut,
+    goals,
     recall,
   };
   return (

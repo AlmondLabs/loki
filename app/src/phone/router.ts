@@ -8,6 +8,7 @@ export const TABS: readonly Tab[] = ["home", "flow", "agents", "more"];
 
 export type Route =
   | { kind: "tab"; tab: Tab }
+  | { kind: "goals" }
   | { kind: "learn"; view?: LearnPage }
   | { kind: "search"; q?: string }
   | { kind: "archive" }
@@ -26,7 +27,7 @@ export const LEARN_PAGES: readonly LearnPage[] = ["review", "leads", "lessons", 
 const isLearnPage = (s: string): s is LearnPage => (LEARN_PAGES as readonly string[]).includes(s);
 
 const isTab = (s: string): s is Tab => (TABS as readonly string[]).includes(s);
-const CHILDREN = ["learn", "archive", "preferences", "usage", "connection", "about"] as const;
+const CHILDREN = ["goals", "learn", "archive", "preferences", "usage", "connection", "about"] as const;
 type Child = (typeof CHILDREN)[number];
 const isChild = (s: string): s is Child => (CHILDREN as readonly string[]).includes(s);
 const LEGACY: Record<string, Route> = { you: { kind: "tab", tab: "more" }, settings: { kind: "preferences" }, inbox: { kind: "tab", tab: "flow" } };
@@ -79,6 +80,7 @@ export function formatRoute(r: Route): string {
       return r.q ? `#/search?q=${encodeURIComponent(r.q)}` : "#/search";
     case "learn":
       return r.view ? `#/learn/${r.view}` : "#/learn";
+    case "goals":
     case "archive":
     case "preferences":
     case "usage":

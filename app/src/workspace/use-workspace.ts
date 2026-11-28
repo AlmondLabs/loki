@@ -8,6 +8,7 @@ import { FrameChatClient } from "../../../core/attention/chat-client.ts";
 import { daemonCalls } from "../../../core/daemon-calls.ts";
 
 import type { CardWithSchedule, LearnReply, LearnSnapshot } from "../../../core/learn/model.ts";
+import type { GoalsSettings, GoalsSnapshot } from "../../../core/goals.ts";
 import type { UsageReply } from "../../../core/usage.ts";
 import type { Grade } from "../../../core/learn/fsrs.ts";
 import type { EngageAction } from "../../../core/attention/use-attention.ts";
@@ -70,6 +71,7 @@ export function useWorkspace() {
     returnTimes,
     lanes,
     learnVersion,
+    goalsVersion,
     usageVersion,
     lanStatus,
     setLanStatus,
@@ -124,6 +126,31 @@ export function useWorkspace() {
         r.ok
           ? { ok: true, agentId: r.reply.agent_id, conversationId: r.reply.conversation_id }
           : { ok: false, message: r.timed_out ? "the lesson did not start" : r.error },
+      ),
+  };
+
+  const goalsResult = (r: RequestResult<GoalsSnapshot>): { ok: true; snapshot: GoalsSnapshot } | { ok: false; message: string } =>
+    r.ok ? { ok: true, snapshot: r.reply } : { ok: false, message: r.timed_out ? "goals did not answer" : r.error };
+
+  const goals = {
+    list: (): Promise<GoalsSnapshot | null> => request("goals_list", {}, 15_000).then((r) => (r.ok ? r.reply : null)),
+    create: (payload: InputOf<"goals_create">) => request("goals_create", payload, 15_000).then(goalsResult),
+    update: (payload: InputOf<"goals_update">) => request("goals_update", payload, 15_000).then(goalsResult),
+    remove: (id: string) => request("goals_delete", { id }, 15_000).then(goalsResult),
+    addProgress: (id: string, note: string) => request("goals_progress_add", { id, note }, 15_000).then(goalsResult),
+    toggleHabit: (id: string, day: string, done?: boolean) => request("goals_habit_toggle", { id, day, done }, 15_000).then(goalsResult),
+    setSettings: (patch: Partial<GoalsSettings>) => request("goals_settings_set", patch, 15_000).then(goalsResult),
+    runPulse: (opts: { kind?: "daily" | "weekly" | "goal"; goal_id?: string } = {}) =>
+      request("goals_pulse_run", opts, 60_000).then((r) =>
+        r.ok ? { ok: true as const, ...r.reply } : { ok: false as const, message: r.timed_out ? "goal check-in timed out" : r.error },
+      ),
+    startWork: (id: string) =>
+      request("goals_work_start", { id }, 30_000).then((r) =>
+        r.ok ? { ok: true as const, ...r.reply } : { ok: false as const, message: r.timed_out ? "could not open goal chat" : r.error },
+      ),
+    startDiscover: (agentId?: string | null) =>
+      request("goals_discover_start", agentId ? { agent_id: agentId } : {}, 30_000).then((r) =>
+        r.ok ? { ok: true as const, ...r.reply } : { ok: false as const, message: r.timed_out ? "could not start goal discovery" : r.error },
       ),
   };
 
@@ -340,6 +367,8 @@ export function useWorkspace() {
     },
     learn,
     learnVersion,
+    goals,
+    goalsVersion,
     usage: {
       get: (since: string, until: string) => request("usage_get", { since, until }, 15_000).then((r): UsageReply | null => (r.ok ? r.reply : null)),
       version: usageVersion,

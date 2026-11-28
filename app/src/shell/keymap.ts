@@ -1,7 +1,7 @@
 import { keyboard, type Platform } from "../workspace/env";
 
 export type { Platform };
-export type Segment = "chats" | "flow" | "learn" | "agents" | "settings";
+export type Segment = "chats" | "flow" | "goals" | "learn" | "agents" | "settings";
 export type Where = "anywhere" | Segment | "chat" | "global";
 
 export interface Binding {
@@ -24,6 +24,7 @@ export const MENUS = ["loki", "Go", "Chat", "Flow", "Learn", "View"] as const;
 export const KEYMAP: Binding[] = [
   { id: "segment.chats", keys: ["cmd+1"], where: "anywhere", label: "Chats", typing: true, menu: "View/segments" },
   { id: "segment.flow", keys: ["cmd+2"], where: "anywhere", label: "Flow", typing: true, menu: "View/segments" },
+  { id: "segment.goals", keys: ["cmd+3"], where: "anywhere", label: "Goals", typing: true, menu: "View/segments" },
   { id: "segment.agents", keys: ["cmd+4"], where: "anywhere", label: "Agents", typing: true, menu: "View/segments" },
   { id: "segment.learn", keys: ["cmd+5"], where: "anywhere", label: "Learn", typing: true, menu: "View/segments" },
   { id: "segment.settings", keys: ["cmd+6", "cmd+,"], where: "anywhere", label: "Settings…", typing: true, menu: "loki/settings" },

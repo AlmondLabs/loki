@@ -22,7 +22,9 @@ import type { LokiUpdate, UpdateState } from "../shell/use-loki-update";
 import { restartToUpdate } from "../shell/update-notice";
 import { channelOf, type Channel } from "../../../core/version.ts";
 import type { GlobalShortcut } from "../shell/use-global-shortcut";
+import type { GoalsModel } from "../shell/use-goals";
 import type { Learn as LearnModel } from "../shell/use-learn";
+import { GoalsSettings } from "./goals";
 import { LearnSettings } from "../learn/learn-parts";
 import { BLOCKED_POINTS, FOCUS_POINTS, NEW_POINTS } from "../../../core/attention/priority.ts";
 import { FOCUS_HALF_LIFE_H } from "../../../core/attention/focus.ts";
@@ -92,6 +94,7 @@ export function Settings({
   update,
   working,
   shortcut,
+  goals,
   recall,
   reflect,
   usage,
@@ -122,6 +125,7 @@ export function Settings({
   update: LokiUpdate;
   working: boolean;
   shortcut: GlobalShortcut;
+  goals?: GoalsModel;
   recall: LearnModel;
   reflect?: ReflectionControls;
   usage: UsageApi;
@@ -163,6 +167,8 @@ export function Settings({
     phone: () => <PhonePage phone={phone} modConnection={modConnection} />,
     macs: () => <Macs macs={macs} connected={modConnection === "open"} />,
     skills: () => <SkillsPage globalSkills={globalSkills} />,
+    goals: () =>
+      chatLink === "open" && goals ? <GoalsSettings goals={goals} agents={agents} /> : <Setting label="Not linked" help="loki's daemon is not linked yet." />,
     learn: () => <RecallPage recall={recall} />,
     reflection: () =>
       chatLink === "open" && reflect ? <ReflectionSettings reflect={reflect} /> : <Setting label="Not linked" help="loki's daemon is not linked yet." />,

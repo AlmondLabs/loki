@@ -52,6 +52,7 @@ import {
   SquarePenIcon,
   SquareTerminalIcon,
   SunIcon,
+  TargetIcon,
   TicketIcon,
   Trash2Icon,
   UnlinkIcon,
@@ -119,6 +120,7 @@ const ICONS = {
   question: MessageCircleQuestionMarkIcon,
   brain: BrainIcon,
   checklist: ListChecksIcon,
+  target: TargetIcon,
 } satisfies Record<string, LucideIcon>;
 
 export type IconName = keyof typeof ICONS;

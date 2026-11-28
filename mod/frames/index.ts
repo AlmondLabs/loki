@@ -7,6 +7,7 @@ import { daemonFrames, type DaemonDeps } from "./daemon.ts";
 import type { FrameHandlers } from "./context.ts";
 import { chatMetaFrame, chatsFrames, type ChatsDeps } from "./chats.ts";
 import { foldersFrames, type FoldersDeps } from "./folders.ts";
+import { goalsFrames, type GoalsDeps } from "./goals.ts";
 import { historyFrames, type HistoryDeps } from "./history.ts";
 import { lanFrames, type LanDeps } from "./lan.ts";
 import { linkFrames, type LinkDeps } from "./links.ts";
@@ -22,6 +23,7 @@ export type ModuleDeps = ChatsDeps &
   HistoryDeps &
   FoldersDeps &
   LearnDeps &
+  GoalsDeps &
   AgentsDeps &
   LanDeps &
   PeersDeps &
@@ -40,6 +42,7 @@ export function frameModules(deps: ModuleDeps): FrameHandlers[] {
     historyFrames(deps),
     foldersFrames(deps),
     learnFrames(deps),
+    goalsFrames(deps),
     agentsFrames(deps),
     lanFrames(deps),
     peersFrames(deps),

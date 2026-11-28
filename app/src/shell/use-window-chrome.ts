@@ -19,15 +19,17 @@ export function windowTitle(
   const name =
     segment === "flow"
       ? flow
-      : segment === "learn"
-        ? dueCards > 0
-          ? `Learn · ${dueCards} due`
-          : "Learn"
-        : segment === "agents"
-          ? "Agents"
-          : segment === "settings"
-            ? "Preferences"
-            : `${who}${chatTitle}${state}`;
+      : segment === "goals"
+        ? "Goals"
+        : segment === "learn"
+          ? dueCards > 0
+            ? `Learn · ${dueCards} due`
+            : "Learn"
+          : segment === "agents"
+            ? "Agents"
+            : segment === "settings"
+              ? "Preferences"
+              : `${who}${chatTitle}${state}`;
   return { name, document: waiting > 0 && segment !== "flow" ? `(${waiting}) ${name}` : name };
 }
 

@@ -9,6 +9,7 @@ import { createRegistry, MemoryStorage } from "@earendil-works/pi-durable";
 import { Approvals, kindOf } from "../daemon/approvals.ts";
 import { BackgroundTasks } from "../daemon/background.ts";
 import { builtinExtensions, builtinKinds } from "../daemon/extensions.ts";
+import { GoalsStore } from "../daemon/goals-store.ts";
 import { AgentStore } from "../daemon/kernel/index.ts";
 import { Schedules } from "../daemon/schedule.ts";
 import { subagentExtension } from "../daemon/subagents.ts";
@@ -22,6 +23,7 @@ function builtins() {
     background: new BackgroundTasks(() => {}),
     schedules: new Schedules(join(dir, "crons.json"), () => Promise.resolve(null)),
     history: { thread: () => [], compactedSince: () => false },
+    goals: new GoalsStore(join(dir, "goals.json")),
   });
   return { extensions, dir };
 }
@@ -42,6 +44,9 @@ describe("the built-in tools", () => {
           "changes_read",
           "edit",
           "find",
+          "goal_create",
+          "goal_list",
+          "goal_update",
           "grep",
           "history_read",
           "history_search",

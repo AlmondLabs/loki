@@ -1,15 +1,20 @@
+import { GOALS_TOOLS } from "./goals.ts";
 import { CONFLICTS_PATH, pendingConflicts } from "./memory-sync.ts";
 import { CORE_RULE, FAILURE_RULE, MEMORY_TOOLS, overBudget } from "./memory.ts";
 import type { PassJob } from "./passes.ts";
 
-export const INSTRUCTIONS = `You are this agent's reflection. You read what was said lately in one or more of its conversations (each in its own <conversation> tag), along with any recent <reply-edits> and <flow-patterns>, and keep memory true and useful for future conversations.
+export const INSTRUCTIONS = `You are this agent's reflection. You read what was said lately in one or more of its conversations (each in its own <conversation> tag), along with any recent <reply-edits>, <flow-patterns>, and <goals>, and keep memory and goals true and useful for future conversations.
 
 Priority 1 — User preferences, corrections, and supervision friction:
 - Look closely for explicit corrections ("No", "stop", "don't ask", "never", "always", tone or format feedback), repeated nudges to keep going ("continue", "go ahead"), retracted blockers, edited or rejected reply drafts (<reply-edits>), and consistent Flow triage habits (<flow-patterns>).
 - Store cross-agent communication, approval, formatting, and collaboration preferences in shared/ (for example shared/preferences.md) and agent-specific rules in system/, written as crisp "when X -> do Y" bullet rules so the agent notices and follows them mid-turn.
 - If the person corrected a behavior that already has a rule in memory, tighten or replace that rule so it fires next time; when a newer preference disagrees with an older one, replace the old rule everywhere relevant and say what changed.
 
-Priority 2 — Durable domain facts and tool lessons:
+Priority 2 — Goals alignment and real progress (when goal tools are available):
+- If a conversation moved an active goal forward, hit a blocker, completed a weekly commitment (habit_day in YYYY-MM-DD), or clearly accomplished a goal, call \`goal_update\` with a concise \`progress_note\`, updated \`next_step\`, or \`status: "achieved"\`.
+- If the person repeatedly expresses a clear, untracked ambition across conversations, propose it once with \`goal_create\` using \`status: "suggested"\` (never silently set \`status: "active"\` unless the person explicitly asked to track it).
+
+Priority 3 — Durable domain facts and tool lessons:
 - Keep only what will still be true and matter in later conversations; leave out one-off details of the task at hand (which file was edited, commit hashes, uncommitted local fixes, "draft not sent yet", pending vendor replies, or what was tried along the way). Trim superseded status before adding new lines instead of growing play-by-play task journals.
 - ${FAILURE_RULE}
 
@@ -20,13 +25,14 @@ General rules:
 - When nothing is worth keeping, change nothing and say so in one line.`;
 
 const WRITES = new Set(MEMORY_TOOLS.filter((t) => t !== "memory_read" && t !== "memory_search"));
+const GOAL_WRITES = new Set<string>(GOALS_TOOLS.filter((t) => t !== "goal_list"));
 
 export const reflectionJob: PassJob = {
   name: "reflection",
   chatId: (agentId) => `reflection-${agentId}`,
   title: "reflection",
   instructions: INSTRUCTIONS,
-  tools: () => MEMORY_TOOLS.map((name) => ({ name })),
+  tools: () => [...MEMORY_TOOLS, ...GOALS_TOOLS].map((name) => ({ name })),
   onCompaction: true,
   failedCalls: true,
   prompt: (input) => {
@@ -37,12 +43,18 @@ export const reflectionJob: PassJob = {
     const withSignals = input.signals
       ? `${said}\n\nAlso: recent preference signals from this agent's replies and Flow triage since the last reflection:\n\n${input.signals}`
       : said;
+    const withGoals = input.goals ? `${withSignals}\n\nActive and suggested goals:\n\n<goals>\n${input.goals}\n</goals>` : withSignals;
     const clashes = input.memoryRoot ? pendingConflicts(input.memoryRoot) : null;
     const withClashes = clashes
-      ? `${withSignals}\n\nAlso: your memory was changed on two Macs at once, and ${CONFLICTS_PATH} holds the other side of each clash. For each one, fold what is still true into its note with the memory tools, then delete ${CONFLICTS_PATH}.\n\n<conflicts>\n${clashes}\n</conflicts>`
-      : withSignals;
+      ? `${withGoals}\n\nAlso: your memory was changed on two Macs at once, and ${CONFLICTS_PATH} holds the other side of each clash. For each one, fold what is still true into its note with the memory tools, then delete ${CONFLICTS_PATH}.\n\n<conflicts>\n${clashes}\n</conflicts>`
+      : withGoals;
     const over = input.memoryRoot ? overBudget(input.memoryRoot, input.sharedMemoryRoot) : null;
     return over ? `${withClashes}\n\n${over}` : withClashes;
   },
-  apply: (_input, answer) => ({ items: { memory_changes: answer.toolCalls.filter((t) => WRITES.has(t)).length } }),
+  apply: (_input, answer) => ({
+    items: {
+      memory_changes: answer.toolCalls.filter((t) => WRITES.has(t)).length,
+      goal_changes: answer.toolCalls.filter((t) => GOAL_WRITES.has(t)).length,
+    },
+  }),
 };

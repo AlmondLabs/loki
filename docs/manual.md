@@ -373,6 +373,9 @@ are on is read.
      3. **Reflection**: the global switch for background memory reflection across every agent, and whether reflection,
         Learn and `/doctor` fall back to the agent's newest Claude Code or Cursor chat when no provider is connected
         for its model.
+     4. **Goals**: Goal Pulse (the periodic check-in that surfaces a daily focus or weekly review card in Flow when a
+        goal slips or a habit falls behind), daily focus time and weekly review day/time, quiet hours, short-term
+        active WIP cap guidance, and **Run Check-In Now**.
   5. **Labels**: every label on your chats with its colour and how many chats carry it; **rename** (on every chat
      that has it), **colour** (one of eight) and **delete** (asks first, naming how many chats; the chats stay).
   6. **loki**
@@ -960,6 +963,29 @@ in the transcript on your side, as you ran it: the command line, then its outcom
 one-line answer or **Done**, or **Failed** and why), with **Show Output** when there is more. On the Mac it sits
 between the agent's turns, not inside one. `core/attention/commands.ts` is the table. Every bubble has a copy button under its outer corner (shown on hover, or when it has focus) that puts the
 message on the clipboard as the markdown it was written in, not the rendering.
+
+### Goals (⌘3)
+
+Goals let loki treat your short-, medium-, and long-term aims as active working context across every agent instead of a
+static checklist.
+
+- **Discover or add goals.** Open Goals (`⌘3` on the Mac, or **More › Goals** on your phone) and click **Discover
+  Goals** to start a short conversation with loki that turns vague wishes into concrete **short**, **medium**, and
+  **long** goals, or add one directly with **Add Goal**. Each goal can carry a horizon, deadline, parent goal (so
+  short-term work links to medium and long direction), a **WOOP** implementation intention (wish, outcome, obstacle,
+  if-then plan), and an optional weekly **lead habit** target.
+- **Keep short-term focus bounded.** Only three short-term goals are meant to be active at once (`WIP` limit); loki
+  warns when more than three short-term goals are active so priority stays sharp.
+- **Automatic awareness and updates.** Active goals (and pending suggestions) are included in every agent's prompt so
+  normal work aligns with what matters. As you work in chats, **Reflection** (`daemon/reflection.ts`) updates progress
+  notes and pace automatically and creates **suggested** goals (`status: "suggested"`) when new recurring ambitions
+  appear, which you can **Accept** or **Dismiss** in Goals. Agents can also inspect and update goals directly with
+  `goal_list`, `goal_create`, and `goal_update`.
+- **Progress, Flow boost, and Goal Pulse.** Every goal shows its current pace (`on_track`, `at_risk`, or `needs_focus`)
+  and weekly habit check-ins. Unread Flow cards linked to a goal (`goal_title`) receive an urgency boost in the queue.
+  When **Goal Pulse** (`Preferences › Goals`) is enabled, loki periodically checks progress against deadlines and habits
+  outside quiet hours, skips goals with unanswered nudges so it never nags, and starts a focused Flow card with **Work
+  on This** or **Run Check-In Now**.
 
 ### Learn (⌘5)
 

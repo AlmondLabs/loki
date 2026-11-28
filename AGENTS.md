@@ -70,7 +70,7 @@ included, before saying it is done.
   72 characters at most (`feat(chat): suggest work for another chat`). The PR title follows the same shape; CI checks
   it.
 - **The scope is one of these, or left out**; a folder or topic name that is not here fails CI: `chat`, `history`,
-  `acp`, `mcp`, `memory`, `learn`, `phone`, `canvas`, `flow`, `agents`, `settings`, `peers`, `motion`,
+  `acp`, `mcp`, `memory`, `learn`, `phone`, `canvas`, `flow`, `goals`, `agents`, `settings`, `peers`, `motion`,
   `daemon`, `mod`, `core`, `app`, `shell`, `release`, `deps`, `style`. Check the title before opening the PR:
 
   ```bash

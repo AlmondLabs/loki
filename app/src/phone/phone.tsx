@@ -20,7 +20,9 @@ import { More } from "./more";
 import { Search } from "./search";
 import { AboutPage, ConnectionPage, Preferences } from "./preferences";
 import { UsageScreen } from "./usage";
+import { PhoneGoals } from "./goals";
 import { Learn } from "./learn";
+import { useGoals } from "../shell/use-goals";
 import { useLearn } from "../shell/use-learn";
 import { useDeckPass } from "../learn/use-deck-pass";
 import { TabBar } from "./tab-bar";
@@ -210,6 +212,7 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
   const deck = useDeck(catchUp.flow.laneItems, catchUp.items);
   const [recallNote, setRecallNote] = useState<string | null>(null);
   const recall = useLearn(desk, route.kind === "learn" ? "learn" : "chats", (m) => setRecallNote(m));
+  const goals = useGoals(desk, route.kind === "goals" ? "goals" : "chats", (m) => setRecallNote(m));
   const learnPass = useDeckPass(recall.snap?.cards ?? []);
   useEffect(() => {
     if (!recallNote) return;
@@ -300,6 +303,19 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
             prefill={prefill}
           />
         )}
+        {route.kind === "goals" && (
+          <PhoneGoals
+            goals={goals}
+            agents={catchUp.agents}
+            banner={recallNote ? <Banner>{recallNote}</Banner> : banner}
+            backLabel={backLabel}
+            onBack={onBack}
+            onOpenChat={(agentId, conversationId, brief) => {
+              openConversation(agentId, conversationId);
+              if (brief) catchUp.send({ agent_id: agentId, conversation_id: conversationId }, brief, [], { origin: "chats" });
+            }}
+          />
+        )}
         {route.kind === "learn" && (
           <Learn
             view={route.view}
@@ -370,6 +386,7 @@ function Paired({ me, onUnpaired }: { me: Me; onUnpaired: () => void }) {
           desk={desk}
           catchUp={catchUp}
           deck={deck}
+          goalsAttention={goals.attentionCount}
           due={recall.due}
           banner={banner}
           recentFolders={recentFolders}
@@ -536,6 +553,7 @@ function Screen({
   desk,
   catchUp,
   deck,
+  goalsAttention,
   due,
   banner,
   recentFolders,
@@ -551,6 +569,7 @@ function Screen({
   desk: DeskApi;
   catchUp: CatchUp;
   deck: Deck;
+  goalsAttention: number;
   due: number;
   banner: ReactNode;
   recentFolders: () => Promise<Partial<Record<string, string[]>>>;
@@ -652,6 +671,7 @@ function Screen({
           link={link}
           agents={catchUp.agents.length}
           running={homeCounts({ items: catchUp.items, due, agents: catchUp.agents, desks: desk.desks.list }).running}
+          goals={goalsAttention}
           due={due}
           archived={archiveList(desk.desks.list, null, "").length}
           servedBuild={desk.servedBuild}

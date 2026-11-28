@@ -197,18 +197,18 @@ describe("keymap: resolution", () => {
   });
   test("segments and settings comma", () => {
     expect(resolve(ev(",", { meta: true }), "agents")?.id).toBe("segment.settings");
+    expect(resolve(ev("3", { meta: true }), "chats")?.id).toBe("segment.goals");
     expect(resolve(ev("4", { meta: true }), "chats")?.id).toBe("segment.agents");
     expect(resolve(ev("5", { meta: true }), "chats")?.id).toBe("segment.learn");
     expect(resolve(ev("6", { meta: true }), "chats")?.id).toBe("segment.settings");
   });
-  test("⌘3 is free since Tasks was retired (plan 049, U6): it maps to nothing, and the other sections keep their keys", () => {
-    for (const s of ["chats", "flow", "agents", "learn", "settings"] as const) {
-      expect(resolve(ev("3", { meta: true }), s)).toBeNull();
-      expect(resolve(ev("3", { meta: true }, true), s)).toBeNull();
+  test("⌘3 opens Goals (plan 2026-11-28), and the other sections keep their keys", () => {
+    for (const s of ["chats", "flow", "goals", "agents", "learn", "settings"] as const) {
+      expect(resolve(ev("3", { meta: true }), s)?.id).toBe("segment.goals");
+      expect(resolve(ev("3", { meta: true }, true), s)?.id).toBe("segment.goals");
     }
-    expect(KEYMAP.filter((b) => b.keys.includes("cmd+3"))).toEqual([]);
     expect(KEYMAP.filter((b) => b.id.startsWith("task"))).toEqual([]);
-    expect(SEGMENTS.map((s) => s.label)).toEqual(["Chats", "Flow", "Agents", "Learn", "Preferences"]);
+    expect(SEGMENTS.map((s) => s.label)).toEqual(["Chats", "Flow", "Goals", "Agents", "Learn", "Preferences"]);
     expect(SEGMENTS.map((s) => s.id)).toContain("flow");
     expect(KEYMAP.find((b) => b.id === "segment.flow")?.label).toBe("Flow");
     expect(menuSpec().map((m) => m.title)).not.toContain("Tasks");
@@ -391,7 +391,7 @@ describe("keymap: each system's keys (plan 014 U2)", () => {
       expect(keysOf(b, "macos")).toBe(b.keys);
       for (const k of b.keys) expect(formatKeys(k, "macos")).toBe(macBefore(k));
     }
-    expect(SEGMENTS.map((s) => s.key)).toEqual(["⌘1", "⌘2", "⌘4", "⌘5", "⌘6"]);
+    expect(SEGMENTS.map((s) => s.key)).toEqual(["⌘1", "⌘2", "⌘3", "⌘4", "⌘5", "⌘6"]);
     expect(wasFor({ ...bindingOf("search.open"), was: "moved ({column.toggle} shows the sidebar)" }, "macos")).toBe("moved (⌃⌘S shows the sidebar)");
     expect(menuSpec(KEYMAP, "macos")).toEqual(menuSpec());
   });

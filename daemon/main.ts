@@ -18,6 +18,9 @@ import { SubagentManager } from "./subagents.ts";
 import { Schedules, scheduleTools } from "./schedule.ts";
 import { memoryRepos } from "./memory-sync.ts";
 import { memoryRoot, memoryTools } from "./memory.ts";
+import { GoalPulse } from "./goal-pulse.ts";
+import { goalsSection, goalTools } from "./goals.ts";
+import { GoalsStore } from "./goals-store.ts";
 import { historyTools } from "./history-tools.ts";
 import { askTool } from "./ask.ts";
 import { builtinExtensions, builtinKinds } from "./extensions.ts";
@@ -143,6 +146,7 @@ const approvals = new Approvals({
 const chatImages = new ChatImages(join(args.dir, "chat-images"));
 const nameImage = (image: { data: string; mimeType: string }) => chatImages.name(image);
 const chats = new ChatProjection(context, (id) => readLocalAgent(id, backend)?.name ?? null, nameImage);
+const goals = new GoalsStore(join(stateDir, "goals.json"));
 const sandbox = scriptSandbox({}, (running) => report(`a script was refused: ${running} scripts were already running, the most at once (plan 099, R8)`));
 const builtins = builtinExtensions({
   approvals,
@@ -151,6 +155,7 @@ const builtins = builtinExtensions({
   schedules,
   history: chats,
   subagents,
+  goals,
   scripts: scriptExtensions(sandbox, undefined, (name) => mods.annotations(name)?.strangerText === true),
 });
 const builtinToolKinds = builtinKinds(builtins);
@@ -177,6 +182,7 @@ const passes = new PassRunner({
   busy,
   canRun,
   collectSignals: (agentId, since) => collectPreferenceSignals({ stateDir, agentId, since }),
+  goalsSummary: (agentId) => goalsSection(goals, agentId) ?? null,
   acp: {
     engineFor: async (agentId) => {
       const infos = await (await stores.get(agentId)).chats(context);
@@ -210,7 +216,7 @@ async function startPassCursors(): Promise<void> {
   passState.startCursors(list);
 }
 const lokiTools = new LokiTools({
-  tools: () => [...memoryTools(backend), ...historyTools(chats), ...scheduleTools(schedules), askTool(approvals), ...mods.chatTools()],
+  tools: () => [...memoryTools(backend), ...goalTools(goals), ...historyTools(chats), ...scheduleTools(schedules), askTool(approvals), ...mods.chatTools()],
   stores,
   context,
   version: appVersion(paths.root) ?? "0",
@@ -234,7 +240,7 @@ const acp = new AcpChats({
   approvals,
   context,
   agents: () => readAcpAgents(acpFile),
-  systemPrompt: (agentId, withTools) => agentPrompt(backend, agentId, readLocalAgent(agentId, backend)?.name ?? null, withTools),
+  systemPrompt: (agentId, withTools) => agentPrompt(backend, agentId, readLocalAgent(agentId, backend)?.name ?? null, withTools, undefined, goals),
   homeDir: homedir(),
   nameImage,
   clientVersion: appVersion(paths.root) ?? "1",
@@ -273,6 +279,17 @@ const chat: DaemonChats = new DaemonChats({
   usualModel: (agentId) => topUsualModel(agentId),
 });
 chats.follow(stores, report);
+const goalPulse = new GoalPulse({
+  store: goals,
+  agents: () => listAgents(backend).map((id) => ({ id, name: readLocalAgent(id, backend)?.name ?? id })),
+  chats,
+  createChat: (agentId, cwd, title) => chat.create(agentId, cwd, title),
+  deliver,
+  busy,
+  report,
+  defaultCwd: homedir(),
+  folderForAgent: (agentId) => chats.folders().by_agent[agentId]?.[0] ?? null,
+});
 const eventsLog = join(args.dir, "logs", "events.jsonl");
 const usage = new UsageLedger({
   file: join(paths.state, "usage.json"),
@@ -336,6 +353,8 @@ await mods.load({
         return parseLinkAnswer(reply.answers.answers);
       },
       daemon: devReload,
+      goals,
+      goalPulse,
       usage: {
         rows: () => usage.rows(),
         priced: (model) => {
@@ -369,6 +388,7 @@ const stopWatchingCore = () => {
 };
 const stopWatchingMods = await loadModFolder(mods, join(args.dir, "mods"), report);
 schedules.start();
+goalPulse.start();
 void startPassCursors()
   .then(() => passes.start())
   .catch((error: unknown) => report(`background passes did not start: ${String(error)}`));
@@ -383,6 +403,7 @@ function stop(signal: string) {
     stopWatchingCore();
     stopWatchingMods();
     schedules.stop();
+    goalPulse.stop();
     passes.stop();
     usage.close();
     background.stopAll();

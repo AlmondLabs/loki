@@ -531,7 +531,7 @@ describe("More: the profile, the paired Mac, then named rows for every secondary
 
   test("every capability formerly under You and Settings has a named row, plus Learn, the archive and usage", () => {
     const ids = all(moreSections(base)).map((r) => r.id);
-    expect(ids).toEqual(["mac", "agents", "learn", "archive", "preferences", "usage", "updates", "about", "connection"]);
+    expect(ids).toEqual(["mac", "agents", "goals", "learn", "archive", "preferences", "usage", "updates", "about", "connection"]);
     expect(new Set(ids).size).toBe(ids.length);
   });
   test("rows open pages, the Agents tab, or (Updates) the reload sheet", () => {
@@ -539,6 +539,7 @@ describe("More: the profile, the paired Mac, then named rows for every secondary
     expect(to).toEqual({
       mac: { kind: "connection" },
       agents: { kind: "tab", tab: "agents" },
+      goals: { kind: "goals" },
       learn: { kind: "learn" },
       archive: { kind: "archive" },
       preferences: { kind: "preferences" },

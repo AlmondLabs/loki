@@ -20,6 +20,7 @@ import { PAGES, PAGE_WORDS, pageTitle, type SettingsPage } from "../settings/pag
 import type { Segment } from "./keymap";
 import { osWords } from "./os-words";
 import type { ChatSummary } from "../../../core/frame-types.ts";
+import { HORIZON_LABEL, type Goal } from "../../../core/goals.ts";
 import type { LabelView } from "../../../core/labels.ts";
 
 export const COVERAGE = "Searches chat titles, agents, labels, waiting items and pages — not message text.";
@@ -30,11 +31,12 @@ export function coverageLine({ commands, chat }: { commands: boolean; chat: bool
   return `Finds ${kinds.slice(0, -1).join(", ")} and ${kinds.at(-1) ?? ""}, not message text.`;
 }
 
-export type GroupId = "desks" | "agents" | "labels" | "waiting" | "pages";
-const GROUP_TITLE: Record<GroupId, string> = { desks: "Chats", agents: "Agents", labels: "Labels", waiting: "Waiting", pages: "Pages" };
+export type GroupId = "desks" | "goals" | "agents" | "labels" | "waiting" | "pages";
+const GROUP_TITLE: Record<GroupId, string> = { desks: "Chats", goals: "Goals", agents: "Agents", labels: "Labels", waiting: "Waiting", pages: "Pages" };
 
 export type SearchTarget =
   | { kind: "desk"; agentId: string; conversationId: string }
+  | { kind: "goal"; goalId: string }
   | { kind: "agent"; agentId: string }
   | { kind: "label"; name: string }
   | { kind: "section"; segment: Exclude<Segment, "settings"> }
@@ -58,6 +60,7 @@ export interface SearchSources {
   agents: Array<{ id: string; name: string }>;
   items: AttentionItem[];
   labels?: readonly LabelView[] | null;
+  goals?: readonly Goal[] | null;
 }
 
 interface Page {
@@ -85,6 +88,14 @@ export const DESTINATIONS: readonly Page[] = [
     label: "Flow",
     line: "What waits on you",
     keywords: ["inbox", "catch up", "waiting", "approvals"],
+  },
+  {
+    key: "page:goals",
+    target: { kind: "section", segment: "goals" },
+    icon: "target",
+    label: "Goals",
+    line: "Short, medium, and long term goals",
+    keywords: ["goals", "targets", "milestones", "habits", "woop"],
   },
   {
     key: "page:agents",
@@ -136,6 +147,16 @@ const deskHit = (d: OpenableDesk, agentName: string): SearchHit => ({
   lead: { icon: d.status === "live" ? "desk" : "archive" },
   dim: d.status !== "live",
 });
+const goalHit = (g: Goal): SearchHit => ({
+  key: `goal:${g.id}`,
+  place: `goal:${g.id}`,
+  group: "goals",
+  title: g.title,
+  preview: HORIZON_LABEL[g.horizon],
+  target: { kind: "goal", goalId: g.id },
+  lead: { icon: "target" },
+  dim: g.status !== "active" && g.status !== "suggested",
+});
 const agentHit = (a: { id: string; name: string }): SearchHit => ({
   key: `agent:${a.id}`,
   place: `agent:${a.id}`,
@@ -185,6 +206,9 @@ export function buildIndex(src: SearchSources): SearchIndex {
   for (const d of src.desks)
     if (openable(d))
       out.push({ hit: deskHit(d, name(d.agent_id, d.agent_name)), fields: [deskTitle(d), name(d.agent_id, d.agent_name)], recency: timeOf(d.last_active) });
+  for (const g of src.goals ?? [])
+    if (g.status === "active" || g.status === "suggested")
+      out.push({ hit: goalHit(g), fields: [g.title, HORIZON_LABEL[g.horizon], g.why ?? "", g.next_step ?? ""], recency: timeOf(g.updated_at) });
   for (const a of src.agents) out.push({ hit: agentHit(a), fields: [a.name], recency: 0 });
   for (const l of src.labels ?? []) out.push({ hit: labelHit(l), fields: [l.name, `label:${l.name}`], recency: 0 });
   for (const i of catchUpQueue(src.items)) {
@@ -213,6 +237,10 @@ export function placeHit(key: string, src: SearchSources): SearchHit | null {
   if (kind === "desk") {
     const d = src.desks.find((x) => x.scope === rest);
     return d && openable(d) ? deskHit(d, agentNamer(src)(d.agent_id, d.agent_name)) : null;
+  }
+  if (kind === "goal") {
+    const g = src.goals?.find((x) => x.id === rest);
+    return g ? goalHit(g) : null;
   }
   if (kind === "agent") {
     const a = src.agents.find((x) => x.id === rest);
