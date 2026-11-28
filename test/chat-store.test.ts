@@ -621,4 +621,35 @@ describe("the chat store (plan 052)", () => {
     expect(reads).toBe(1);
     expect(d.store.threadRows("ada", "c1")?.map((r) => r.text)).toEqual(["hi"]);
   });
+
+  test("subagent threads stay loaded across conversation list reloads and re-read on reconnect", async () => {
+    const rows = [row("c1", "2026-10-29T10:00:00Z")];
+    const d = daemon(rows);
+    const worker: Runtime = { agent_id: "ada", conversation_id: "c1~subagent~kestrel" };
+    let workerReads = 0;
+    d.host.loadLocalHistory = (_a, convId) => {
+      if (convId === worker.conversation_id) workerReads++;
+      return Promise.resolve({ rows: [{ role: "assistant", text: `read-${workerReads}`, at: "2026-10-29T10:00:05Z" }], start: 0, more: false });
+    };
+    await flush();
+    await d.store.loadThread(worker);
+    expect(d.store.threadRows("ada", worker.conversation_id)?.map((r) => r.text)).toEqual(["read-1"]);
+
+    // Live subagent updates must not schedule an unknown-chat reload or be wiped when another chat arrives.
+    d.eventsFor(worker, { kind: "loop", state: "running" });
+    rows.push(row("c2", "2026-10-29T10:01:00Z"));
+    d.store.reload();
+    await flush();
+    expect(d.store.threadRows("ada", worker.conversation_id)?.map((r) => r.text)).toEqual(["read-1"]);
+
+    // Socket reopen still refreshes open subagent threads from history.
+    d.reopen();
+    await flush();
+    expect(workerReads).toBe(2);
+    expect(d.store.threadRows("ada", worker.conversation_id)?.map((r) => r.text)).toEqual(["read-2"]);
+
+    // Archiving or dropping the parent chat prunes child subagent keys as well.
+    await d.store.archiveConversation("c1", true, undefined, "ada");
+    expect(d.store.threadRows("ada", worker.conversation_id)).toBeUndefined();
+  });
 });

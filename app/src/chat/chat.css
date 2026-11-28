@@ -1012,6 +1012,26 @@ button.loki-file-chip {
   display: inline-flex;
   min-width: 0;
 }
+.loki-workers-strip--switcher {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  max-width: 100%;
+}
+.loki-workers-strip--switcher::-webkit-scrollbar {
+  display: none;
+}
+.loki-workers-strip--switcher .loki-chip {
+  flex: none;
+  white-space: nowrap;
+}
+.loki-workers-strip--switcher .loki-chip[aria-pressed="true"] {
+  border-color: var(--loki-accent);
+  color: var(--loki-fg);
+  font-weight: 600;
+}
 .loki-workers-strip[data-state="failed"] .loki-icon,
 .loki-workers-mark[data-state="failed"] .loki-icon {
   color: var(--loki-negative);
@@ -1024,15 +1044,56 @@ button.loki-file-chip {
 }
 .loki-workers-bar {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
+  flex: none;
   padding: 8px 16px;
   border-bottom: 1px solid var(--loki-border);
   background: var(--loki-well);
 }
+.loki-workers-pills {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.loki-workers-pills::-webkit-scrollbar {
+  display: none;
+}
+.loki-workers-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+}
+.loki-workers-count {
+  padding: 0 4px;
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--loki-muted);
+}
+.loki-worker-step {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border-radius: var(--loki-radius-pill);
+  border: 1px solid var(--loki-border);
+  background: var(--loki-panel);
+  color: var(--loki-muted);
+  cursor: pointer;
+}
+.loki-worker-step:hover {
+  color: var(--loki-fg);
+  background: var(--loki-hover);
+}
 .loki-worker-pill {
   display: inline-flex;
+  flex: none;
   align-items: center;
   gap: 4px;
   padding: 4px 12px;
@@ -1041,6 +1102,7 @@ button.loki-file-chip {
   background: var(--loki-panel);
   color: var(--loki-muted);
   font-size: var(--text-xs);
+  white-space: nowrap;
   cursor: pointer;
 }
 .loki-worker-pill:hover {

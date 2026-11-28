@@ -3,6 +3,7 @@ import type { ChatClient } from "./chat-client.ts";
 import { isFileAttachment, withAttachments, type Attachment, type ImageAttachment } from "./content.ts";
 import type { ConversationInfo } from "./model.ts";
 import { keyOf } from "./model.ts";
+import { SUBAGENT_CHAT_SEP, parentChatOfSubagent } from "../subagents.ts";
 import { ownSendKey } from "./thread.ts";
 import type { ChatSnapshot } from "./chat-store-types.ts";
 
@@ -60,9 +61,17 @@ export function formatAnswerSummary(input: unknown, answers: Record<string, stri
         .join(" · ");
 }
 
+export function keyKnown(known: ReadonlySet<string>, key: string): boolean {
+  if (known.has(key)) return true;
+  const slash = key.indexOf("/");
+  if (slash < 0) return false;
+  const parent = parentChatOfSubagent(key.slice(slash + 1));
+  return parent !== null && known.has(keyOf(key.slice(0, slash), parent));
+}
+
 export function pruneUnknownKeys(known: ReadonlySet<string>, maps: ReadonlyArray<Map<string, unknown>>): void {
   for (const map of maps) {
-    for (const k of map.keys()) if (!known.has(k)) map.delete(k);
+    for (const k of map.keys()) if (!keyKnown(known, k)) map.delete(k);
   }
 }
 
@@ -74,7 +83,10 @@ export function pruneConversationKeys(
 ): void {
   const exact = agentId ? keyOf(agentId, conversationId) : null;
   const suffix = `/${conversationId}`;
-  const matches = (k: string) => (exact ? k === exact : k.endsWith(suffix));
+  const matches = (k: string) => {
+    if (exact) return k === exact || k.startsWith(`${exact}${SUBAGENT_CHAT_SEP}`);
+    return k.endsWith(suffix) || k.includes(`/${conversationId}${SUBAGENT_CHAT_SEP}`);
+  };
   for (const map of maps) {
     for (const k of [...map.keys()]) if (matches(k)) map.delete(k);
   }

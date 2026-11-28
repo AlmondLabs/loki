@@ -1,10 +1,17 @@
 import { useContext } from "react";
-import { BotIcon, CircleAlertIcon, LoaderCircleIcon, type LucideIcon } from "lucide-react";
-import type { SubagentView } from "../../../core/subagents.ts";
+import { BotIcon, CheckIcon, CircleAlertIcon, LoaderCircleIcon, SquareIcon, type LucideIcon } from "lucide-react";
+import { subagentDisplayName, type SubagentStatus, type SubagentView } from "../../../core/subagents.ts";
 import { Chip, type TabStatus } from "../components";
 import { OpenWorker } from "./transcript";
 
 type StripState = "idle" | "working" | "failed";
+
+const STATUS_ICONS: Record<SubagentStatus, LucideIcon> = {
+  running: LoaderCircleIcon,
+  error: CircleAlertIcon,
+  done: CheckIcon,
+  stopped: SquareIcon,
+};
 
 function summaryOf(subagents: readonly SubagentView[]): {
   state: StripState;
@@ -41,8 +48,44 @@ export function workersTabStatus(subagents: readonly SubagentView[]): TabStatus 
   };
 }
 
-export function WorkersHeader({ subagents, touch }: { subagents: readonly SubagentView[] | null | undefined; touch?: boolean }) {
+export function WorkersHeader({
+  subagents,
+  activeChat,
+  touch,
+}: {
+  subagents: readonly SubagentView[] | null | undefined;
+  activeChat?: string | null;
+  touch?: boolean;
+}) {
   const open = useContext(OpenWorker);
+  if (activeChat && subagents && subagents.length > 1) {
+    return (
+      <span className="loki-workers-strip loki-workers-strip--switcher" role="group" aria-label="Workers">
+        {subagents.map((w) => {
+          const Icon = STATUS_ICONS[w.status];
+          const label = w.name || subagentDisplayName(w.id);
+          const state: StripState = w.status === "running" ? "working" : w.status === "error" ? "failed" : "idle";
+          const active = w.chat_id === activeChat;
+          return (
+            <Chip
+              key={w.chat_id}
+              touch={touch}
+              aria-pressed={active}
+              onClick={open ? () => open(w.chat_id) : undefined}
+              title={w.description || label}
+              aria-label={w.description ? `${label}: ${w.description}` : label}
+              data-state={state}
+            >
+              <span className="loki-workers-mark" data-state={state}>
+                <Icon size={12} className={w.status === "running" ? "loki-icon animate-spin" : "loki-icon"} aria-hidden />
+              </span>
+              <span className="truncate">{label}</span>
+            </Chip>
+          );
+        })}
+      </span>
+    );
+  }
   const s = subagents ? summaryOf(subagents) : null;
   if (!s) return null;
   const Icon = ICONS[s.state];

@@ -3,6 +3,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import {
   EMPTY_PANE,
   EMPTY_ROUTE,
+  activeWorkerChat,
   chatKeyTarget,
   chooseTab,
   escapeTab,
@@ -10,6 +11,7 @@ import {
   paneView,
   routeTick,
   shownTab,
+  stepWorkerChat,
   tabOf,
   tickFor,
 } from "../app/src/workspace/pane.ts";
@@ -153,5 +155,35 @@ describe("desk pane: the hidden tab hides all of it", () => {
       .filter((f) => /\.(tsx?|css)$/.test(f))
       .filter((f) => /visibility:[^,;}\n]*(["'])visible\1|visibility:\s*visible\s*[;}]/.test(readFileSync(new URL(f, dir), "utf8")));
     expect(marked).toEqual([]);
+  });
+
+  test("the Workers panel starts below the pane header rather than sharing Messages' header overlap class", () => {
+    const src = readFileSync(new URL("../app/src/workspace/canvas-pane.tsx", import.meta.url), "utf8");
+    expect(src).toContain('id={panelId("workers")}');
+    expect(src).toContain("loki-canvas-pane-workers");
+    expect(src.match(/loki-canvas-pane-messages/g)).toHaveLength(1);
+  });
+});
+
+describe("desk pane: stepping between workers", () => {
+  const workers = [
+    { chat_id: "c1~subagent~kestrel", status: "done" },
+    { chat_id: "c1~subagent~ember", status: "running" },
+    { chat_id: "c1~subagent~atlas", status: "done" },
+  ];
+
+  test("activeWorkerChat prefers the selected chat, then running, then the first", () => {
+    expect(activeWorkerChat(workers, "c1~subagent~atlas")).toBe("c1~subagent~atlas");
+    expect(activeWorkerChat(workers, "missing")).toBe("c1~subagent~ember");
+    expect(activeWorkerChat(workers, null)).toBe("c1~subagent~ember");
+    expect(activeWorkerChat([], null)).toBeNull();
+  });
+
+  test("stepWorkerChat wraps backward and forward from the active worker", () => {
+    expect(stepWorkerChat(workers, "c1~subagent~kestrel", 1)).toBe("c1~subagent~ember");
+    expect(stepWorkerChat(workers, "c1~subagent~kestrel", -1)).toBe("c1~subagent~atlas");
+    expect(stepWorkerChat(workers, "c1~subagent~atlas", 1)).toBe("c1~subagent~kestrel");
+    expect(stepWorkerChat(workers, null, 1)).toBe("c1~subagent~atlas");
+    expect(stepWorkerChat([], null, 1)).toBeNull();
   });
 });

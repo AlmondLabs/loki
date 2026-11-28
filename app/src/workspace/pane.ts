@@ -51,3 +51,21 @@ export const tickFor = (r: TickRoute, view: PaneView): number => (r.to === view 
 export function agentState({ status, approval, question }: { status: "idle" | "thinking" | "streaming"; approval: unknown; question: unknown }): string | null {
   return approval ? "needs approval" : question ? "asked you" : status === "streaming" ? "writing" : status === "thinking" ? "working" : null;
 }
+
+interface WorkerRef {
+  chat_id: string;
+  status: string;
+}
+
+export function activeWorkerChat(subagents: readonly WorkerRef[], selectedChat: string | null): string | null {
+  const hit = selectedChat ? subagents.find((s) => s.chat_id === selectedChat) : undefined;
+  return (hit ?? subagents.find((s) => s.status === "running") ?? subagents.at(0))?.chat_id ?? null;
+}
+
+export function stepWorkerChat(subagents: readonly WorkerRef[], selectedChat: string | null, delta: -1 | 1): string | null {
+  if (subagents.length === 0) return null;
+  const current = activeWorkerChat(subagents, selectedChat);
+  const index = current ? subagents.findIndex((s) => s.chat_id === current) : 0;
+  const next = (index + delta + subagents.length) % subagents.length;
+  return subagents[next]?.chat_id ?? null;
+}

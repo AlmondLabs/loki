@@ -441,8 +441,8 @@ function ConversationPage({
   const scope = scopeFor(thread.conversationId, thread.agentId);
   const view = catchUp.conversation(thread.agentId, thread.conversationId);
   const parentChat = parentChatOfSubagent(thread.conversationId);
-  const subagent =
-    parentChat === null ? null : (catchUp.conversation(thread.agentId, parentChat).subagents?.find((s) => s.chat_id === thread.conversationId) ?? null);
+  const parentSubagents = parentChat === null ? [] : (catchUp.conversation(thread.agentId, parentChat).subagents ?? []);
+  const subagent = parentSubagents.find((s) => s.chat_id === thread.conversationId) ?? null;
   const isWorker = parentChat !== null;
   const workerModel = subagent?.model ?? null;
   const workerModels = useMemo(() => lokiModels(models), [models]);
@@ -461,7 +461,8 @@ function ConversationPage({
   return (
     <ConversationScreen
       thread={subagent ? { ...thread, title: subagent.name } : thread}
-      view={view}
+      view={isWorker ? { ...view, subagents: parentSubagents } : view}
+      activeWorker={isWorker ? thread.conversationId : null}
       chats={catchUp}
       model={desk.modelOf(scope) ?? workerModel}
       reasoningEffort={desk.reasoningEffortOf(scope)}
@@ -531,7 +532,12 @@ function ConversationPage({
           : null
       }
       onBack={onBack}
-      onLoad={(rt) => void catchUp.loadThread(rt)}
+      onLoad={(rt) => {
+        void catchUp.subscribe(rt);
+        const parent = parentChatOfSubagent(rt.conversation_id);
+        if (parent !== null) void catchUp.subscribe({ agent_id: rt.agent_id, conversation_id: parent });
+        void catchUp.loadThread(rt);
+      }}
       onDecide={catchUp.decide}
       onStop={catchUp.stop}
       onAnswer={catchUp.answer}

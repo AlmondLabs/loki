@@ -615,3 +615,16 @@ describe("keymap: a button's key for a screen reader (plan 2026-11-14-1300, 2)",
     ]);
   });
 });
+
+describe("keymap: Workers navigation", () => {
+  test("⌘\\ toggles Workers and ⌘⇧[ / ⌘⇧] step between workers in Chats, while typing too", () => {
+    expect(resolve(ev("\\", { meta: true }), "chats", "macos")?.id).toBe("worker.toggle");
+    expect(resolve(ev("\\", { meta: true }, true), "chats", "macos")?.id).toBe("worker.toggle");
+    expect(resolve(ev("[", { meta: true, shift: true }), "chats", "macos")?.id).toBe("worker.prev");
+    expect(resolve(ev("{", { meta: true, shift: true }, true), "chats", "macos")?.id).toBe("worker.prev");
+    expect(resolve(ev("]", { meta: true, shift: true }), "chats", "macos")?.id).toBe("worker.next");
+    expect(resolve(ev("}", { meta: true, shift: true }, true), "chats", "macos")?.id).toBe("worker.next");
+    expect(resolve(ev("\\", { ctrl: true }), "chats", "windows")?.id).toBe("worker.toggle");
+    expect(resolve(ev("}", { ctrl: true, shift: true }), "chats", "linux")?.id).toBe("worker.next");
+  });
+});

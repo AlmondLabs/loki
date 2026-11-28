@@ -1027,7 +1027,8 @@ button.loki-list-section-toggle {
   position: absolute;
   inset: 0;
 }
-.loki-canvas-pane-messages {
+.loki-canvas-pane-messages,
+.loki-canvas-pane-workers {
   display: flex;
   flex-direction: column;
 }
