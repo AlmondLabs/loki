@@ -213,36 +213,41 @@ export interface LocalTimeParts {
   date: string;
 }
 
+const DATE_TIME_PARTS_OPTIONS: Intl.DateTimeFormatOptions = {
+  hourCycle: "h23",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  weekday: "short",
+};
+
+const UTC_PARTS_FORMATTER = new Intl.DateTimeFormat("en-US", {
+  ...DATE_TIME_PARTS_OPTIONS,
+  timeZone: "UTC",
+});
+
+const TIMEZONE_FORMATTERS = new Map<string, Intl.DateTimeFormat>([["UTC", UTC_PARTS_FORMATTER]]);
+
+function formatterForTimezone(tz: string): Intl.DateTimeFormat {
+  const cached = TIMEZONE_FORMATTERS.get(tz);
+  if (cached) return cached;
+  try {
+    const created = new Intl.DateTimeFormat("en-US", { ...DATE_TIME_PARTS_OPTIONS, timeZone: tz });
+    TIMEZONE_FORMATTERS.set(tz, created);
+    return created;
+  } catch {
+    return UTC_PARTS_FORMATTER;
+  }
+}
+
 function resolvedTimezone(timezone?: string | null): string {
-  return timezone?.trim() || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  return timezone?.trim() || UTC_PARTS_FORMATTER.resolvedOptions().timeZone || "UTC";
 }
 
 export function localTimeParts(now: Date, timezone?: string | null): LocalTimeParts {
-  const tz = resolvedTimezone(timezone);
-  let fmt: Intl.DateTimeFormat;
-  try {
-    fmt = new Intl.DateTimeFormat("en-US", {
-      timeZone: tz,
-      hourCycle: "h23",
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      weekday: "short",
-    });
-  } catch {
-    fmt = new Intl.DateTimeFormat("en-US", {
-      timeZone: "UTC",
-      hourCycle: "h23",
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      weekday: "short",
-    });
-  }
+  const fmt = formatterForTimezone(resolvedTimezone(timezone));
   let year = 1970;
   let month = 1;
   let day = 1;

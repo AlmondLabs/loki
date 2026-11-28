@@ -195,12 +195,13 @@ export class GoalPulse {
       for (const group of byTarget.values()) {
         const chatId = await this.ensureChat(group.agentId, group.preferredChatId);
         if (await this.deps.busy(group.agentId, chatId)) continue;
-        const eligible: Goal[] = [];
-        for (const g of group.goals) {
-          if (!(await this.hasUnansweredNudge(group.agentId, chatId, g.last_nudged_at))) {
-            eligible.push(g);
-          }
-        }
+        const checked = await Promise.all(
+          group.goals.map(async (g) => ({
+            goal: g,
+            unanswered: await this.hasUnansweredNudge(group.agentId, chatId, g.last_nudged_at),
+          })),
+        );
+        const eligible = checked.filter((item) => !item.unanswered).map((item) => item.goal);
         if (!eligible.length) continue;
         const brief = goalPulseBrief({ kind: "daily", goals: eligible, allGoals: goals, autonomy: settings.autonomy, now });
         const delivery = await this.deps.deliver(group.agentId, chatId, brief);

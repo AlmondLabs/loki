@@ -175,90 +175,118 @@ function PhoneGoalDetail({
   onLogProgress: (note: string) => Promise<boolean>;
   onToggleHabit: (day: string, done: boolean) => void;
 }) {
-  const [note, setNote] = useState("");
   const health = goalHealth(goal, now);
   const week = goal.lead_habit ? weeklyHabitProgress(goal.lead_habit, new Date(now), timezone) : null;
-
-  const submit = async () => {
-    const clean = note.trim();
-    if (!clean) return;
-    if (await onLogProgress(clean)) setNote("");
-  };
 
   return (
     <div className="loki-phone-page">
       <TopBar left={back} title={goal.title} sub={`${HORIZON_LABEL[goal.horizon]} · ${health.label}`} banner={banner} />
       <Scroll>
         <div className="grid gap-4" style={{ padding: "12px 16px 24px" }}>
-          <div className="grid gap-2">
-            {goal.status === "suggested" ? (
-              <Button size="touch" tone="positive" block onClick={onAdopt}>
-                Adopt Goal
-              </Button>
-            ) : (
-              <Button size="touch" tone="positive" block onClick={onWork}>
-                Work on This
-              </Button>
-            )}
-          </div>
-
-          {(goal.why || goal.next_step || goal.obstacle) && (
-            <div className="grid gap-2">
-              {goal.why && <p className="loki-phone-body">{goal.why}</p>}
-              {goal.next_step && <p className="loki-phone-meta">{`Next: ${goal.next_step}`}</p>}
-              {goal.obstacle && <p className="loki-phone-meta">{`Obstacle: ${goal.obstacle}${goal.fallback_plan ? ` -> ${goal.fallback_plan}` : ""}`}</p>}
-            </div>
-          )}
-
-          {goal.lead_habit && week && (
-            <div className="grid gap-2">
-              <div className="loki-phone-meta">{`${goal.lead_habit.label} (${week.done}/${week.target} this week)`}</div>
-              <div className="flex flex-wrap gap-2">
-                {week.days.map((d) => (
-                  <Chip key={d.day} touch active={d.done} onClick={() => onToggleHabit(d.day, !d.done)}>
-                    {d.label}
-                  </Chip>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div className="grid gap-2">
-            <Field
-              size="touch"
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              placeholder="Log progress note"
-              onKeyDown={(e) => e.key === "Enter" && void submit()}
-            />
-            <Button size="touch" tone="paper" block onClick={() => void submit()} disabled={!note.trim()}>
-              Log Progress
-            </Button>
-          </div>
-
-          {goal.entries.length > 0 && (
-            <div className="grid gap-2">
-              {[...goal.entries].reverse().map((e) => (
-                <div key={e.id} className="grid gap-1">
-                  <div className="loki-phone-body">{e.note}</div>
-                  <div className="loki-phone-meta">{ago(e.at, now)}</div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <div className="flex gap-2">
-            {goal.status !== "achieved" && goal.status !== "suggested" && (
-              <Button size="touch" tone="paper" className="flex-1" onClick={onAchieve}>
-                Mark Achieved
-              </Button>
-            )}
-            <Button size="touch" tone="negative" className="flex-1" onClick={onDelete}>
-              {goal.status === "suggested" ? "Dismiss" : "Delete"}
-            </Button>
-          </div>
+          <Button size="touch" tone="positive" block onClick={goal.status === "suggested" ? onAdopt : onWork}>
+            {goal.status === "suggested" ? "Adopt Goal" : "Work on This"}
+          </Button>
+          <PhoneGoalNotes goal={goal} />
+          {goal.lead_habit && week && <PhoneGoalHabit label={goal.lead_habit.label} week={week} onToggleHabit={onToggleHabit} />}
+          <PhoneGoalProgress onLogProgress={onLogProgress} />
+          <PhoneGoalEntries entries={goal.entries} now={now} />
+          <PhoneGoalFooter status={goal.status} onAchieve={onAchieve} onDelete={onDelete} />
         </div>
       </Scroll>
+    </div>
+  );
+}
+
+function PhoneGoalNotes({ goal }: { goal: Goal }) {
+  if (!goal.why && !goal.next_step && !goal.obstacle) return null;
+  return (
+    <div className="grid gap-2">
+      {goal.why && <p className="loki-phone-body">{goal.why}</p>}
+      {goal.next_step && <p className="loki-phone-meta">{`Next: ${goal.next_step}`}</p>}
+      {goal.obstacle && <p className="loki-phone-meta">{`Obstacle: ${goal.obstacle}${goal.fallback_plan ? ` -> ${goal.fallback_plan}` : ""}`}</p>}
+    </div>
+  );
+}
+
+function PhoneGoalHabit({
+  label,
+  week,
+  onToggleHabit,
+}: {
+  label: string;
+  week: ReturnType<typeof weeklyHabitProgress>;
+  onToggleHabit: (day: string, done: boolean) => void;
+}) {
+  return (
+    <div className="grid gap-2">
+      <div className="loki-phone-meta">{`${label} (${week.done}/${week.target} this week)`}</div>
+      <div className="flex flex-wrap gap-2">
+        {week.days.map((d) => (
+          <Chip key={d.day} touch active={d.done} onClick={() => onToggleHabit(d.day, !d.done)}>
+            {d.label}
+          </Chip>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function PhoneGoalProgress({ onLogProgress }: { onLogProgress: (note: string) => Promise<boolean> }) {
+  const [note, setNote] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const submit = async () => {
+    const clean = note.trim();
+    if (!clean || saving) return;
+    setSaving(true);
+    try {
+      if (await onLogProgress(clean)) setNote("");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="grid gap-2">
+      <Field
+        size="touch"
+        value={note}
+        onChange={(e) => setNote(e.target.value)}
+        placeholder="Log progress note"
+        onKeyDown={(e) => e.key === "Enter" && void submit()}
+      />
+      <Button size="touch" tone="paper" block onClick={() => void submit()} disabled={saving || !note.trim()}>
+        {saving ? "Logging…" : "Log Progress"}
+      </Button>
+    </div>
+  );
+}
+
+function PhoneGoalEntries({ entries, now }: { entries: Goal["entries"]; now: number }) {
+  if (entries.length === 0) return null;
+  return (
+    <div className="grid gap-2">
+      {[...entries].reverse().map((e) => (
+        <div key={e.id} className="grid gap-1">
+          <div className="loki-phone-body">{e.note}</div>
+          <div className="loki-phone-meta">{ago(e.at, now)}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function PhoneGoalFooter({ status, onAchieve, onDelete }: { status: Goal["status"]; onAchieve: () => void; onDelete: () => void }) {
+  return (
+    <div className="flex gap-2">
+      {status !== "achieved" && status !== "suggested" && (
+        <Button size="touch" tone="paper" className="flex-1" onClick={onAchieve}>
+          Mark Achieved
+        </Button>
+      )}
+      <Button size="touch" tone="negative" className="flex-1" onClick={onDelete}>
+        {status === "suggested" ? "Dismiss" : "Delete"}
+      </Button>
     </div>
   );
 }
@@ -279,14 +307,17 @@ function PhoneNewGoalSheet({
   const submit = async () => {
     if (busy || !title.trim()) return;
     setBusy(true);
-    const ok = await onCreate({
-      title: title.trim(),
-      horizon,
-      why: why.trim() || null,
-      next_step: nextStep.trim() || null,
-    });
-    setBusy(false);
-    if (ok) onClose();
+    try {
+      const ok = await onCreate({
+        title: title.trim(),
+        horizon,
+        why: why.trim() || null,
+        next_step: nextStep.trim() || null,
+      });
+      if (ok) onClose();
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
