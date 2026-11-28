@@ -10,6 +10,7 @@ export type SettingsPage =
   | "phone"
   | "macs"
   | "skills"
+  | "goals"
   | "learn"
   | "reflection"
   | "appearance"
@@ -26,7 +27,7 @@ export const GROUPS: readonly SettingsGroup[] = [
   { title: "General", pages: ["appearance", "chat", "keys"] },
   { title: "Models and tools", pages: ["providers", "engines", "mcp", "skills"] },
   { title: "Your devices", pages: ["macs", "phone"] },
-  { title: "Flow and Learn", pages: ["flow", "accounts", "learn", "reflection"] },
+  { title: "Flow and Learn", pages: ["flow", "accounts", "goals", "learn", "reflection"] },
   { title: "Labels", pages: ["labels"] },
   { title: "loki", pages: ["loki", "usage"] },
 ];
@@ -44,6 +45,7 @@ const TITLES: Record<SettingsPage, string> = {
   phone: "Phone",
   macs: "Macs",
   skills: "Skills",
+  goals: "Goals",
   learn: "Learn",
   reflection: "Reflection",
   appearance: "Appearance",
@@ -65,6 +67,7 @@ export const PAGE_ICON: Record<SettingsPage, { icon: IconName; tint: string }> =
   phone: { icon: "phone", tint: "var(--loki-label-3)" },
   flow: { icon: "inbox", tint: "var(--loki-label-5)" },
   accounts: { icon: "mail", tint: "var(--loki-label-0)" },
+  goals: { icon: "target", tint: "var(--loki-label-4)" },
   learn: { icon: "learn", tint: "var(--loki-label-2)" },
   reflection: { icon: "brain", tint: "var(--loki-label-6)" },
   labels: { icon: "tag", tint: "var(--loki-label-1)" },
@@ -84,6 +87,7 @@ export const PAGE_WORDS: Partial<Record<SettingsPage, string[]>> = {
   macs: ["pairing", "tailscale", "mesh"],
   appearance: ["theme", "dark mode", "light mode", "colours"],
   chat: ["always allowed", "approvals", "chat links", "links"],
+  goals: ["goal", "goals", "woop", "pulse", "check-in", "review", "quiet hours", "cadence"],
   learn: ["recall", "cards"],
   reflection: ["memory", "passes", "doctor", "background", "acp", "sleep"],
   keys: ["keys", "shortcuts", "keyboard"],

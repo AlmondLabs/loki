@@ -36,6 +36,8 @@ import { createBridge } from "./bridge.ts";
 import { seenChatFrame } from "./frames/seen.ts";
 import { DeviceStore } from "./devices.ts";
 import type { SecretBackend } from "../daemon/credentials.ts";
+import type { GoalPulse } from "../daemon/goal-pulse.ts";
+import type { GoalsStore } from "../daemon/goals-store.ts";
 import type { MemoryRepos } from "../daemon/memory-sync.ts";
 import { PairingCodes } from "./pairing.ts";
 import { LanListener } from "./lan.ts";
@@ -102,6 +104,8 @@ export interface Host {
   suggestions?: SuggestionRecords;
   askLink?: (agentId: string, conversationId: string, link: LinkAsk, signal: AbortSignal) => Promise<LinkAnswer>;
   memory: MemoryRepos;
+  goals?: GoalsStore;
+  goalPulse?: GoalPulse;
   daemon?: {
     restartDue: () => string | null;
     onRestartDue: (fn: (file: string) => void) => () => void;
@@ -156,6 +160,11 @@ export function activateLoki(api: ModApi, host: Host): () => void {
     activeScope: () => activeScope,
     outside: () => threads.rows(),
     replies: (agentId, conversationId) => replies.open({ agent_id: agentId, conversation_id: conversationId }),
+    ...(host.goals
+      ? {
+          goalForChat: (_agentId, conversationId) => host.goals?.list({ status: "active" }).find((g) => g.chat_id === conversationId)?.title ?? null,
+        }
+      : {}),
   });
   const chatMeta = (scope: Scope) => listing.info(scope);
   const listLocalDesks = () => listing.summaries();
@@ -410,6 +419,7 @@ export function activateLoki(api: ModApi, host: Host): () => void {
   const usagePush = coalesce(() => broadcast({ type: "usage_changed" }), 2000);
   const stopRestartDue = host.daemon?.onRestartDue((file) => sockets.push({ type: "restart_due", file }, { to: "desktop" }));
   const stopUsage = host.usage?.onChange(() => usagePush.schedule());
+  const stopGoals = host.goals?.onChange(() => broadcast({ type: "goals_changed" }));
 
   const moduleDeps: ModuleDeps = {
     accounts,
@@ -434,6 +444,36 @@ export function activateLoki(api: ModApi, host: Host): () => void {
       startLesson: startLessonViaChats(chatBackend, lessons),
       lessonEmpty: (l) => chats.info(l.conversation_id, l.agent_id)?.lastMessageAt == null,
     },
+    ...(host.goals
+      ? {
+          goals: {
+            store: host.goals,
+            runPulse: (() => {
+              const pulse = host.goalPulse;
+              return pulse ? (opts?: { kind?: "daily" | "weekly" | "goal"; goalId?: string }) => pulse.runNow(opts) : undefined;
+            })(),
+            chatLive: (agentId, conversationId) => {
+              if (!conversationId) return false;
+              const info = chats.info(conversationId, agentId ?? undefined);
+              return !!info && !info.archived;
+            },
+            startChat: async ({ agentId, title }) => {
+              const allAgents = await chatBackend.agents();
+              const chosenId = (agentId && allAgents.find((a) => a.id === agentId)?.id) || allAgents[0]?.id;
+              if (!chosenId) throw new Error("create an agent first");
+              const agentRec = allAgents.find((a) => a.id === chosenId);
+              const recentFolders = chats.folders().by_agent[chosenId];
+              const cwd = recentFolders?.[0] ?? homedir();
+              const made = await chatBackend.create(chosenId, cwd, title, agentRec?.home_mac ?? null);
+              return {
+                agent_id: made.agentId,
+                conversation_id: made.conversationId,
+                agent_name: agentRec?.name ?? null,
+              };
+            },
+          },
+        }
+      : {}),
     chatMeta,
     seen,
     ensureTranscript: (agentId, conversationId) => chats.ensureLoaded?.(conversationId, agentId),
@@ -647,6 +687,7 @@ export function activateLoki(api: ModApi, host: Host): () => void {
 
   return () => {
     stopUsage?.();
+    stopGoals?.();
     stopRestartDue?.();
     usagePush.cancel();
     for (const d of eventDisposers) d();

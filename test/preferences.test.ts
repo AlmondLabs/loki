@@ -17,7 +17,7 @@ import { notYetOn } from "../app/src/workspace/env.ts";
 
 describe("Preferences: the segment keys over the sheet", () => {
   test("⌘, (and ⌘6, the same binding) opens Preferences over any section and closes it when open; the section stays", () => {
-    for (const s of ["chats", "flow", "agents", "learn"] as const) {
+    for (const s of ["chats", "flow", "goals", "agents", "learn"] as const) {
       expect(afterSegmentKey("segment.settings", { segment: s, preferences: false })).toEqual({ segment: s, preferences: true });
       expect(afterSegmentKey("segment.settings", { segment: s, preferences: true })).toEqual({ segment: s, preferences: false });
     }
@@ -48,6 +48,7 @@ describe("Preferences: the section list", () => {
       "Phone",
       "Flow",
       "Accounts",
+      "Goals",
       "Learn",
       "Reflection",
       "Labels",
@@ -74,7 +75,7 @@ describe("Preferences: the section list", () => {
     expect(pagesMatching("shortcuts")).toEqual(["keys"]);
     expect(pagesMatching("zzz")).toEqual([]);
     expect(pagesMatching("inbox")).toEqual(["flow"]);
-    expect(pagesMatching("flow")).toEqual(["flow", "accounts", "learn", "reflection"]);
+    expect(pagesMatching("flow")).toEqual(["flow", "accounts", "goals", "learn", "reflection"]);
     expect(pagesMatching("reflection")).toEqual(["reflection"]);
   });
 });

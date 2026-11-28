@@ -2,6 +2,7 @@ import type { AttentionItem } from "./model.ts";
 
 export const BLOCKED_POINTS = 100;
 export const NEW_POINTS = 10;
+export const GOAL_POINTS = 8;
 export const FOCUS_POINTS = 15;
 export const AGE_POINTS_PER_HOUR = 0.1;
 export const WAITING_POINTS_PER_HOUR = 0.1;
@@ -22,6 +23,7 @@ export function scoreOf(i: Unscored, now = Date.now(), focus = 0): number {
   return (
     (blocked ? BLOCKED_POINTS : 0) +
     (!blocked && i.unread ? NEW_POINTS : 0) +
+    (!blocked && i.unread && i.goal_title ? GOAL_POINTS : 0) +
     FOCUS_POINTS * focus +
     (blocked ? WAITING_POINTS_PER_HOUR : -AGE_POINTS_PER_HOUR) * hours
   );

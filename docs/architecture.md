@@ -249,6 +249,12 @@ every chat gets, the chats, then the mods.
    hidden-chat run but reads the agent's whole memory instead of chats, and runs only when asked; its commits are
    authored "Doctor". Their settings and cursors are kept by `daemon/passes-state.ts`, in `~/.loki/state/passes.json`
    and `pass-cursors.json`.
+   **Goals and Goal pulse (`daemon/goals-store.ts`, `daemon/goals.ts`, `daemon/goal-pulse.ts`).** `GoalsStore`
+   persists goals, weekly lead habits, WOOP fields, progress entries, and pulse settings in `~/.loki/state/goals.json`
+   (pure helpers and pace calculation live in `core/goals.ts`). `daemon/goals.ts` registers the `goals` prompt
+   section and built-in `goal_list`, `goal_create`, and `goal_update` tools so every agent sees active goals, and
+   Reflection feeds progress and `suggested` goals back after quiet chats. `GoalPulse` runs every five minutes
+   (skipping quiet hours and unanswered nudges) to kick off daily focus or weekly review chats in Flow.
 10. **The mod registry (`daemon/mods/`).** loki's mod API, version 1 (`daemon/mods/api.ts`): a mod registers tools and
     prompt sections, gets a say before a tool runs, transforms the person's message before it is sent, and listens to
     turn events. Each mod becomes one pi-durable extension shared by every agent's store, so one install reaches every
@@ -383,6 +389,10 @@ and build (`daemon`) and the usage ledger (`usage`). Built-in product code and t
    while it is idle clears it.
 6. **Learn.** The cards, leads and lessons on disk and the section's frames; the cards are written by the daemon's
    Learn pass, in a hidden chat of the agent's own, so no chat you read is touched.
+7. **Goals (`mod/frames/goals.ts`).** Handles the `goals_*` frames for listing, creating, updating, deleting,
+   recording progress, toggling weekly habits, changing Goal Pulse settings, running a pulse check-in now, and starting
+   discovery or goal work chats (`goal_title` carried into chat metadata for Flow priority boost). Broadcasts
+   `goals_changed` whenever `GoalsStore` mutates.
 7. **The sockets.** The WebSocket server on `127.0.0.1:41414` for the desktop window and a browser tab, and the LAN
    listener on `0.0.0.0:41415` for paired phones (off by default). `mod/sockets.ts` holds both, and every push
    names who it is for: everyone, this Mac's tabs, or the paired Macs only (plan 052).

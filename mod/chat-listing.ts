@@ -3,6 +3,7 @@ import type { ChatMeta, ChatSummary, FlowRow, LocalAgent, ReplyProposal } from "
 import { DEFAULT_MODE } from "../core/chat-links.ts";
 import { reasoningEffortFromSettings } from "../core/models.ts";
 import { isLearnTitle } from "../core/learn/model.ts";
+import { GOAL_CHECKIN_CHAT_TITLE } from "../core/goals.ts";
 import { backendDir, readLocalAgent } from "./agents.ts";
 import type { ChatSource } from "./chat-source.ts";
 import { agentHasMemory, hiddenScopes, type ChatRegistry, type LocalConversationRow } from "./chats.ts";
@@ -41,6 +42,7 @@ export class ChatListing {
     readAgent?: (agentId: string) => LocalAgent | null;
     outside?: () => FlowRow[];
     replies?: (agentId: string, conversationId: string) => ReplyProposal[];
+    goalForChat?: (agentId: string, conversationId: string) => string | null;
   };
 
   constructor(opts: ChatListing["opts"]) {
@@ -95,6 +97,7 @@ export class ChatListing {
       const info = chats.info(c.conversationId, c.agentId);
       if (isLearnTitle(info?.title)) continue;
       const replies = this.opts.replies?.(c.agentId, c.conversationId) ?? [];
+      const goalTitle = this.opts.goalForChat?.(c.agentId, c.conversationId) ?? (info?.title === GOAL_CHECKIN_CHAT_TITLE ? GOAL_CHECKIN_CHAT_TITLE : null);
       out.push({
         id: c.conversationId,
         agent_id: c.agentId,
@@ -107,6 +110,7 @@ export class ChatListing {
         has_draft: info?.hasDraft ?? false,
         draft_text: info?.draftText ?? null,
         cwd: info?.cwd ?? null,
+        ...(goalTitle ? { goal_title: goalTitle } : {}),
         ...(replies.length ? { reply_proposals: replies } : {}),
         ...chats.digest(c.conversationId, c.agentId),
       });

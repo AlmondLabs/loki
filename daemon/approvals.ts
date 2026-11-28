@@ -12,7 +12,19 @@ import { CODING_TOOL_KINDS, type ToolKind } from "./tool-kinds.ts";
 
 export type { ToolKind } from "./tool-kinds.ts";
 
-const NEVER_ASK = new Set(["plan", "user_ask", "chat_list", "suggestion_create", "chat_message", "reply_propose", "message_propose", "ticket_propose"]);
+const NEVER_ASK = new Set([
+  "plan",
+  "user_ask",
+  "chat_list",
+  "suggestion_create",
+  "chat_message",
+  "reply_propose",
+  "message_propose",
+  "ticket_propose",
+  "goal_list",
+  "goal_create",
+  "goal_update",
+]);
 
 export function kindOf(name: string, annotations?: { readOnly?: boolean; destructive?: boolean }): ToolKind {
   const coding = CODING_TOOL_KINDS[name];

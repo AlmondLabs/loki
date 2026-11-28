@@ -357,7 +357,7 @@ export const PHONE_APPEARANCE: ReadonlyArray<{ value: ThemePreference; label: st
   { value: "dark", label: "Dark" },
 ];
 
-export type MoreRowId = "mac" | "agents" | "learn" | "archive" | "preferences" | "usage" | "updates" | "about" | "connection";
+export type MoreRowId = "mac" | "agents" | "goals" | "learn" | "archive" | "preferences" | "usage" | "updates" | "about" | "connection";
 export interface MoreRow {
   id: MoreRowId;
   icon: IconName;
@@ -370,6 +370,7 @@ export function moreSections(s: {
   link: LinkState;
   agents: number;
   running: number;
+  goals?: number;
   due: number;
   archived: number;
   appearance: string;
@@ -387,6 +388,7 @@ export function moreSections(s: {
           aside: s.running ? `${s.running} running` : s.agents ? String(s.agents) : null,
           to: { kind: "tab", tab: "agents" },
         },
+        { id: "goals", icon: "target", label: "Goals", aside: s.goals ? `${s.goals} needing focus` : null, to: { kind: "goals" } },
         { id: "learn", icon: "learn", label: "Learn", aside: s.due ? `${s.due} due` : null, to: { kind: "learn" } },
         { id: "archive", icon: "archive", label: "Archived chats", aside: s.archived ? String(s.archived) : null, to: { kind: "archive" } },
         { id: "preferences", icon: "settings", label: "Preferences", aside: s.appearance, to: { kind: "preferences" } },

@@ -45,6 +45,7 @@ export interface PassInput {
   memoryRoot?: string;
   sharedMemoryRoot?: string;
   signals?: string | null;
+  goals?: string | null;
   parts: PassPart[];
   material: string;
   now: Date;
@@ -101,6 +102,7 @@ interface Deps {
   busy(agentId: string, chatId: string): Promise<boolean>;
   canRun?(model: string): Promise<boolean>;
   collectSignals?(agentId: string, since: string | null): string | null;
+  goalsSummary?(agentId: string): string | null;
   acp?: {
     engineFor(agentId: string): Promise<ChatEngine | null>;
     ask(agentId: string, engine: ChatEngine, spec: PassSpec & { timeoutMs: number }): Promise<PassAnswer>;
@@ -351,12 +353,14 @@ export class PassRunner {
       if (!parts.length) return gathered.busy ? "skipped" : finish("nothing");
       const sharedRoot = sharedMemoryRoot(this.deps.backendDir);
       const signals = job.name === "reflection" && this.deps.collectSignals ? this.deps.collectSignals(agentId, state.signalsAt(agentId)) : null;
+      const goals = job.name === "reflection" && this.deps.goalsSummary ? this.deps.goalsSummary(agentId) : null;
       const input: PassInput = {
         agentId,
         agentName,
         memoryRoot: memoryRoot(this.deps.backendDir, agentId),
         sharedMemoryRoot: sharedRoot,
         ...(signals ? { signals } : {}),
+        ...(goals ? { goals } : {}),
         parts,
         material: batchText(parts),
         now: started,

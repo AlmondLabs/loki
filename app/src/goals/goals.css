@@ -1,0 +1,104 @@
+.loki-goals-detail {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-width: 0;
+  background: var(--loki-bg);
+}
+
+.loki-goal-detail-column {
+  max-width: 760px;
+}
+
+.loki-goal-card {
+  background: var(--loki-panel);
+  border: 1px solid var(--loki-border);
+  border-radius: var(--radius-xl);
+  padding: 16px;
+}
+
+.loki-goal-body {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--loki-fg);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.loki-goal-habit-day {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--loki-control-border);
+  background: var(--loki-well);
+  color: var(--loki-muted);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    transform 120ms ease,
+    background-color 120ms ease,
+    color 120ms ease;
+}
+
+.loki-goal-habit-day[data-today="true"] {
+  border-color: var(--loki-accent);
+}
+
+.loki-goal-habit-day[data-done="true"] {
+  background: var(--loki-positive);
+  border-color: var(--loki-positive);
+  color: var(--loki-on-affirm);
+}
+
+.loki-goal-subrow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--loki-border);
+  background: var(--loki-well);
+  color: var(--loki-fg);
+  font-size: var(--text-sm);
+  cursor: pointer;
+  text-align: left;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .loki-goal-subrow:hover {
+    background: var(--loki-hover);
+  }
+}
+
+.loki-goal-timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.loki-goal-entry {
+  display: grid;
+  gap: 2px;
+  padding: 8px 0;
+  border-top: 1px solid var(--loki-border);
+}
+
+.loki-goal-entry:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+
+.loki-goal-entry-note {
+  font-size: var(--text-sm);
+  color: var(--loki-fg);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}

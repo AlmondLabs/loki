@@ -3,6 +3,7 @@ import { agentsFrames } from "./agents.ts";
 import { chatFrames } from "./chat.ts";
 import { chatsFrames } from "./chats.ts";
 import { foldersFrames } from "./folders.ts";
+import { goalsFrames } from "./goals.ts";
 import { lanFrames } from "./lan.ts";
 import { peersFrames } from "./peers.ts";
 import { learnFrames } from "./learn.ts";
@@ -35,6 +36,7 @@ export const FRAMES = {
   ...seenFrames,
   ...foldersFrames,
   ...learnFrames,
+  ...goalsFrames,
   ...agentsFrames,
   ...lanFrames,
   ...peersFrames,

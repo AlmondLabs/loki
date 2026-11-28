@@ -7,6 +7,7 @@ import type { FocusEntry } from "../attention/focus.ts";
 import type { Lane } from "../attention/lanes.ts";
 import type { Rest, ReturnTimes } from "../attention/rest.ts";
 import type { CardWithSchedule, LearnReply } from "../learn/model.ts";
+import type { GoalsSnapshot } from "../goals.ts";
 import type { ConnectProvider, PassSettings } from "../attention/protocol.ts";
 import type { ToolStep, TranscriptRow } from "../attention/transcript.ts";
 import type { LabelView } from "../labels.ts";
@@ -127,6 +128,9 @@ export interface Replies {
   folder_status: FolderCheck;
   folder_picked: { path: string | null };
   learn: LearnReply;
+  goals: GoalsSnapshot;
+  goals_pulse: { note: string; agent_id: string | null; conversation_id: string | null };
+  goals_chat: { agent_id: string; conversation_id: string; created: boolean; brief: string | null };
   usage: UsageReply;
   learn_card: { card: CardWithSchedule | null };
   learn_ran: { note: string };
@@ -302,6 +306,7 @@ export interface Pushes {
   /** Each agent's usual models (mod/usual-models.ts), most used first: a new chat starts on the first, the switcher leads with them. */
   models_usual: { usual: Record<string, Array<{ handle: string; reasoning_effort: ReasoningEffort | null; uses: number }>> };
   learn_changed: NoPayload;
+  goals_changed: NoPayload;
   usage_changed: NoPayload;
   /** An agent was created, renamed or deleted, or agents were imported: every client asks for its lists again. */
   agents_changed: NoPayload;

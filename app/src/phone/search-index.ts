@@ -60,6 +60,13 @@ export const DESTINATIONS: readonly Destination[] = [
   },
   { route: { kind: "tab", tab: "agents" }, icon: "agents", label: "Agents", line: "Every agent on the Mac", keywords: ["dms", "people"] },
   { route: { kind: "tab", tab: "more" }, icon: "more", label: "More", line: "This phone and the paired Mac", keywords: ["you", "profile"] },
+  {
+    route: { kind: "goals" },
+    icon: "target",
+    label: "Goals",
+    line: "Short, medium, and long term goals",
+    keywords: ["goals", "targets", "milestones", "habits"],
+  },
   { route: { kind: "learn" }, icon: "learn", label: "Learn", line: "What your agents learned, to review", keywords: ["recall", "cards", "lessons", "review"] },
   {
     route: { kind: "learn", view: "leads" },

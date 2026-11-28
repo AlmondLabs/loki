@@ -13,6 +13,7 @@ export function More({
   link,
   agents,
   running,
+  goals = 0,
   due,
   archived,
   servedBuild,
@@ -22,6 +23,7 @@ export function More({
   link: LinkState;
   agents: number;
   running: number;
+  goals?: number;
   due: number;
   archived: number;
   servedBuild: string | null;
@@ -31,7 +33,7 @@ export function More({
   const [reload, setReload] = useState(false);
   const update = updateState(servedBuild, currentBuild());
   const appearance = PHONE_APPEARANCE.find((a) => a.value === theme.preference)?.label ?? "System";
-  const sections = moreSections({ link, agents, running, due, archived, appearance, update });
+  const sections = moreSections({ link, agents, running, goals, due, archived, appearance, update });
   return (
     <div className="loki-phone-page">
       <TopBar title="More" banner={banner} />

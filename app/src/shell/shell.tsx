@@ -14,6 +14,8 @@ import { chatKeyTarget } from "../workspace/pane";
 import { useWorkspace } from "../workspace/use-workspace";
 import { avatarUrl, inDesktop } from "../workspace/env";
 import { agentSources } from "../agents/agents-column";
+import { goalSources } from "../goals/goals-column";
+import type { GoalsView } from "../goals/views";
 import { learnSources } from "../learn/learn-column";
 import { useLearnView } from "../learn/use-learn-view";
 import { flowSources } from "../workspace/flow-column";
@@ -33,7 +35,8 @@ import {
 } from "./sidebar";
 import { commandsFor, runAction, type Segment } from "./keymap";
 import { useModelList } from "./use-model-list";
-import { hideCurrentWindow, useTray, useWindowTitle } from "./use-window-chrome";
+import { useWindowTitle, useTray, hideCurrentWindow } from "./use-window-chrome";
+import { useGoals } from "./use-goals";
 import { useLearn } from "./use-learn";
 import { TitleMenu } from "./title-menu";
 import { updateItemLabel, useLokiUpdate } from "./use-loki-update";
@@ -61,7 +64,7 @@ import {
 } from "./sidebar-model";
 import { AgentFace } from "../workspace/agent-chip";
 import type { FlowKind } from "../workspace/flow-kinds";
-import { AgentsView, FlowView, SettingsView, WelcomeView, LearnPane } from "./views";
+import { AgentsView, FlowView, GoalsPane, SettingsView, WelcomeView, LearnPane } from "./views";
 import { SearchSheet } from "./search-sheet";
 import { takeCommandCenter, useSharedModels, type CommandScope } from "./command-center";
 import { chatPlace, recentPlaces, sectionPlace, type SearchHit } from "./search-model";
@@ -79,7 +82,7 @@ const SEGMENT_KEY = "loki.segment";
 
 function savedSegment(): Segment {
   const s = sessionStorage.getItem(SEGMENT_KEY);
-  return s === "flow" || s === "agents" || s === "learn" ? s : "chats";
+  return s === "flow" || s === "goals" || s === "agents" || s === "learn" ? s : "chats";
 }
 
 export function Shell() {
@@ -195,6 +198,10 @@ export function Shell() {
   };
 
   const recall = useLearn(desk, segment, notice);
+  const goals = useGoals(desk, segment, notice);
+  const [goalsView, setGoalsView] = useState<GoalsView>("active");
+  const [selectedGoalId, setSelectedGoalId] = useState<string | null>(null);
+  const [newGoalOpen, setNewGoalOpen] = useState(false);
   const update = useLokiUpdate();
   const shortcut = useGlobalShortcut();
   const [keysOpen, setKeysOpen] = useState(false);
@@ -315,6 +322,25 @@ export function Shell() {
         />
       );
       break;
+    case "goals":
+      placeOwner = (
+        <GoalsPane
+          goals={goals}
+          view={goalsView}
+          onView={setGoalsView}
+          selectedId={selectedGoalId}
+          onSelect={setSelectedGoalId}
+          agents={agentList}
+          editingNew={newGoalOpen}
+          onCloseNew={() => setNewGoalOpen(false)}
+          onOpenNew={() => setNewGoalOpen(true)}
+          onOpenChat={(agentId, conversationId, brief) => {
+            openChat(agentId, conversationId, { chat: true });
+            if (brief) catchUp.send({ agent_id: agentId, conversation_id: conversationId }, brief, [], { origin: "goals" });
+          }}
+        />
+      );
+      break;
     case "learn":
       placeOwner = <LearnPane recall={recall} active={!searchOpen} onOpenChat={openChat} onBegin={beginLesson} />;
       break;
@@ -383,6 +409,23 @@ export function Shell() {
     setPrefsOpen(false);
     setSegment("learn");
     learnPlaces.onSelect(id);
+  };
+  const goalPlaces = goalSources({
+    goals: goals.snap?.goals ?? [],
+    view: goalsView,
+    onView: setGoalsView,
+    onNewGoal: () => {
+      column.dismiss();
+      setPrefsOpen(false);
+      setSegment("goals");
+      setNewGoalOpen(true);
+    },
+  });
+  const chooseGoalView = (id: string) => {
+    column.dismiss();
+    setPrefsOpen(false);
+    setSegment("goals");
+    goalPlaces.onSelect(id);
   };
   const chooseChatState = (state: ChatState) => {
     setChatState(state);
@@ -458,6 +501,7 @@ export function Shell() {
     {
       "segment.chats": () => segmentKey("segment.chats"),
       "segment.flow": () => segmentKey("segment.flow"),
+      "segment.goals": () => segmentKey("segment.goals"),
       "segment.learn": () => segmentKey("segment.learn"),
       "segment.agents": () => segmentKey("segment.agents"),
       "segment.settings": () => segmentKey("segment.settings"),
@@ -491,8 +535,8 @@ export function Shell() {
   );
 
   const searchSources = useMemo(
-    () => ({ desks: desk.desks.list, agents: catchUp.agents, items: catchUp.items, labels: catchUp.labels.list }),
-    [desk.desks.list, catchUp.agents, catchUp.items, catchUp.labels.list],
+    () => ({ desks: desk.desks.list, agents: catchUp.agents, items: catchUp.items, labels: catchUp.labels.list, goals: goals.snap?.goals ?? null }),
+    [desk.desks.list, catchUp.agents, catchUp.items, catchUp.labels.list, goals.snap?.goals],
   );
   const openHit = ({ target: t }: SearchHit) => {
     setSearchOpen(false);
@@ -500,6 +544,11 @@ export function Shell() {
     setPrefsOpen(false);
     if (t.kind === "label") return showLabel(t.name);
     if (t.kind === "desk") return openChat(t.agentId, t.conversationId);
+    if (t.kind === "goal") {
+      setGoalsView("active");
+      setSelectedGoalId(t.goalId);
+      return setSegment("goals");
+    }
     if (t.kind === "agent") {
       agentsSelection.pickAgent(t.agentId);
       return setSegment("agents");
@@ -557,6 +606,7 @@ export function Shell() {
               }}
               waiting={waiting}
               dueCards={recall.due}
+              goalsAttention={goals.attentionCount}
               sources={{
                 chats: {
                   items: [
@@ -569,6 +619,7 @@ export function Shell() {
                   onSelect: chooseSource,
                 },
                 flow: { ...lanes, onSelect: chooseLane },
+                goals: { ...goalPlaces, onSelect: chooseGoalView },
                 agents: { ...agentPlaces, onSelect: chooseAgent },
                 learn: { ...learnPlaces, onSelect: chooseView },
               }}
@@ -717,6 +768,7 @@ export function Shell() {
           onClose={() => setPrefsOpen(false)}
           update={update}
           shortcut={shortcut}
+          goals={goals}
           recall={recall}
           desk={desk}
           catchUp={catchUp}

@@ -45,6 +45,7 @@ export interface ConversationInfo {
   draft_text?: string | null;
   cwd?: string | null;
   reply_proposals?: ReplyProposal[];
+  goal_title?: string | null;
   kind?: "outside";
   outside?: OutsideFacts;
   home?: string;

@@ -5,7 +5,7 @@ import type { OutsideChange, ReplyProposal, Suggestion } from "../frame-types.ts
 import type { SlashCommand } from "./commands.ts";
 import type { FileRef, ToolStep } from "./transcript.ts";
 
-export type SendOrigin = "chats" | "flow" | "lesson";
+export type SendOrigin = "chats" | "flow" | "goals" | "lesson";
 
 export type ArchiveOrigin = "flow" | "flow_undo" | "sidebar" | "chat_header" | "phone_list" | "phone_chat";
 

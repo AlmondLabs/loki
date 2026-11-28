@@ -124,6 +124,8 @@ export interface FlowRow extends LocalDigest, ChatHome {
   cwd?: string | null;
   /** The replies its agent proposed that wait on the person or are being drafted (plan 067, KTD9): the card is blocked. */
   reply_proposals?: ReplyProposal[];
+  /** Active goal title when this chat belongs to a tracked goal or Goal Check-ins. */
+  goal_title?: string | null;
   /**
    * An outside card (plan 067, KTD1): a Gmail or Slack thread or a Jira ticket, not a chat. Its `agent_id` is `account:<account_id>` and
    * its `id` is `<thread_id>#<generation>`, so moving the account's owner keeps the card's marks, and the card after a

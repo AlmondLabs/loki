@@ -133,7 +133,7 @@ export function WindowControls({ maximized, onAction }: { maximized: boolean; on
   );
 }
 
-const PLACE_ICON: Record<Segment, IconName> = { chats: "desk", flow: "inbox", agents: "agents", learn: "learn", settings: "settings" };
+const PLACE_ICON: Record<Segment, IconName> = { chats: "desk", flow: "inbox", goals: "target", agents: "agents", learn: "learn", settings: "settings" };
 
 export interface PlaceSource {
   id: string;
@@ -161,12 +161,14 @@ export function Places({
   onSelect,
   waiting,
   dueCards = 0,
+  goalsAttention = 0,
   sources = {},
 }: {
   segment: Segment;
   onSelect: (s: Segment) => void;
   waiting: number;
   dueCards?: number;
+  goalsAttention?: number;
   sources?: Partial<Record<Segment, PlaceSources>>;
 }) {
   const [folds, setFolds] = useState(savedFolds);
@@ -179,8 +181,8 @@ export function Places({
   return (
     <div className="loki-places">
       {SEGMENTS.filter((s) => s.id !== "settings").map((s) => {
-        const count = s.id === "flow" ? waiting : s.id === "learn" ? dueCards : 0;
-        const said = s.id === "flow" ? `${count} waiting` : `${count} due`;
+        const count = s.id === "flow" ? waiting : s.id === "learn" ? dueCards : s.id === "goals" ? goalsAttention : 0;
+        const said = s.id === "flow" ? `${count} waiting` : s.id === "goals" ? `${count} needing focus` : `${count} due`;
         const own = sources[s.id];
         const here = segment === s.id;
         if (!own)

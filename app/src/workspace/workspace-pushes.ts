@@ -25,6 +25,7 @@ export interface DeskSocketState {
   returnTimes: ReturnTimes | null | undefined;
   lanes: Lane[] | null;
   learnVersion: number;
+  goalsVersion: number;
   usageVersion: number;
   lanStatus: PhoneLanStatus | null;
   devices: PairedDevice[] | null;
@@ -54,6 +55,7 @@ export const EMPTY_DESK_SOCKET: DeskSocketState = {
   returnTimes: undefined,
   lanes: null,
   learnVersion: 0,
+  goalsVersion: 0,
   usageVersion: 0,
   lanStatus: null,
   devices: null,
@@ -69,6 +71,7 @@ export const EMPTY_DESK_SOCKET: DeskSocketState = {
 export const STATE_PUSHES: ReadonlySet<PushFrame["type"]> = new Set<PushFrame["type"]>([
   "chats",
   "learn_changed",
+  "goals_changed",
   "usage_changed",
   "lan_status",
   "pair_code",
@@ -98,6 +101,8 @@ export function applyPush(state: DeskSocketState, msg: PushFrame, ctx: PushConte
       return withParts(state, { deskList: keepSame(state.deskList, msg.chats), desksLoaded: true });
     case "learn_changed":
       return withParts(state, { learnVersion: state.learnVersion + 1 });
+    case "goals_changed":
+      return withParts(state, { goalsVersion: state.goalsVersion + 1 });
     case "usage_changed":
       return withParts(state, { usageVersion: state.usageVersion + 1 });
     case "lan_status": {

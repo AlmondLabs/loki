@@ -163,6 +163,10 @@ apart; a card with nothing new rests longer each read in a row (its **rung**), a
 only. A later rest is the Later below. Anything new in the thread ends either. A rest is kept on the daemon
 (`rests` in `state/attention.json`) with its kind, `read` or `later`, so every device shares it. _Avoid_: snooze.
 
+**Goal**: an aim you set for the **short**, **medium**, or **long** term that loki shares with every agent and keeps up to date from your real work. Active short-term goals hold at three at a time; medium and long goals connect them to a longer direction, with optional weekly lead habits and an implementation plan (**WOOP** — wish, outcome, obstacle, plan). _Avoid_: objective, OKR, KPI, target.
+
+**Goal pulse**: the periodic check-in that watches goal pace against deadlines and weekly habits, avoids repeating unanswered nudges, respects quiet hours, and opens a short card in **Flow** for a daily focus or weekly review when needed. _Avoid_: nag, alert, reminder.
+
 **Later** (⌘[ or ←; a left swipe on the phone; plan 070): a rest that keeps the card unread, in loki and in Gmail, and
 brings it back after the card kind's later time (a day unless Preferences › Flow says otherwise, for chats, email,
 Slack and Jira apart), or sooner if something new comes. From the second later in a row on the same card, loki asks when it should come back; the count starts over

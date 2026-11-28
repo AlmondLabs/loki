@@ -1,15 +1,25 @@
 import { memoryRoot, memorySection, sharedMemoryRoot } from "../memory.ts";
+import { goalsSection } from "../goals.ts";
+import type { GoalsStore } from "../goals-store.ts";
 import { briefDescription } from "../../mod/skills.ts";
 import { sections } from "../section-cache.ts";
 import { skillsOf } from "../skills.ts";
 import { REPLIES_PROMPT } from "../replies.ts";
 import { LOKI_TOOLS_SERVER } from "./loki-tools.ts";
 
-export function agentPrompt(backendDir: string, agentId: string, name: string | null, withTools: boolean, globalSkillsDir?: string): string {
+export function agentPrompt(
+  backendDir: string,
+  agentId: string,
+  name: string | null,
+  withTools: boolean,
+  globalSkillsDir?: string,
+  goals?: GoalsStore,
+): string {
   const root = memoryRoot(backendDir, agentId);
   const sharedRoot = sharedMemoryRoot(backendDir);
   const how = withTools ? "tools" : "files";
   const memory = sections.get(`memory\u0000${root}\u0000${sharedRoot}\u0000${how}`, () => memorySection(root, how, sharedRoot));
+  const goalsText = goals ? sections.get(`goals\u0000${agentId}`, () => goalsSection(goals, agentId)) : undefined;
   const skills = skillsOf(backendDir, agentId, globalSkillsDir);
   const who = `You are ${name ?? "one of the person's agents"}, an agent of theirs in loki, working here through this harness. What follows is yours from loki.`;
   const skillText = skills.length
@@ -22,9 +32,16 @@ export function agentPrompt(backendDir: string, agentId: string, name: string | 
       )
     : null;
   const tools = withTools
-    ? `loki's tools reach you as the "${LOKI_TOOLS_SERVER}" MCP server (mcp__${LOKI_TOOLS_SERVER}__memory_read and the rest). Change your memory only with its memory tools, never by editing the files, so each change is committed as yours. When a piece of work would be done better in another chat, suggest it there with mcp__${LOKI_TOOLS_SERVER}__suggestion_create; its description says when. Every turn of this chat is kept, including what your own compaction or a lost session dropped: find earlier turns with a script (mcp__${LOKI_TOOLS_SERVER}__script calling history_search, then history_read) before you guess. Scripts also list and change your schedules, and list the person's chats.`
+    ? `loki's tools reach you as the "${LOKI_TOOLS_SERVER}" MCP server (mcp__${LOKI_TOOLS_SERVER}__memory_read and the rest). Change your memory only with its memory tools, never by editing the files, so each change is committed as yours. Keep goals current with mcp__${LOKI_TOOLS_SERVER}__goal_list, goal_create, and goal_update. When a piece of work would be done better in another chat, suggest it there with mcp__${LOKI_TOOLS_SERVER}__suggestion_create; its description says when. Every turn of this chat is kept, including what your own compaction or a lost session dropped: find earlier turns with a script (mcp__${LOKI_TOOLS_SERVER}__script calling history_search, then history_read) before you guess. Scripts also list and change your schedules, and list the person's chats.`
     : null;
-  return [who, tools, REPLIES_PROMPT, memory ? `<memory>\n${memory}\n</memory>` : null, skillText ? `<skills>\n${skillText}\n</skills>` : null]
+  return [
+    who,
+    tools,
+    REPLIES_PROMPT,
+    goalsText ? `<goals>\n${goalsText}\n</goals>` : null,
+    memory ? `<memory>\n${memory}\n</memory>` : null,
+    skillText ? `<skills>\n${skillText}\n</skills>` : null,
+  ]
     .filter(Boolean)
     .join("\n\n");
 }

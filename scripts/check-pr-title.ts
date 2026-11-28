@@ -10,6 +10,7 @@ export const SCOPES = [
   "phone",
   "canvas",
   "flow",
+  "goals",
   "agents",
   "settings",
   "peers",

@@ -10,7 +10,10 @@ import { lastInput } from "../kit/motion";
 import type { FlowKind } from "../workspace/flow-kinds";
 const FlowPlace = lazy(() => import("../workspace/catch-up").then((m) => ({ default: m.FlowPlace })));
 const Agents = lazy(() => import("../agents/agents").then((m) => ({ default: m.Agents })));
+const Goals = lazy(() => import("../goals/goals").then((m) => ({ default: m.Goals })));
 const Learn = lazy(() => import("../learn/learn").then((m) => ({ default: m.Learn })));
+import type { GoalsView } from "../goals/views";
+import type { GoalsModel } from "./use-goals";
 import type { Learn as LearnModel } from "./use-learn";
 import { avatarUrl } from "../workspace/env";
 import type { ModelEntry } from "../chat/model-picker";
@@ -27,6 +30,47 @@ import type { SettingsProps } from "../settings/settings";
 type OpenChat = (agentId: string, conversationId: string, opts?: { chat?: boolean }) => void;
 type PickModel = (scope: string, rt: Runtime, selection: ModelSelection) => Promise<void>;
 type PickMode = (scope: string, rt: Runtime, mode: string) => Promise<void>;
+
+export function GoalsPane({
+  goals,
+  view,
+  onView,
+  selectedId,
+  onSelect,
+  agents,
+  editingNew,
+  onCloseNew,
+  onOpenNew,
+  onOpenChat,
+}: {
+  goals: GoalsModel;
+  view: GoalsView;
+  onView: (view: GoalsView) => void;
+  selectedId: string | null;
+  onSelect: (id: string | null) => void;
+  agents: ReadonlyArray<{ id: string; name: string }>;
+  editingNew: boolean;
+  onCloseNew: () => void;
+  onOpenNew: () => void;
+  onOpenChat: (agentId: string, conversationId: string, brief?: string | null) => void;
+}) {
+  return (
+    <Suspense fallback={null}>
+      <Goals
+        goals={goals}
+        view={view}
+        onView={onView}
+        selectedId={selectedId}
+        onSelect={onSelect}
+        agents={agents}
+        editingNew={editingNew}
+        onCloseNew={onCloseNew}
+        onOpenNew={onOpenNew}
+        onOpenChat={onOpenChat}
+      />
+    </Suspense>
+  );
+}
 
 export function LearnPane({
   recall,
@@ -197,6 +241,7 @@ const Preferences = lazy(() => import("../settings/settings").then((m) => ({ def
 export interface PreferencesSources {
   update: LokiUpdate;
   shortcut: GlobalShortcut;
+  goals?: GoalsModel;
   recall: LearnModel;
   desk: Workspace;
   catchUp: CatchUp;
@@ -211,6 +256,7 @@ export function preferencesProps({
   onModelsChanged,
   update,
   shortcut,
+  goals,
   recall,
 }: PreferencesSources): Omit<SettingsProps, "onClose" | "windowed"> {
   return {
@@ -242,6 +288,7 @@ export function preferencesProps({
     update,
     working: chatWorking(catchUp.items),
     shortcut,
+    goals,
     recall,
     reflect: catchUp.reflection,
     usage: { ...desk.usage, agents: catchUp.agents },
