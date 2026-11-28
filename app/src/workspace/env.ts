@@ -97,6 +97,13 @@ export function openExternal(href: string): void {
   else window.open(href, "_blank", "noopener,noreferrer");
 }
 
+const BENIGN_WINDOW_ERROR = /^ResizeObserver loop (?:completed with undelivered notifications\.|limit exceeded)$/;
+
+/** Chromium fires a benign ResizeObserver loop error when an observer defers layout work past the current paint. */
+export function isBenignWindowError(message: string): boolean {
+  return BENIGN_WINDOW_ERROR.test(message);
+}
+
 export function installShellLogging(): void {
   if (!inDesktop) return;
   const mirror =
@@ -120,7 +127,10 @@ export function installShellLogging(): void {
         message: `csp: ${e.violatedDirective} blocked ${e.blockedURI || "inline"} at ${e.sourceFile || location.pathname}:${e.lineNumber}`,
       }).catch(() => {}),
   );
-  window.addEventListener("error", (e) => void invoke("client_log", { level: "error", message: `uncaught: ${e.message}` }).catch(() => {}));
+  window.addEventListener("error", (e) => {
+    if (isBenignWindowError(e.message)) return;
+    void invoke("client_log", { level: "error", message: `uncaught: ${e.message}` }).catch(() => {});
+  });
   window.addEventListener(
     "unhandledrejection",
     (e) => void invoke("client_log", { level: "error", message: `unhandled rejection: ${String(e.reason)}` }).catch(() => {}),

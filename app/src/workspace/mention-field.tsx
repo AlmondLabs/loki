@@ -57,10 +57,21 @@ export function MentionMarks({ text, mentions, field }: { text: string; mentions
       marks.scrollTop = box.scrollTop;
     };
     box.addEventListener("scroll", follow);
-    const resized = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(fit);
+    let frame = 0;
+    const resized =
+      typeof ResizeObserver === "undefined"
+        ? null
+        : new ResizeObserver(() => {
+            if (frame) return;
+            frame = requestAnimationFrame(() => {
+              frame = 0;
+              fit();
+            });
+          });
     resized?.observe(box);
     return () => {
       box.removeEventListener("scroll", follow);
+      if (frame) cancelAnimationFrame(frame);
       resized?.disconnect();
     };
   }, [field, text, shown]);
