@@ -3,6 +3,7 @@ import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync, mkdirSync }
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ensureToken, homeFrom, lokiGlobals, newToken, pageOs, settingsPage } from "../desktop/env.ts";
+import { isBenignWindowError } from "../app/src/workspace/env.ts";
 
 const made: string[] = [];
 const temp = () => {
@@ -74,5 +75,13 @@ describe("home and the page's globals", () => {
     expect(settingsPage("A")).toBeNull();
     expect(settingsPage("a".repeat(33))).toBeNull();
     expect(settingsPage(7)).toBeNull();
+  });
+});
+
+describe("benign browser window errors", () => {
+  test("ignores Chromium ResizeObserver loop notifications while keeping real errors", () => {
+    expect(isBenignWindowError("ResizeObserver loop completed with undelivered notifications.")).toBe(true);
+    expect(isBenignWindowError("ResizeObserver loop limit exceeded")).toBe(true);
+    expect(isBenignWindowError("TypeError: Cannot read properties of undefined")).toBe(false);
   });
 });

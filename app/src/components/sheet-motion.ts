@@ -76,9 +76,19 @@ export function useSheetMotion(
       swallowing = null;
     };
 
+    let fitFrame = 0;
     const fit = () => card.toggleAttribute("data-fits", card.scrollHeight <= card.clientHeight + 1);
     fit();
-    const ro = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(fit);
+    const ro =
+      typeof ResizeObserver === "undefined"
+        ? null
+        : new ResizeObserver(() => {
+            if (fitFrame) return;
+            fitFrame = requestAnimationFrame(() => {
+              fitFrame = 0;
+              fit();
+            });
+          });
     ro?.observe(card);
 
     let drag: { id: number; x: number; y: number; on: boolean; base: number; samples: Sample[] } | null = null;
@@ -158,6 +168,7 @@ export function useSheetMotion(
     card.addEventListener("pointercancel", up);
     return () => {
       stopSwallowing();
+      if (fitFrame) cancelAnimationFrame(fitFrame);
       ro?.disconnect();
       card.removeEventListener("pointerdown", down);
       card.removeEventListener("pointermove", move);
